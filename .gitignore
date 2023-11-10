@@ -1,0 +1,7 @@
+_testing.py
+creds.json
+tf_perms.py
+*.egg
+*.pyx
+jamfapi.egg-info
+__pycache__

@@ -1,5 +1,0 @@
-setup.py
-jamfapi.egg-info/PKG-INFO
-jamfapi.egg-info/SOURCES.txt
-jamfapi.egg-info/dependency_links.txt
-jamfapi.egg-info/top_level.txt

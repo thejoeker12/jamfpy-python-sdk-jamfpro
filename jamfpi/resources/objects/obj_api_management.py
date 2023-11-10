@@ -1,7 +1,6 @@
 
 import requests
 from ...client.exceptions import JamfAPIError
-from ...client.api import API
 
 class APIIntegration:
     def __init__(
@@ -33,7 +32,7 @@ class APIIntegration:
 class APIRole:
     def __init__(
             self,
-            api: API,
+            api,
             displayName: str,
             id: int,
             privileges: list,
