@@ -50,7 +50,6 @@ class APIRole:
         suffix = f"/api-roles/{self.id}"
         url = self.api.url("1") + suffix
         headers = self.api.header("put")
-        print(headers)
         payload = {
             "displayName": self.displayName,
             "privileges": perms or []
