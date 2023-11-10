@@ -5,3 +5,4 @@ tf_perms.py
 *.pyx
 jamfapi.egg-info
 __pycache__
+.DS_Store
