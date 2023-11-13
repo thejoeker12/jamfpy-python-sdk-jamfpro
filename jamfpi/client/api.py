@@ -2,31 +2,32 @@
 Jamf API Client Main
 """
 
+# pylint: disable=relative-beyond-top-level
+
 # Libraries
 from typing import Any
 import requests
 
 # This lib
-from .auth import OAuth
+from .auth import OAuth, BearerToken
 from .exceptions import ConfigError
 
 # Endpoints
 from ..resources.classic.clc_computers import ClassicComputers
 from ..resources.pro.pro_api_management import (
-    # APIIntegration,
     APIRolePrivileges,
     APIIntegrations,
     APIRoles
 )
-from .default_logging import default_logger
+from .logger import get_logger
 
-# Objects
-# None yet
 
 class API:
     """Parent class for Jamf API"""
+
     _headers_dict = {}
-    token = None
+    _is_closed = False
+    _short_name = None
 
     def __init__(
             self,
@@ -35,131 +36,101 @@ class API:
     ) -> None:
 
         # Private
-        self._config: dict = config["config_file"]
-        self._bearer_token: str = config["bearer_token"]
-        self._session: requests.Session = config["session"]
-        self._logger_config: dict = config["logging"]
         self._version: str = version
-        self._debug_params = config["debug_params"]
+        self._libconfig: dict = config["libconfig"]
+        self._logger_config: dict = config["logging"]
+        self._auth_method: str = config["auth_method"]
+        self._session: requests.Session = config["session"]
 
         # Public
         self.tenant: str = config["tenant"]
-        self.oauth: OAuth = config["oauth"]
+        self.auth: OAuth or BearerToken = config["auth"]
 
-
-        # Init methods
+        # Init Methods - Logging
         self._init_logging()
-        self.logger.debug("%s init starting...", self.tenant)
+        self.logger.debug("API initialising...")
 
-        self._init_debug(config)
+        # Init Methods
         self._init_baseurl()
         self._init_headers()
-        self._init_auth()
         self._refresh_session_headers()
 
-        # Logging
         self.logger.debug("%s API for %s init complete", self._version, self.tenant)
 
 
-    # Private Methods
+    # Private Methods - Init
 
-    def _init_logging(self):
+    def _init_logging(self) -> None:
         """Sets three character API version identifier for consistent logging"""
-        chr_map = {
-            "classic": "clc",
-            "pro": "pro",
-            "custom": "ctm"
-        }
-        try:
-            self._vers_3chr = chr_map[self._version]
-        except ValueError as e:
-            raise ValueError("Invalid version mapping in Logger") from e
 
-        self.logger = default_logger(
-            logger_name=f"{self.tenant}-{self._vers_3chr}",
-            logging_level=self._logger_config["logging_level"],
-            logging_format=self._logger_config["logging_format"]
+        self.logger = self._logger_config["custom_logger"] or get_logger(
+            name=f"{self.tenant}-{self._short_name}-0",
+            config=self._logger_config
         )
 
-
-    def _init_debug(self, config):
-        """Parses debug params"""
-        if "debug_params" in config:
-            if config["debug_params"] is not None:
-                self.logger.debug("Debug modes enabled: %s", self._debug_params)
-                self._debug = True
-                self._debug_params = config["debug_params"]
-                self.logger.warning("Debug mode enabled")
-        else:
-            self._debug = False
-            self._debug_params = []
-
-        self.logger.debug("_init_debug complete")
+        self.logger.debug("Logger successfully initiated")
 
 
-    def _init_baseurl(self):
+    def _init_baseurl(self) -> None:
         """Sets base URL"""
-        template: str = self._config["urls"]["base"].format(tenant=self.tenant)
-        endpoint: str = self._config["urls"]["api"][self._version]
+
+        self.logger.debug("_init_baseurl starting")
+
+        template: str = self._libconfig["urls"]["base"].format(tenant=self.tenant)
+        endpoint: str = self._libconfig["urls"]["api"][self._version]
         self.base_url = template + endpoint
+
         self.logger.debug("_init_baseurl complete")
 
 
-    def _init_auth(self):
-        """Auth Init"""
-        if self._bearer_token:
-            self._auth_method = "bearer"
-            self.token = self._bearer_token
-
-        elif self.oauth:
-            self._auth_method = "oauth"
-            self._refresh_token()
-
-        else:
-            raise ConfigError("Invalid Auth Method supplied")
-
-        self.logger.debug("_init_auth complete")
-
-
-    def _init_headers(self):
+    def _init_headers(self) -> None:
         """Inits headers"""
-        self._headers = self._config["headers"][self._version]
+
+        self.logger.debug("_init_headers starting")
+
+        self._headers = self._libconfig["headers"][self._version]
+
         self.logger.debug("_init_headers complete")
 
 
-    def _refresh_token(self):
-        """Sets api token"""
-        token_data = self.oauth.token()
-        self.token = token_data["token"]
+    # Private Methods - Normal
 
+    def _refresh_session_headers(self) -> None:
+        """Clears all session headers and replaces with new Auth header"""
 
-    def _invalidate_bearer_token(self):
-        self.logger.warning("Invalidating bearer token")
-        base = self._config["urls"]["base"].format(tenant=self.tenant)
-        url = base + self._config["urls"]["invalidate_token"]
-        headers = {"accept": "application/json"}
-        req = requests.Request("POST", url=url, headers=headers)
-        call = self.do(req)
-        if call.ok:
-            self.logger.warning("Bearer token invalidated successfully")
+        self._check_if_closed()
 
-        return call
+        self.logger.debug("Refreshing session headers (Clear + Re-set)")
 
-
-    def _refresh_session_headers(self):
-        """Updates session headers with new auth token"""
         self._session.headers.clear()
-        self._session.headers.update({"Authorization": f"Bearer {self.token}"})
-        self.logger.debug("session headers refreshed")
+        self._session.headers.update({"Authorization": f"Bearer {self.auth.token()}"})
+
+        self.logger.debug("Session headers refreshed successfully")
+
+
+    def _check_if_closed(self) -> None:
+        if self._is_closed:
+            self.logger.error("API CLOSED")
+            raise RuntimeError(str(self) + " is closed")
 
 
     # Public Methods
 
-    def stop(self):
-        """Do stuff that stops"""
 
-    def url(self, target):
+    def close(self) -> None:
+        """Invalidates tokens and deletes self"""
+
+        self.logger.info(f"Closing {str(self)}")
+
+        self.auth.invalidate()
+        self._is_closed = True
+
+        self.logger.info(f"{str(self), self} closed")
+
+
+    def url(self, target) -> None:
         """Returns urls"""
+        self._check_if_closed()
         if self._version == "classic":
             return self.base_url
 
@@ -171,6 +142,7 @@ class API:
 
     def header(self, key: str) -> dict:
         """Returns given set of headers from config"""
+        self._check_if_closed()
         try:
             return self._headers[key]
 
@@ -178,11 +150,11 @@ class API:
             raise ValueError("Invalid header key provided") from ve
 
 
-    def do(self, request):
+    def do(self, request) -> requests.Response:
         """Takes request, preps and sends"""
-        if self._auth_method == "oauth":
-            self._refresh_token()
-            self._refresh_session_headers()
+        self._check_if_closed()
+        
+        self._refresh_session_headers()
 
         self.logger.debug("Prepping %s", request)
         prepped = self._session.prepare_request(request)
@@ -195,27 +167,34 @@ class API:
 
 class ClassicAPI(API):
     """Classic API child object"""
+
     _version = "classic"
+    _short_name = "clc"
+
     def __init__(self, config):
         super().__init__(config, self._version)
 
         # Endpoints
         self.computers = ClassicComputers(self)
 
+
     # Magic Methods
     def __str__(self):
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
-
 class ProAPI(API):
     """Pro API child object"""
+
     _version = "pro"
+    _short_name = "pro"
+
     def __init__(self, config):
         super().__init__(config, self._version)
         self.apiintegrations = APIIntegrations(self)
         self.apiroleprivileges = APIRolePrivileges(self)
         self.apiroles = APIRoles(self)
+
 
     # Magic Methods
     def __str__(self):
@@ -224,21 +203,30 @@ class ProAPI(API):
 
 class AuthManagerProAPI(API):
     """API with only Auth management endpoints"""
+
     _version = "pro"
+    _short_name = "auth"
+
     def __init__(self, config):
         super().__init__(config, self._version)
+
+        # Endpoints
         self.apiintegrations = APIIntegrations(self)
         self.apiroleprivileges = APIRolePrivileges(self)
         self.apiroles = APIRoles(self)
+
 
     # Magic Methods
     def __str__(self):
         return f"Jamf {self._version} AUTH ONLY API Client for {self.tenant}"
 
 
-
 class CustomAPI(API):
     """Custom API Endpoint for dynamic endpoint assignment"""
+
+    _version = "custom"
+    _short_name = "ctm"
+
     def __init__(
             self,
             config: dict ,
@@ -255,19 +243,27 @@ class CustomAPI(API):
         return f"Jamf {self._version} Custom Endpoint for {self.tenant}"
 
 
-class Jamf:
+class JamfTenant:
     """Jamf parent object"""
     initiated_tenants = []
+
     def __init__(
             self,
             tenant: str,
+            auth_method: str,
+            logger_config: dict = None,
             classic: ClassicAPI = None,
             pro: ProAPI = None
     ):
-        # Private
-        self.tenant = tenant
 
-        # Public
+        self.tenant = tenant
+        self._auth_method = auth_method
+
+        self._logger = get_logger(
+            name=f"{self.tenant}-tnt-0",
+            config=logger_config
+        )
+
         if classic:
             self.classic: ClassicAPI = classic
             self.initiated_tenants.append(self.classic)
@@ -279,10 +275,12 @@ class Jamf:
         if not classic and not pro:
             raise ConfigError("No APIs Provided for Jamf Object")
 
+    # Methods
     def __str__(self):
-        return f"Jamf API Client for Tenant: {self.tenant}"
+        return f"Jamf API Client for Tenant: {self.tenant} using {self._auth_method}"
 
     def close(self):
         """Closes all initied apis"""
+        self._logger.warning("Closing APIs")
         for api in self.initiated_tenants:
-            api.stop()
+            api.close()

@@ -1,6 +1,5 @@
 import requests
 from ..objects.obj_api_management import *
-
 from ...client.exceptions import *
 
 class APIRoles:

@@ -2,8 +2,7 @@
 # pylint: disable=line-too-long
 import json
 import requests
-import logging
-
+from ..config.defaultconfig import defaultconfig
 
 def import_config(filepath) -> str:
     """imports config file and parses as json"""
@@ -15,7 +14,7 @@ def import_config(filepath) -> str:
 
 def get_bearer_token(basic_credentials, cloud_tenant_name):
     """Accepts basic credentials and jamf instance strings, returns barer token"""
-    config = import_config("config.json")
+    config = defaultconfig
     endpoint = config["urls"]["bearer_token"]
     token_url = config["urls"]["base"].format(tenant=cloud_tenant_name) + endpoint
     headers = {"Authorization": f"Basic {basic_credentials}"}

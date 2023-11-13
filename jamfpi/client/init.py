@@ -2,22 +2,18 @@
 Init function for API Objects
 """
 
-# TEMP - Pylint Exceptions
-# pylint: disable=import-error
-# pylint: disable=wrong-import-position
-# pylint: disable=wrong-import-order
-# pylint: disable=broad-exception-raised
+# pylint: disable=relative-beyond-top-level
 
 # Libs
 import logging
 import requests
 
 # This Lib
-from .api import ProAPI, ClassicAPI, AuthManagerProAPI, Jamf
-from .default_logging import default_logger
-from .auth import OAuth
+from .api import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
+from .logger import get_logger
+from .auth import OAuth, BearerToken
 from .utility import import_config
-from .defaultconfig import defaultconfig
+from ..config.defaultconfig import defaultconfig
 from .exceptions import InitError, ConfigError
 
 
@@ -28,83 +24,100 @@ def init_client(
         client_id: str = None,
         client_secret: str = None,
         session: requests.Session = None,
-        logger: logging.Logger = None,
+        custom_logger: logging.Logger = None,
         logging_level=None,
         logging_format: str = None,
         token_exp_threshold_mins: int = None,
         mode: str = None,
         debug_params: list = None,
-        # custom_endpoints: str = None
+        # custom_endpoints: str = None WIP
 ):
 
     """Initilizes a new Jamf instance object"""
 
-    # Logging
-    logger = logger or default_logger(
-        logger_name=f"{tenant_name}-ini",
-        logging_format=logging_format,
-        logging_level=logging_level
-    )
-    logger.debug(f"Logger initialised, {logger}")
-    logging_config = {
+
+    # Logger Setup
+    if custom_logger:
+        if not isinstance(custom_logger, logging.Logger):
+            raise RuntimeError("Bad custom logger type", type(custom_logger))
+
+
+    logger_config = {
+        "custom_logger": custom_logger,
         "logging_level": logging_level,
         "logging_format": logging_format
     }
 
+    # Logger for init function
+    logger: logging.Logger = custom_logger or get_logger(
+        name=f"{tenant_name}-ini-0",
+        config=logger_config
+    )
+    logger.debug("Init Logger initialised")
+
+
+    # Init Start
     logger.debug(f"{tenant_name} init started")
 
 
     # Config File
     if config_filepath:
-        config_file = import_config(config_filepath)
-        logger.debug(f"Using imported log from {config_filepath}")
+        libconfig = import_config(config_filepath)
+        logger.info(f"Config: Custom - PATH: {config_filepath}")
     else:
-        config_file = defaultconfig
-        logger.debug("Using default config")
+        libconfig = defaultconfig
+        logger.info("Config: Default")
+    # Validate config HERE
 
 
     # Session
+    if session:
+        if isinstance(session, requests.Session):
+            raise RuntimeError("Bad custom Session Type", session)
+        
     session = session or requests.Session()
-    logger.debug(f"Session initialised, {session}")
+    logger.debug(f"Shared requests.Session initialised")
 
 
     # Auth
     if bearer_token:
         auth_method = "bearer"
         logger.info(f"Auth Method: {auth_method}")
-        oauth = None
+        logger.warning("Auth Method: Bearer Token. Recommend using OAuth when able.")
+        logger.debug("Initiating BearerToken")
+        auth = BearerToken(
+            tenant=tenant_name,
+            libconfig=libconfig,
+            logger_config=logger_config,
+            bearer_token=bearer_token
+        )
 
     elif client_id and client_secret:
         auth_method = "oauth"
         logger.info(f"Auth Method: {auth_method}")
-        token_exp_threshold_mins = token_exp_threshold_mins or 5
         logger.debug("Initiating OAuth")
-        oauth = OAuth(
-            config=config_file,
-            logging_config=logging_config,
+
+        auth = OAuth(
             tenant=tenant_name,
+            libconfig=libconfig,
+            logger_cfg=logger_config,
             oauth_cid=client_id,
             oauth_cs=client_secret,
             token_exp_threshold_mins=token_exp_threshold_mins
         )
 
     else:
-        raise InitError("Invalid Auth supplied")
-
-
-    if bearer_token:
-        logger.warning("Auth method is bearer token. Reccommend using OAuth when able")
+        raise InitError("Invalid Auth combination supplied")
 
 
     # Master Config
     api_config = {
-        "config_file": config_file,
-        "session": session,
-        "logging": logging_config,
-        "bearer_token": bearer_token or None,
-        "oauth": oauth,
         "tenant": tenant_name,
+        "libconfig": libconfig,
+        "logging": logger_config,
+        "session": session,
         "auth_method": auth_method,
+        "auth": auth,
         "debug_params": debug_params
     }
 
@@ -134,10 +147,15 @@ def init_client(
         raise ConfigError("Invalid API Mode")
 
     logger.info(f"{tenant_name} Init Complete")
+
+    # Cleanup
     del logger
 
-    return Jamf(
+    # Return Tenant
+    return JamfTenant(
         tenant=tenant_name,
+        auth_method=auth_method,
+        logger_config=logger_config,
         classic=classic,
         pro=pro
     )

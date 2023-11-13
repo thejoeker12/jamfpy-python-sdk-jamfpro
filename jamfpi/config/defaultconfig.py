@@ -5,7 +5,8 @@ defaultconfig = {
         "base": "https://{tenant}.jamfcloud.com",
         "bearer_token": "/api/v1/auth/token",
         "oauth": "/api/oauth/token",
-        "invalidate_token": "/v1/auth/invalidate-token",
+        "invalidate_token": "/api/v1/auth/invalidate-token",
+        "keep_alive": "/v1/auth/keep-alive",
         "api" : {
             "classic": "/JSSResource",
             "pro": "/api/v{jamfapiversion}"
@@ -36,6 +37,12 @@ defaultconfig = {
             },
             "image": {
                 "accept": "image/*"
+            }
+        },
+        "universal": {
+            "basic)with_auth": {
+                "accept": "application/json",
+                "Authorization": "bearer {token}"
             }
         }
     }
