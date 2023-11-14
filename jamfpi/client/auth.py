@@ -7,6 +7,42 @@ import requests
 from .logger import get_logger
 from .exceptions import JamfAPIError
 
+
+class Auth:
+    token_expiry = None
+
+    def __init__(
+            self,
+            tenant: str,
+            libconfig: dict,
+            logger_cfg: dict,
+            token_exp_thold_mins: int = 2
+    ):
+        self._tenant = tenant
+        self._libconfig = libconfig
+        self._logger_cfg = logger_cfg
+        self.token_exp_thold_mins = token_exp_thold_mins
+
+
+
+
+    def _init_logger(self):
+        self.logger = self._logger_cfg["custom_logger"] or get_logger (
+            name=f"{self._tenant}-auth",
+            config=self._logger_cfg
+        )
+
+
+    def _check_token_expiry(self) -> bool:
+        now = datetime.datetime.now()
+        time_until_exp = self.token_expiry - now
+        if time_until_exp > datetime.timedelta(minutes=self.token_exp_thold_mins):
+            return True
+        
+        return False
+    
+    
+
 class OAuth:
     """Object to hold OAuth data and functions"""
 

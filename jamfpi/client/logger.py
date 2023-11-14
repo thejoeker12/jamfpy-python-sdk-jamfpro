@@ -27,20 +27,7 @@ def get_logger(
         level = level or DEFAULT_LEVEL
         format = format or DEFAULT_FORMAT
 
-    active_loggers = list(logging.root.manager.loggerDict.keys())
-    if name not in active_loggers:
-        pass
-    elif name in active_loggers:
-        tnt, mode, increment = name.split("-", maxsplit=2)
-        increment = int(increment)
-        increment += 1
-        name = f"{tnt}-{mode}-{increment}"
-       
-    print(name)
-    print(level)
-
     logger = logging.getLogger(name)
-    print(logger.handlers)
     if not logger.handlers:
         logger.setLevel(level)
 
