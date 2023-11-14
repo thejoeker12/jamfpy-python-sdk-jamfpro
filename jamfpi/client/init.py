@@ -11,7 +11,7 @@ import requests
 # This Lib
 from .api import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
 from .logger import get_logger
-from .auth import OAuth, BearerToken
+from .auth import OAuth, BearerAuth
 from .utility import import_config
 from ..config.defaultconfig import defaultconfig
 from .exceptions import InitError, ConfigError
@@ -21,6 +21,8 @@ def init_client(
         tenant_name: str,
         config_filepath: str = None,
         bearer_token: str = None,
+        username: str = None,
+        password: str = None,
         client_id: str = None,
         client_secret: str = None,
         session: requests.Session = None,
@@ -30,6 +32,7 @@ def init_client(
         token_exp_threshold_mins: int = None,
         mode: str = None,
         debug_params: list = None,
+        custom_auth: OAuth or BearerAuth = None
         # custom_endpoints: str = None WIP
 ):
 
@@ -80,34 +83,8 @@ def init_client(
 
 
     # Auth
-    if bearer_token:
-        auth_method = "bearer"
-        logger.info(f"Auth Method: {auth_method}")
-        logger.warning("Auth Method: Bearer Token. Recommend using OAuth when able.")
-        logger.debug("Initiating BearerToken")
-        auth = BearerToken(
-            tenant=tenant_name,
-            libconfig=libconfig,
-            logger_config=logger_config,
-            bearer_token=bearer_token
-        )
-
-    elif client_id and client_secret:
-        auth_method = "oauth"
-        logger.info(f"Auth Method: {auth_method}")
-        logger.debug("Initiating OAuth")
-
-        auth = OAuth(
-            tenant=tenant_name,
-            libconfig=libconfig,
-            logger_cfg=logger_config,
-            oauth_cid=client_id,
-            oauth_cs=client_secret,
-            token_exp_threshold_mins=token_exp_threshold_mins
-        )
-
-    else:
-        raise InitError("Invalid Auth combination supplied")
+    if custom_auth:
+        auth = custom_auth
 
 
     # Master Config
@@ -159,3 +136,16 @@ def init_client(
         classic=classic,
         pro=pro
     )
+
+
+
+
+def init_auth():
+    """
+    Function for initialising an Auth object
+    for use in multiple API objects
+
+    Advanced users only
+    
+    """
+    pass

@@ -3,7 +3,7 @@
 defaultconfig = {
     "urls" : {
         "base": "https://{tenant}.jamfcloud.com",
-        "bearer_token": "/api/v1/auth/token",
+        "bearer": "/api/v1/auth/token",
         "oauth": "/api/oauth/token",
         "invalidate_token": "/api/v1/auth/invalidate-token",
         "keep_alive": "/v1/auth/keep-alive",
