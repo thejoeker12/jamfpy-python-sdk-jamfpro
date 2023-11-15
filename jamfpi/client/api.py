@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 # This lib
-from .auth import OAuth, BearerToken
+from .auth import OAuth, BearerAuth
 from .exceptions import ConfigError
 
 # Endpoints
@@ -44,7 +44,7 @@ class API:
 
         # Public
         self.tenant: str = config["tenant"]
-        self.auth: OAuth or BearerToken = config["auth"]
+        self.auth: OAuth or BearerAuth = config["auth"]
 
         # Init Methods - Logging
         self._init_logging()
@@ -76,8 +76,8 @@ class API:
 
         self.logger.debug("_init_baseurl starting")
 
-        template: str = self._libconfig["urls"]["base"].format(tenant=self.tenant)
-        endpoint: str = self._libconfig["urls"]["api"][self._version]
+        template: str = self._libconfig.urls["base"].format(tenant=self.tenant)
+        endpoint: str = self._libconfig.urls["api"][self._version]
         self.base_url = template + endpoint
 
         self.logger.debug("_init_baseurl complete")
@@ -88,7 +88,7 @@ class API:
 
         self.logger.debug("_init_headers starting")
 
-        self._headers = self._libconfig["headers"][self._version]
+        self._headers = self._libconfig.headers[self._version]
 
         self.logger.debug("_init_headers complete")
 

@@ -13,14 +13,14 @@ from .api import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
 from .logger import get_logger
 from .auth import OAuth, BearerAuth
 from .utility import import_config
-from ..config.defaultconfig import defaultconfig
+from ..config.defaultconfig import defaultconfig, MasterConfig
 from .exceptions import InitError, ConfigError
 
 
 def init_client(
         tenant_name: str,
         config_filepath: str = None,
-        bearer_token: str = None,
+        basic_token: str = None,
         username: str = None,
         password: str = None,
         client_id: str = None,
@@ -65,10 +65,11 @@ def init_client(
 
     # Config File
     if config_filepath:
-        libconfig = import_config(config_filepath)
+        imported = import_config(config_filepath)
+        libconfig = MasterConfig(imported)
         logger.info(f"Config: Custom - PATH: {config_filepath}")
     else:
-        libconfig = defaultconfig
+        libconfig = MasterConfig(defaultconfig)
         logger.info("Config: Default")
     # Validate config HERE
 
@@ -82,10 +83,28 @@ def init_client(
     logger.debug(f"Shared requests.Session initialised")
 
 
-    # Auth
-    if custom_auth:
-        auth = custom_auth
-
+    # Auth - WIP
+    if client_id and client_id:
+        auth_method = "oauth"
+        auth = OAuth(
+            tenant=tenant_name,
+            libconfig=libconfig,
+            logger_cfg=logger_config,
+            token_exp_thold_mins=token_exp_threshold_mins,
+            oauth_cid=client_id,
+            oauth_cs=client_secret
+        )
+    elif (username and password) or basic_token:
+        auth_method = "bearer"
+        auth = BearerAuth(
+            tenant=tenant_name,
+            libconfig=libconfig,
+            logger_cfg=logger_config,
+            token_exp_thold_mins=token_exp_threshold_mins,
+            username=username,
+            password=password,
+            basic_auth_token=basic_token,
+        )
 
     # Master Config
     api_config = {

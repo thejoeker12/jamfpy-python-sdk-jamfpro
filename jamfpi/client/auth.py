@@ -3,14 +3,19 @@
 # Libs
 import datetime
 import requests
+from typing import Callable, Optional
+from base64 import b64encode
 
 from .logger import get_logger
-from .exceptions import JamfAPIError
+from .exceptions import JamfAPIError, InitError
 
 
 class Auth:
-    _token_str = None
-    token_expiry = None
+    _token_str: Optional[str]
+    token_expiry: datetime.time
+    _method: str
+    _keep_alive_token: Callable
+    _set_new_token: Callable
 
     def __init__(
             self,
@@ -25,9 +30,10 @@ class Auth:
         self.token_exp_thold_mins = token_exp_thold_mins
 
         self._init_logger()
+        self._init_urls()
         
 
-    def _init_logger(self):
+    def _init_logger(self) -> None:
         """
         Applies proivded custom logger or uses config
         """
@@ -37,18 +43,15 @@ class Auth:
         )
 
 
-    def init_auth_url(self):
+    def _init_urls(self) -> None:
         """Sets URL for gaining a new token"""
-        base = self._libconfig["urls"]["base"].format(tenant=self._tenant)
-        endpoint = self._libconfig["urls"][self._method]
-        self._auth_url = base + endpoint
+        self._base_url = self._libconfig.urls["base"].format(tenant=self._tenant)
+        endpoint = self._libconfig.urls["auth"][self._method] 
+        self._auth_url = self._base_url + endpoint
 
 
     def check_token_in_buffer(self) -> bool:
         """
-        Checks current time against saved expiry time.
-        Returns True if token in Buffer
-        Returns False if token not in buffer
         """
         now = datetime.datetime.now()
         time_until_exp = self.token_expiry - now
@@ -58,37 +61,61 @@ class Auth:
         return False
     
 
-    def check_token_in_expired(self):
+    def check_token_is_expired(self) -> bool:
         """
-        Check if now is after the expiry time
-        If yes return True
-        If no return False
         """
-        pass
+        now = datetime.datetime.now()
+        if self.token_expiry < now:
+            return True
+        
+        return False
     
 
-    def check_token(self):
+    def check_token(self) -> None:
         """
-        Check if token is expired:
-            if yes:
-                get a new one
-                check buffer again:
-                    if true:
-                        error - looping
-                    else:
-                        pass
-            if no:
-                check token in buffer:
-                    if yes:
-                        keep alive
-                        check in buffer
-                            if yes:
-                                error - looping
         """
-        pass
+        if self.check_token_is_expired():
+            self._set_new_token()
+            if self.check_token_in_buffer:
+                raise Exception("Buffer longer than token lifetime")
+            
+        elif self.check_token_in_buffer():
+            if self. _method == "bearer":
+                self._keep_alive_token()
+            elif self._method == "oauth":
+                self._set_new_token()
+
+            if self.check_token_in_buffer:
+                raise Exception("Buffer longer than token lifetime")
+            
+
+    def token(self) -> None:
+        self.check_token()
+        return self._token_str
+    
+
+    def invalidate(self):
+        """
+        invalidates token
+        """
+        url = self._libconfig.urls["invalidate-token"]
+        headers = {
+            "accept": "application/json",
+            "Authorization": f"Bearer {self._token_str}"
+        }
+        call = requests.post(
+            url=url,
+            headers=headers
+        )
+
+        if call.ok:
+            return True
+        
+        return False
 
 
-class OAuth(Auth):
+
+class OAuth(Auth): 
     _method = "oauth"
     def __init__(
             self,
@@ -106,43 +133,54 @@ class OAuth(Auth):
             token_exp_thold_mins
         )
 
-        self.oauth_cid = oauth_cid
-        self.oauth_cs = oauth_cs
+        self._oauth_cid = oauth_cid
+        self._oauth_cs = oauth_cs
 
     # Magic
 
     def __str__(self):
         return f"OAuth Object for {self._tenant}"
 
-
     # Private
 
-    def _set_new_token():
+    def _set_new_token(self):
         """
         Get new token
         update self values
         """
-        pass
+        endpoint = self._libconfig.urls["auth"]["oauth"]
+        url = self._base_url + endpoint
+        headers = self._libconfig.headers["auth"]["oauth"]
+        data = {
+            "client_id": self._oauth_cid,
+            "client_secret": self._oauth_cs,
+            "grant_type": "client_credentials"
+        }
 
+        call = requests.post(
+            url=url,
+            headers=headers,
+            data=data,
+            timeout=10
+        )
+
+        if call.ok:
+            call_json = call.json()
+            self._token_str = call_json["access_token"]
+            now = datetime.datetime.now()
+            self.token_expiry = now + datetime.timedelta(seconds=call_json["expires_in"])
+
+        else:
+            raise Exception("date time parse issue")
+    
 
     def _keep_alive_token():
-        """Keeps token alive and updates self values"""
-        pass
+        """
+        Pleaced to ensure if call accidentally made with wrong interface
+        """
+        raise Exception("Action not available with OAuth interface")
 
-    # Public
 
-    def token():
-        """
-        self._check_token()
-        return token_str
-        """
-        pass
-
-    def invalidate():
-        """
-        invalidates token
-        """
-        pass
 
 
 class BearerAuth(Auth):
@@ -154,9 +192,10 @@ class BearerAuth(Auth):
             libconfig,
             logger_cfg,
             token_exp_thold_mins,
-            username,
-            password,
-            basic_auth_token
+            username: Optional[str] = None,
+            password: Optional[str] = None,
+            basic_auth_token: Optional[str] = None,
+            bearer_auth_token: Optional[str] = None
     ):
         
         super().__init__(
@@ -166,6 +205,10 @@ class BearerAuth(Auth):
             token_exp_thold_mins=token_exp_thold_mins
         )
 
+        self.username = username
+        self.password = password
+        self.basic_auth_token = basic_auth_token
+        self._init_auth()
 
     # Magic
 
@@ -174,47 +217,61 @@ class BearerAuth(Auth):
 
     # Private
 
-    def _init_auth():
+    def _init_auth(self):
         """
-        if username and password:
-            b64encode
-            set basic auth token
-        elif basic_auth_token:
-            self.set
+        """
+        if self.username and self.password:
+            credstring = f"{self.username}:{self.password}"
+            self.basic_auth_token = b64encode(bytes(credstring)).decode()
+        elif self.basic_auth_token:
+            pass
         else:
-            error - invalid auth supplied
-        """
-        pass
+            raise InitError("Invalid Auth supplied")
+
+        
 
 
-    def _set_new_token():
+    def _set_new_token(self):
         """
         Gets new token
         update obj values
         """
+        url = self._base_url + self._libconfig.urls["auth"]["bearer"]
+        headers_template = self._libconfig.headers["universal"]["basic_with_auth"]
+        headers = headers_template.format(token=self.basic_auth_token)
+        call = requests.post(
+            url=url,
+            headers=headers
+        )
 
-    def _keep_alive_token():
+        if call.ok:
+            call_json = call.json()
+            self._token_str = call_json["token"]
+            expiry_str = call_json["expires"]
+            self.token_expiry = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+
+        raise Exception("Error getting new token")
+    
+
+    def _keep_alive_token(self):
         """"
         Keeps token alive
         updates obj values
         """
+        url = self._base_url + self._libconfig.urls["auth"]["keep-alive"]
+        headers_template = self._libconfig["headers"]["universal"]["basic_with_auth"]
+        headers = headers_template.format(token=self._token_str)
+        call = requests.post(
+            url=url,
+            headers=headers
+        )
+        if call.ok:
+            call_json = call.json()
+            self._token_str = call_json["token"]
+            expiry_str = call_json["expires"]
+            self.token_expiry = datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
 
-    # Public
-
-    def token():
-        """
-        self._check_token()
-        return token_str
-        """
-        pass
-
-
-    def invalidate():
-        """
-        Invalidates token
-        """
-        pass
-
+        raise Exception("Error keeping token alive")
 
 
 # class OAuth_old:

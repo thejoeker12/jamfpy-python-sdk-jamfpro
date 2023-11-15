@@ -3,15 +3,17 @@
 defaultconfig = {
     "urls" : {
         "base": "https://{tenant}.jamfcloud.com",
-        "bearer": "/api/v1/auth/token",
-        "oauth": "/api/oauth/token",
-        "invalidate_token": "/api/v1/auth/invalidate-token",
-        "keep_alive": "/v1/auth/keep-alive",
+        "auth": {
+            "bearer": "/api/v1/auth/token",
+            "oauth": "/api/oauth/token",
+            "invalidate-token": "/api/v1/auth/invalidate-token",
+            "keep-alive": "/v1/auth/keep-alive"
+        },
         "api" : {
             "classic": "/JSSResource",
             "pro": "/api/v{jamfapiversion}"
         }
-    },
+        },
     "headers" : {
         "auth": {
             "oauth": {
@@ -40,10 +42,27 @@ defaultconfig = {
             }
         },
         "universal": {
-            "basic)with_auth": {
+            "basic_with_auth": {
                 "accept": "application/json",
                 "Authorization": "bearer {token}"
             }
         }
     }
 }
+
+
+class MasterConfig:
+    def __init__(
+            self,
+            data
+    ):
+        self.data = data
+        self.validate_data_structure()
+        
+    def validate_data_structure(self):
+        data = self.data
+        try:
+            self.urls = data["urls"]
+            self.headers = data["headers"]
+        except KeyError as e:
+            raise KeyError("Config Validation Error - Check config") from e
