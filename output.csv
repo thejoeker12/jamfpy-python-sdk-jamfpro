@@ -1,7 +1,6 @@
 url,get,post,put,patch,delete
 /userid/{id},True,False,True,False,True
 /username/{username},True,False,False,False,True
-/,True,True,False,False,False
 /groupid/{id},True,False,True,False,True
 /groupname/{id},True,False,True,False,False
 /groupid/0,False,True,False,False,False
@@ -36,8 +35,6 @@ url,get,post,put,patch,delete
 /api/v1/categories,True,True,False,False,False
 /api/v1/categories/{id},True,False,True,False,True
 /api/v1/categories/name/{name},True,False,False,False,False
-UpdateCategoryByNameByID,False,False,True,False,False
-DeleteCategoryByNameByID,False,False,False,False,True
 /api/v1/categories/delete-multiple,False,True,False,False,False
 /JSSResource/computergroups,True,False,False,False,False
 /JSSResource/computergroups/id/{id},True,False,True,False,True
@@ -65,7 +62,6 @@ DeleteCategoryByNameByID,False,False,False,False,True
 /api/v1/self-service/branding/macos,True,True,False,False,False
 /api/v1/self-service/branding/macos/{id},True,False,True,False,True
 /api/v1/self-service/branding/macos/name/{name},True,False,False,False,False
--,False,False,True,False,True
 /JSSResource/scripts,True,False,False,False,False
 /JSSResource/scripts/id/{id},True,False,True,False,True
 /JSSResource/scripts/name/{name},True,False,True,False,True
@@ -78,7 +74,6 @@ DeleteCategoryByNameByID,False,False,False,False,True
 /api/v1/sso/failover/generate,False,False,True,False,False
 /api/v1/volume-purchasing-subscriptions,True,True,False,False,False
 /api/v1/volume-purchasing-subscriptions/{id},True,False,True,False,True
-Function**,False,False,False,False,False
 /api/v1/computer-inventory-collection-settings,True,False,False,True,False
 /api/v1/computer-inventory-collection-settings/custom-path,False,True,False,False,False
 /api/v1/computer-inventory-collection-settings/custom-path/{id},False,False,False,False,True
