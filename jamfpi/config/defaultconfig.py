@@ -7,7 +7,7 @@ defaultconfig = {
             "bearer": "/api/v1/auth/token",
             "oauth": "/api/oauth/token",
             "invalidate-token": "/api/v1/auth/invalidate-token",
-            "keep-alive": "/v1/auth/keep-alive"
+            "keep-alive": "/api/v1/auth/keep-alive"
         },
         "api" : {
             "classic": "/JSSResource",
@@ -42,9 +42,9 @@ defaultconfig = {
             }
         },
         "universal": {
-            "basic_with_auth": {
+            "bearer_with_auth": {
                 "accept": "application/json",
-                "Authorization": "bearer {token}"
+                "Authorization": "Bearer {token}"
             }
         }
     }

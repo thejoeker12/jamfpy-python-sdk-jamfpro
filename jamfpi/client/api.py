@@ -64,7 +64,7 @@ class API:
         """Sets three character API version identifier for consistent logging"""
 
         self.logger = self._logger_config["custom_logger"] or get_logger(
-            name=f"{self.tenant}-{self._short_name}-0",
+            name=f"{self.tenant}-{self._short_name}",
             config=self._logger_config
         )
 

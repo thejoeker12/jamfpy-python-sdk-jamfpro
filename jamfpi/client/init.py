@@ -53,7 +53,7 @@ def init_client(
 
     # Logger for init function
     logger: logging.Logger = custom_logger or get_logger(
-        name=f"{tenant_name}-ini-0",
+        name=f"{tenant_name}-ini",
         config=logger_config
     )
     logger.debug("Init Logger initialised")
