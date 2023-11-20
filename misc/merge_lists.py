@@ -56,7 +56,7 @@ def merge(schema, api) -> dict:
                 patch = out_dict[i]["patch"]
                 delete = out_dict[i]["delete"]
                 file.write(f"{i},{api},{get},{post},{put},{patch},{delete}\n")
-
+                #
 
 
             
