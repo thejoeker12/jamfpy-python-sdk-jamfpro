@@ -58,7 +58,7 @@ def write():
             put = out_dict[i]["put"]
             patch = out_dict[i]["patch"]
             delete = out_dict[i]["delete"]
-            file.write(f"{i},{out_dict[i]['api']},{get},{post},{put},{patch},{delete}\n")
+            file.write(f"{i},{out_dict[i]['api']},{get},{post},{put},{patch},{delete},,\n")
 
 
 def main():
