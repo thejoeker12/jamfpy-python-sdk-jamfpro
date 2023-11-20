@@ -44,7 +44,7 @@ def merge(schema, api) -> dict:
                     out_blob[m] = current_dict[endp][m]
 
             out_dict[endp] = out_blob
-            out_dict[endp]["api"] = api
+        out_dict[endp]["api"] = api
 
 
 
@@ -64,7 +64,6 @@ def write():
 def main():
     merge(CLASSIC, "classic")
     merge(PRO, "pro")
-    print(out_dict)
     write()
 
 
