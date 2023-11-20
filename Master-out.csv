@@ -1,4 +1,4 @@
-url,api,get,post,put,patch,delete
+url,api,get,post,put,patch,delete,priority,assignee
 /accounts,classic,False,N/A,N/A,N/A,N/A
 /accounts/groupid/{id},classic,False,False,False,N/A,False
 /accounts/groupname/{name},classic,False,N/A,N/A,N/A,N/A
