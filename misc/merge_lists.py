@@ -46,8 +46,8 @@ def merge(schema, api) -> dict:
             out_dict[endp] = out_blob
 
     print(out_dict)
-
-    with open("Master.csv", "w") as file:
+    out_str = ""
+    with open("Master-out.csv", "w") as file:
             file.write(f"url,api,get,post,put,patch,delete\n")
             for i in out_dict:
                 get = out_dict[i]["get"]
@@ -55,9 +55,10 @@ def merge(schema, api) -> dict:
                 put = out_dict[i]["put"]
                 patch = out_dict[i]["patch"]
                 delete = out_dict[i]["delete"]
+                out_str += f"{i},{api},{get},{post},{put},{patch},{delete}\n"
                 file.write(f"{i},{api},{get},{post},{put},{patch},{delete}\n")
-                #
-
+                
+    print(out_str)
 
             
 
