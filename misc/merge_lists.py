@@ -44,33 +44,28 @@ def merge(schema, api) -> dict:
                     out_blob[m] = current_dict[endp][m]
 
             out_dict[endp] = out_blob
+            out_dict[endp]["api"] = api
 
-    print(out_dict)
-    out_str = ""
+
+
+def write():
     with open("Master-out.csv", "w") as file:
-            file.write(f"url,api,get,post,put,patch,delete\n")
-            for i in out_dict:
-                get = out_dict[i]["get"]
-                post = out_dict[i]["post"]
-                put = out_dict[i]["put"]
-                patch = out_dict[i]["patch"]
-                delete = out_dict[i]["delete"]
-                out_str += f"{i},{api},{get},{post},{put},{patch},{delete}\n"
-                file.write(f"{i},{api},{get},{post},{put},{patch},{delete}\n")
-                
-    print(out_str)
-
-            
-
-
-
-
-
+        file.write(f"url,api,get,post,put,patch,delete\n")
+        for i in out_dict:
+            print(out_dict[i])
+            get = out_dict[i]["get"]
+            post = out_dict[i]["post"]
+            put = out_dict[i]["put"]
+            patch = out_dict[i]["patch"]
+            delete = out_dict[i]["delete"]
+            file.write(f"{i},{out_dict[i]['api']},{get},{post},{put},{patch},{delete}\n")
 
 
 def main():
     merge(CLASSIC, "classic")
     merge(PRO, "pro")
+    print(out_dict)
+    write()
 
 
 if __name__ == "__main__":
