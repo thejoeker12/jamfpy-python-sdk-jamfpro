@@ -3,7 +3,7 @@ from pprint import pprint
 hold = []
 lines_with_tick = []
 master = {}
-with open("misc/README.md", "r", encoding="UTF-8") as file:
+with open("dafydd_readme.md", "r", encoding="UTF-8") as file:
     file = file.read()
     file_split = file.split("\n")
     for line in file_split:
@@ -20,8 +20,15 @@ for line in lines_with_tick[1:]:
 
     method = split[0].replace("*","")
     url = split[1].replace("`", "")
-    if len(url) > 2:
-        if "/" in url:
+    if len(url) > 2 and "/" in url:
+            
+        url_split = url.split("/")[1:]
+        if any(prefix in url_split[0].lower() for prefix in ["api", "jssresource"]):
+            url_split.pop(0)
+            url = "/" + "/".join(url_split)
+
+
+
             hold.append(method)
 
             if url not in master:
@@ -32,10 +39,8 @@ for line in lines_with_tick[1:]:
                     master[url].append(method)
 
 
-pprint(master)
-print(list(set(hold)))
 
-with open("output.csv", "w") as file:
+with open("output-new.csv", "w") as file:
     file.write("url,api,get,post,put,patch,delete\n")
     for url in master:
         methods = {
