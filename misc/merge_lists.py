@@ -50,7 +50,7 @@ def merge(schema, api) -> dict:
 
 def write():
     with open("Master-out.csv", "w") as file:
-        file.write(f"url,api,get,post,put,patch,delete\n")
+        file.write(f"url,api,get,post,put,patch,delete,prioity,asignee\n")
         for i in out_dict:
             print(out_dict[i])
             get = out_dict[i]["get"]
