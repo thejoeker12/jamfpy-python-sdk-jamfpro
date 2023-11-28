@@ -50,6 +50,7 @@ def init_client(
         "logging_level": logging_level,
         "logging_format": logging_format
     }
+    
 
     # Logger for init function
     logger: logging.Logger = custom_logger or get_logger(
@@ -60,14 +61,14 @@ def init_client(
 
 
     # Init Start
-    logger.debug(f"{tenant_name} init started")
+    logger.debug("%s client init started", tenant_name)
 
 
     # Config File
     if config_filepath:
         imported = import_config(config_filepath)
         libconfig = MasterConfig(imported)
-        logger.info(f"Config: Custom - PATH: {config_filepath}")
+        logger.info("Config: Custom - PATH %s", config_filepath)
     else:
         libconfig = MasterConfig(defaultconfig)
         logger.info("Config: Default")
@@ -80,11 +81,11 @@ def init_client(
             raise RuntimeError("Bad custom Session Type", session)
         
     session = session or requests.Session()
-    logger.debug(f"Shared requests.Session initialised")
+    logger.debug("Shared requests.Session initialised")
 
 
     # Auth - WIP
-    if client_id and client_id:
+    if client_id and client_secret:
         auth_method = "oauth"
         auth = OAuth(
             tenant=tenant_name,
@@ -105,7 +106,11 @@ def init_client(
             password=password,
             basic_auth_token=basic_token,
         )
+    else:
+        raise InitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
+    auth._set_new_token()
+    
     # Master Config
     api_config = {
         "tenant": tenant_name,
@@ -142,7 +147,7 @@ def init_client(
     else:
         raise ConfigError("Invalid API Mode")
 
-    logger.info(f"{tenant_name} Init Complete")
+    logger.info("%s Init Complete", tenant_name)
 
     # Cleanup
     del logger

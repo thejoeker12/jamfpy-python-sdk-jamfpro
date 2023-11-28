@@ -7,8 +7,9 @@ from typing import Callable, Optional
 from base64 import b64encode
 
 from .logger import get_logger
-from .exceptions import JamfAPIError, InitError
-
+from .exceptions import JamfAPIError, InitError, AuthError
+from ..config.defaultconfig import ROUND_AMOUNT
+from .utility import fix_jamf_time_to_iso
 
 class Auth:
     _token_str: Optional[str]
@@ -41,28 +42,53 @@ class Auth:
             name=f"{self._tenant}-auth-{self._method}",
             config=self._logger_cfg
         )
+        self.logger.debug("Logger initialised")
 
 
     def _init_urls(self) -> None:
-        """Sets URL for gaining a new token"""
+        """
+        Sets object vars for urls for readability.
+        
+        E.g
+        self._base_url = https://your_server.jamfcloud.com
+        self._auth_url = https://your_server.jamfcloud.com/api/oauth/token
+        """
+
+        self.logger.debug("FUNCTION: _init_urls")
+
         self._base_url = self._libconfig.urls["base"].format(tenant=self._tenant)
+        self.logger.debug("Base URL set %s", self._base_url)
+
         endpoint = self._libconfig.urls["auth"][self._method] 
         self._auth_url = self._base_url + endpoint
+        self.logger.debug("Auth URL set: %s", self._auth_url)
 
 
     def check_token_in_buffer(self) -> bool:
-        self.logger.debug("Checking token in buffer...")
         """
-        """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        time_until_exp = self.token_expiry - now
+        Checks if token is within the buffer period.
 
-        if time_until_exp < datetime.timedelta(minutes=self.token_exp_thold_mins):
-            self.logger.debug("Token in buffer")
-            self.logger.debug(now)
-            self.logger.debug(time_until_exp)
-            self.logger.debug(self.token_exp_thold_mins)
-            
+        example:
+        self.token_exp_thold_mins = 2
+        now = 10:30am
+        self.token_expiry = 10:31
+        
+        function will return True
+        """
+        self.logger.debug("FUNCTION: check_token_in_buffer")
+
+        self.logger.debug("Expiry time: %s", self.token_expiry)
+
+        now = round(datetime.datetime.utcnow(datetime.timezone.utc).timestamp(), ROUND_AMOUNT)
+        self.logger.debug("Now: %s", now)
+
+        expiry_delta_secs = round(self.token_expiry - now, ROUND_AMOUNT)
+        expiry_delta_mins = round(expiry_delta_secs / 60, ROUND_AMOUNT)
+    
+        self.logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
+
+        if expiry_delta_mins < self.token_exp_thold_mins:
+            self.logger.warn("Token in buffer")     
             return True
         
         self.logger.debug("Token not in buffer")
@@ -70,14 +96,14 @@ class Auth:
     
 
     def check_token_is_expired(self) -> bool:
-        self.logger.debug("Checking if Token expired")
         """
+        Checks if token expiry time has passed
         """
-        now = datetime.datetime.now(datetime.timezone.utc)
-        if self.token_expiry < now:
-            self.logger.debug("Token expiried:")
-            self.logger.debug(now)
-            self.logger.debug(self.token_expiry)
+        self.logger.debug("FUNCTION: check_token_is_expired")
+
+        now = datetime.datetime.utcnow(datetime.timezone.utc).timestamp()
+        if now > self.token_expiry:
+            self.logger.warn("Token expired")
             return True
         
         self.logger.debug("Token not expired")
@@ -86,11 +112,15 @@ class Auth:
 
     def check_token(self) -> None:
         """
+        Proccess of checking and refreshing token
+        Occurs before every request to ensure no usage of old tokens
         """
+        self.logger.debug("FUNCTION: check_token")
+
         if self.check_token_is_expired():
             self._set_new_token()
             if self.check_token_in_buffer():
-                raise Exception("Buffer longer than token lifetime")
+                raise AuthError("Buffer longer than token lifetime")
             
         elif self.check_token_in_buffer():
             if self. _method == "bearer":
@@ -99,11 +129,12 @@ class Auth:
                 self._set_new_token()
 
             if self.check_token_in_buffer():
-                self.token_expiry
-                raise Exception("Buffer longer than token lifetime")
-            
+                raise AuthError("Buffer longer than token lifetime")
+
 
     def token(self) -> None:
+        """Checks token and returns"""
+        self.logger.debug("FUNCTION: token")
         self.check_token()
         return self._token_str
     
@@ -126,6 +157,8 @@ class Auth:
             return True
         
         return False
+
+
 
 
 class OAuth(Auth): 
@@ -157,7 +190,7 @@ class OAuth(Auth):
     # Private
 
     def _set_new_token(self):
-        self.logger.debug("_set_new_token starting")
+        self.logger.debug("FUNCTION: _set_new_token")
         """
         Get new token
         update self values
@@ -181,21 +214,22 @@ class OAuth(Auth):
         if call.ok:
             call_json = call.json()
             self._token_str = call_json["access_token"]
-            now = datetime.datetime.now()
-            self.token_expiry = now + datetime.timedelta(seconds=call_json["expires_in"])
-            self.logger.debug("_set_new_token complete")
+            now = datetime.datetime.utcnow()
+            self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
+            self.token_expiry = round(self.token_expiry, ROUND_AMOUNT)
+            self.logger.debug("Token set successfully")
 
         else:
-            raise Exception("date time parse issue")
+            raise requests.HTTPError("Bad call response")
     
 
     def _keep_alive_token(self):
-        self.logger.debug("_keep_alive_token starting")
         """
-        Pleaced to ensure if call accidentally made with wrong interface
+        Pleaced to ensure interface symetry.
         """
-        self.logger.debug("_keep_alive_token complete")
-        raise Exception("Action not available with OAuth interface")
+        raise AuthError("Action not available with OAuth interface.")
+
+
 
 
 class BearerAuth(Auth):
@@ -223,36 +257,33 @@ class BearerAuth(Auth):
         self.password = password
         self.basic_auth_token = basic_auth_token
         self._init_auth()
-        self._set_new_token()
+
 
     # Magic
-
     def __str__(self):
         return f"Bearer Token Object for {self._tenant}"
 
-    # Private
 
+    # Private
     def _init_auth(self):
-        self.logger.debug("_init_auth starting")
         """
+        Sets basic auth token if user name and password are provided
         """
+        self.logger.debug("FUNCTION: _init_auth")
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
             self.basic_auth_token = b64encode(bytes(credstring, encoding="UTF-8")).decode()
         elif self.basic_auth_token:
             pass
-        else:
-            raise InitError("Invalid Auth supplied")
         
-        self.logger.debug("_init_auth complete")
-
 
     def _set_new_token(self):
-        self.logger.debug("_set_new_token starting")
+        
         """
-        Gets new token
+        Gets new token using stored credentials
         update obj values
         """
+        self.logger.debug("FUNCTION: _set_new_token")
         url = self._base_url + self._libconfig.urls["auth"]["bearer"]
         
         headers = {
@@ -269,8 +300,8 @@ class BearerAuth(Auth):
             call_json = call.json()
             self._token_str = call_json["token"]
             expiry_str = call_json["expires"]
-            self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
-            self.logger.debug("_set_new_token complete")
+            fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
+            self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
         else:
 
             raise Exception("Error getting new token")
@@ -295,7 +326,7 @@ class BearerAuth(Auth):
             call_json = call.json()
             self._token_str = call_json["token"]
             expiry_str = call_json["expires"]
-            self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00'))
+            self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
             self.logger.debug("_keep_alive_token complete")
 
         else:

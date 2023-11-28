@@ -1,5 +1,7 @@
 """Default config dictionary for module. Defaulted to if file not provided"""
 
+ROUND_AMOUNT = 3
+
 defaultconfig = {
     "urls" : {
         "base": "https://{tenant}.jamfcloud.com",

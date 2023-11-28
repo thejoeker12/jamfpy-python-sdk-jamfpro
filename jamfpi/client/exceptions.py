@@ -12,3 +12,7 @@ class ConfigError(Exception):
 
 class InitError(Exception):
     """Module initiation error"""
+
+
+class AuthError(Exception):
+    """Module Auth error"""
