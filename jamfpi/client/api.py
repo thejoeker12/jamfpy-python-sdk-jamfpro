@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 # This lib
-from .auth import OAuth, BearerToken
+from .auth import OAuth, BearerAuth
 from .exceptions import ConfigError
 
 # Endpoints
@@ -44,7 +44,7 @@ class API:
 
         # Public
         self.tenant: str = config["tenant"]
-        self.auth: OAuth or BearerToken = config["auth"]
+        self.auth: OAuth or BearerAuth = config["auth"]
 
         # Init Methods - Logging
         self._init_logging()
@@ -53,7 +53,6 @@ class API:
         # Init Methods
         self._init_baseurl()
         self._init_headers()
-        self._refresh_session_headers()
 
         self.logger.debug("%s API for %s init complete", self._version, self.tenant)
 
@@ -61,10 +60,10 @@ class API:
     # Private Methods - Init
 
     def _init_logging(self) -> None:
-        """Sets three character API version identifier for consistent logging"""
+        """Inits loggers for API Object"""
 
         self.logger = self._logger_config["custom_logger"] or get_logger(
-            name=f"{self.tenant}-{self._short_name}-0",
+            name=f"{self.tenant}-{self._short_name}",
             config=self._logger_config
         )
 
@@ -72,25 +71,30 @@ class API:
 
 
     def _init_baseurl(self) -> None:
-        """Sets base URL"""
+        """
+        Sets object vars for urls for readability.
+        
+        E.g
+        self._base_url = https://your_server.jamfcloud.com/JSSResource
+        or
+        self._base_url = https://your_server.jamfcloud.com/api/v{version}
+        """
 
-        self.logger.debug("_init_baseurl starting")
+        self.logger.debug("FUNCTION: _init_baseurl")
 
-        template: str = self._libconfig["urls"]["base"].format(tenant=self.tenant)
-        endpoint: str = self._libconfig["urls"]["api"][self._version]
+        template: str = self._libconfig.urls["base"].format(tenant=self.tenant)
+        endpoint: str = self._libconfig.urls["api"][self._version]
         self.base_url = template + endpoint
 
-        self.logger.debug("_init_baseurl complete")
 
 
     def _init_headers(self) -> None:
-        """Inits headers"""
+        """
+        Loads headers into object
+        """
+        self.logger.debug("FUNCTION: _init_headers")
+        self._headers = self._libconfig.headers[self._version]
 
-        self.logger.debug("_init_headers starting")
-
-        self._headers = self._libconfig["headers"][self._version]
-
-        self.logger.debug("_init_headers complete")
 
 
     # Private Methods - Normal
@@ -103,12 +107,17 @@ class API:
         self.logger.debug("Refreshing session headers (Clear + Re-set)")
 
         self._session.headers.clear()
-        self._session.headers.update({"Authorization": f"Bearer {self.auth.token()}"})
+
+        token = self.auth.token()
+        self._session.headers.update({"Authorization": f"Bearer {token}"})
 
         self.logger.debug("Session headers refreshed successfully")
 
 
     def _check_if_closed(self) -> None:
+        """Checks if object has been closed and therefore is unusable"""
+
+
         if self._is_closed:
             self.logger.error("API CLOSED")
             raise RuntimeError(str(self) + " is closed")
@@ -120,16 +129,20 @@ class API:
     def close(self) -> None:
         """Invalidates tokens and deletes self"""
 
-        self.logger.info(f"Closing {str(self)}")
+        self.logger.info("Closing %s", str(self))
 
         self.auth.invalidate()
         self._is_closed = True
 
-        self.logger.info(f"{str(self), self} closed")
+        self.logger.info("%s closed", str(self))
 
 
-    def url(self, target) -> None:
-        """Returns urls"""
+    def url(self, target=None) -> None:
+        """
+        Allows access to base url from endpoint
+        Universal interface across API versions
+        """
+
         self._check_if_closed()
         if self._version == "classic":
             return self.base_url
@@ -146,8 +159,8 @@ class API:
         try:
             return self._headers[key]
 
-        except ValueError as ve:
-            raise ValueError("Invalid header key provided") from ve
+        except KeyError as ve:
+            raise KeyError("Invalid header key provided") from ve
 
 
     def do(self, request) -> requests.Response:

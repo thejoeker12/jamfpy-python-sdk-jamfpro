@@ -11,16 +11,18 @@ import requests
 # This Lib
 from .api import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
 from .logger import get_logger
-from .auth import OAuth, BearerToken
+from .auth import OAuth, BearerAuth
 from .utility import import_config
-from ..config.defaultconfig import defaultconfig
+from ..config.defaultconfig import defaultconfig, MasterConfig
 from .exceptions import InitError, ConfigError
 
 
 def init_client(
         tenant_name: str,
         config_filepath: str = None,
-        bearer_token: str = None,
+        basic_token: str = None,
+        username: str = None,
+        password: str = None,
         client_id: str = None,
         client_secret: str = None,
         session: requests.Session = None,
@@ -30,6 +32,7 @@ def init_client(
         token_exp_threshold_mins: int = None,
         mode: str = None,
         debug_params: list = None,
+        custom_auth: OAuth or BearerAuth = None
         # custom_endpoints: str = None WIP
 ):
 
@@ -47,25 +50,27 @@ def init_client(
         "logging_level": logging_level,
         "logging_format": logging_format
     }
+    
 
     # Logger for init function
     logger: logging.Logger = custom_logger or get_logger(
-        name=f"{tenant_name}-ini-0",
+        name=f"{tenant_name}-ini",
         config=logger_config
     )
     logger.debug("Init Logger initialised")
 
 
     # Init Start
-    logger.debug(f"{tenant_name} init started")
+    logger.debug("%s client init started", tenant_name)
 
 
     # Config File
     if config_filepath:
-        libconfig = import_config(config_filepath)
-        logger.info(f"Config: Custom - PATH: {config_filepath}")
+        imported = import_config(config_filepath)
+        libconfig = MasterConfig(imported)
+        logger.info("Config: Custom - PATH %s", config_filepath)
     else:
-        libconfig = defaultconfig
+        libconfig = MasterConfig(defaultconfig)
         logger.info("Config: Default")
     # Validate config HERE
 
@@ -76,40 +81,36 @@ def init_client(
             raise RuntimeError("Bad custom Session Type", session)
         
     session = session or requests.Session()
-    logger.debug(f"Shared requests.Session initialised")
+    logger.debug("Shared requests.Session initialised")
 
 
-    # Auth
-    if bearer_token:
-        auth_method = "bearer"
-        logger.info(f"Auth Method: {auth_method}")
-        logger.warning("Auth Method: Bearer Token. Recommend using OAuth when able.")
-        logger.debug("Initiating BearerToken")
-        auth = BearerToken(
-            tenant=tenant_name,
-            libconfig=libconfig,
-            logger_config=logger_config,
-            bearer_token=bearer_token
-        )
-
-    elif client_id and client_secret:
+    # Auth - WIP
+    if client_id and client_secret:
         auth_method = "oauth"
-        logger.info(f"Auth Method: {auth_method}")
-        logger.debug("Initiating OAuth")
-
         auth = OAuth(
             tenant=tenant_name,
             libconfig=libconfig,
             logger_cfg=logger_config,
+            token_exp_thold_mins=token_exp_threshold_mins,
             oauth_cid=client_id,
-            oauth_cs=client_secret,
-            token_exp_threshold_mins=token_exp_threshold_mins
+            oauth_cs=client_secret
         )
-
+    elif (username and password) or basic_token:
+        auth_method = "bearer"
+        auth = BearerAuth(
+            tenant=tenant_name,
+            libconfig=libconfig,
+            logger_cfg=logger_config,
+            token_exp_thold_mins=token_exp_threshold_mins,
+            username=username,
+            password=password,
+            basic_auth_token=basic_token,
+        )
     else:
-        raise InitError("Invalid Auth combination supplied")
+        raise InitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
-
+    auth._set_new_token()
+    
     # Master Config
     api_config = {
         "tenant": tenant_name,
@@ -146,7 +147,7 @@ def init_client(
     else:
         raise ConfigError("Invalid API Mode")
 
-    logger.info(f"{tenant_name} Init Complete")
+    logger.info("%s Init Complete", tenant_name)
 
     # Cleanup
     del logger
@@ -159,3 +160,16 @@ def init_client(
         classic=classic,
         pro=pro
     )
+
+
+
+
+def init_auth():
+    """
+    Function for initialising an Auth object
+    for use in multiple API objects
+
+    Advanced users only
+    
+    """
+    pass

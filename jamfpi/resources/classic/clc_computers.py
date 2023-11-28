@@ -9,7 +9,7 @@ class ClassicComputers:
     def get_all(self) -> (requests.Response, list):
         """Gets all computers from parent API obj"""
         suffix = "/computers/subset/basic"
-        url = self._api.base_url + suffix
+        url = self._api.url() + suffix
         headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
         call = self._api.do(req)

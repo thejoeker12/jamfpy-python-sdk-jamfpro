@@ -6,5 +6,5 @@ tf_perms.py
 jamfapi.egg-info
 __pycache__
 .DS_Store
-one.py
-two.py
+README.MD
+JSONTEST.json

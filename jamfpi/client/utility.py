@@ -25,11 +25,9 @@ def get_bearer_token(basic_credentials, cloud_tenant_name):
     raise requests.HTTPError(f"Bad response: {token_request.status_code}\n{token_request.text}")
 
 
-def generate_client_token(url, cloud_tenant_name, client_id, client_secret):
+def generate_client_token(cloud_tenant_name, client_id, client_secret):
     """Generated client token with secret and client id"""
-    config = import_config()
-    endpoint = config["urls"]["api"]["oauth"]
-    url = config["urls"]["base"].format(tenant=cloud_tenant_name) + endpoint
+    url = f"https://{cloud_tenant_name}.jamfcloud.com/api/oauth/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "client_id": client_id,
@@ -58,4 +56,24 @@ def response_handler(response, raise_error=False):
         raise requests.HTTPError(error_str)
     return False
 
+
+def fix_jamf_time_to_iso(time):
+    time.replace("Z", "+00:00")
+    if len(time) in [26, 27, 28]:
+        time_split = time.split(".")
+        date_time_no_seconds = time_split[0]
+
+        seconds_and_tz = time_split[1]
+        s_tz_split = seconds_and_tz.split("+")
+        
+        seconds = s_tz_split[0]
+        while len(seconds) < 3:
+            seconds += "0"
+
+        time = f"{date_time_no_seconds}.{seconds}+{s_tz_split[1]}"
+
+        return time
+    else:
+        return time
+         
 
