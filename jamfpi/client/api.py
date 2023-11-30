@@ -19,6 +19,7 @@ from ..resources.pro.pro_api_management import (
     APIIntegrations,
     APIRoles
 )
+from ..resources.pro.pro_scripts import Scripts
 from .logger import get_logger
 
 
@@ -207,6 +208,7 @@ class ProAPI(API):
         self.apiintegrations = APIIntegrations(self)
         self.apiroleprivileges = APIRolePrivileges(self)
         self.apiroles = APIRoles(self)
+        self.scripts = Scripts(self)
 
 
     # Magic Methods
