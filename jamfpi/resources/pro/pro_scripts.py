@@ -4,7 +4,6 @@ from ...client.exceptions import *
 
 
 class Scripts:
-    
     def __init__(self, api):
         from ...client.api import API
         self.api: API = api
