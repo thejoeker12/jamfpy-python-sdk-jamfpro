@@ -79,7 +79,7 @@ class Auth:
 
         self.logger.debug("Expiry time: %s", self.token_expiry)
 
-        now = round(datetime.datetime.utcnow(datetime.timezone.utc).timestamp(), ROUND_AMOUNT)
+        now = round(datetime.datetime.utcnow().timestamp(), ROUND_AMOUNT)
         self.logger.debug("Now: %s", now)
 
         expiry_delta_secs = round(self.token_expiry - now, ROUND_AMOUNT)
@@ -101,7 +101,7 @@ class Auth:
         """
         self.logger.debug("FUNCTION: check_token_is_expired")
 
-        now = datetime.datetime.utcnow(datetime.timezone.utc).timestamp()
+        now = datetime.datetime.utcnow().timestamp()
         if now > self.token_expiry:
             self.logger.warn("Token expired")
             return True
