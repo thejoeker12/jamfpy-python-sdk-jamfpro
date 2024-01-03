@@ -20,6 +20,7 @@ from ..resources.pro.pro_api_management import (
     APIRoles
 )
 from ..resources.pro.pro_scripts import Scripts
+from ..resources.classic.clc_computer_groups import ComputerGroups
 from .logger import get_logger
 
 
@@ -164,7 +165,7 @@ class API:
             raise KeyError("Invalid header key provided") from ve
 
 
-    def do(self, request) -> requests.Response:
+    def do(self, request: requests.Request) -> requests.Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
         
@@ -190,6 +191,7 @@ class ClassicAPI(API):
 
         # Endpoints
         self.computers = ClassicComputers(self)
+        self.computergroups = ComputerGroups(self)
 
 
     # Magic Methods
