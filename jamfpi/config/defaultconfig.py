@@ -23,10 +23,10 @@ defaultconfig = {
             }
         },
         "classic": {
-            "basic_json": {
+            "basic-json": {
                 "accept": "application/json"
             },
-            "basic_xml": {
+            "basic-xml": {
                 "accept": "text/xml"
             },
             "put": {

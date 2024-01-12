@@ -21,6 +21,7 @@ from ..resources.pro.pro_api_management import (
 )
 from ..resources.pro.pro_scripts import Scripts
 from ..resources.classic.clc_computer_groups import ComputerGroups
+from ..resources.pro.pro_sso_certificate import SsoCertificates
 from .logger import get_logger
 
 
@@ -211,6 +212,7 @@ class ProAPI(API):
         self.apiroleprivileges = APIRolePrivileges(self)
         self.apiroles = APIRoles(self)
         self.scripts = Scripts(self)
+        self.sso = SsoCertificates(self)
 
 
     # Magic Methods
