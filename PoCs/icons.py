@@ -17,7 +17,7 @@ jamf = jamfpi.init_client(
     client_id=config["clientId"],
     client_secret=config["clientSecret"],
     logging_level=10,
-    safe_mode=False
+    safe_mode=True
 )
 
 # policy_with_icon = jamf.classic.policies.get_by_id(198, "json")
@@ -30,3 +30,4 @@ jamf = jamfpi.init_client(
 
 upload = jamf.pro.icons.upload(Path("cat.png"))
 print(upload)
+

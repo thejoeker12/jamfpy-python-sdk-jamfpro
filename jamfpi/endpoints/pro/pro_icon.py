@@ -3,7 +3,7 @@
 
 from pathlib import Path
 from ..endpoint_parent import Endpoint
-from requests import Request, Response
+from requests import Request, Response, request
 
 class Icons(Endpoint):
     suffix = "/icon"
@@ -48,4 +48,11 @@ class Icons(Endpoint):
         resp = self._api.do(req)
         return resp
 
+    # // NOTE Doesn't exist but was worth a try. 405 error.
+    # def delete(self, id: int) -> Response:
+    #     url = self._api.url(1) + self.suffix + f"/{id}"
+    #     headers = self._api.header("basic")
+    #     req = Request("DELETE", url=url, headers=headers)
+    #     resp = self._api.do(req)
+    #     return resp 
 
