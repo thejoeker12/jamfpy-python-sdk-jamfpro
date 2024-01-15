@@ -5,7 +5,7 @@ Init function for API Objects
 # pylint: disable=relative-beyond-top-level
 
 # Libs
-import logging
+from logging import Logger
 import requests
 
 # This Lib
@@ -26,14 +26,14 @@ def init_client(
         client_id: str = None,
         client_secret: str = None,
         session: requests.Session = None,
-        custom_logger: logging.Logger = None,
+        custom_logger: Logger = None,
         logging_level=None,
         logging_format: str = None,
         token_exp_threshold_mins: int = None,
         mode: str = None,
         safe_mode: bool = True,
         custom_auth: OAuth or BearerAuth = None
-        # custom_endpoints: str = None // TODO
+        # custom_endpoints: str = None // TODO Custom endpoints.
 ):
 
     """Initilizes a new Jamf instance object"""
@@ -41,7 +41,7 @@ def init_client(
 
     # Logger Setup
     if custom_logger:
-        if not isinstance(custom_logger, logging.Logger):
+        if not isinstance(custom_logger, Logger):
             raise RuntimeError("Bad custom logger type", type(custom_logger))
 
 
@@ -50,10 +50,9 @@ def init_client(
         "logging_level": logging_level,
         "logging_format": logging_format
     }
-    
 
     # Logger for init function
-    logger: logging.Logger = custom_logger or get_logger(
+    logger: Logger = custom_logger or get_logger(
         name=f"{tenant_name}-ini",
         config=logger_config
     )
@@ -79,9 +78,8 @@ def init_client(
     if session:
         if isinstance(session, requests.Session):
             raise RuntimeError("Bad custom Session Type", session)
-        
+
     session = session or requests.Session()
-    session
     logger.debug("Shared requests.Session initialised")
 
 
@@ -111,7 +109,7 @@ def init_client(
         raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
     auth._set_new_token()
-    
+
     # Master Config
     api_config = {
         "tenant": tenant_name,
@@ -143,7 +141,7 @@ def init_client(
 
     elif mode == "custom":
         print("Feature not built yet")
-        raise Exception("Nope try again...") # WIP.
+        raise Exception("Nope try again...") # WIP. // NOTE This is where custom endpoints will go
 
     else:
         raise JamfPiConfigError("Invalid API Mode")
@@ -173,4 +171,5 @@ def init_auth():
     Advanced users only
     
     """
+    # // TODO Maybe?
     pass

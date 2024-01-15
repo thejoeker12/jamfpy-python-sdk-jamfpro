@@ -16,5 +16,3 @@ class JamfPiInitError(Exception):
 
 class JamfAuthError(Exception):
     """Module Auth error"""
-
-
