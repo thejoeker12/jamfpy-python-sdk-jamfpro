@@ -8,3 +8,4 @@ __pycache__
 .DS_Store
 README.MD
 JSONTEST.json
+client_auth.json
