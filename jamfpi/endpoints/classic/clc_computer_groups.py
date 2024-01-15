@@ -2,7 +2,7 @@ import requests
 
 class ComputerGroups:
     def __init__(self, api_config):
-        from ...client.api import API
+        from ...client.client import API
         self._api: API = api_config
 
     def get_by_id(self, id: int):

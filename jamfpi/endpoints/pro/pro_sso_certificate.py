@@ -2,7 +2,7 @@ from requests import Request
 
 class SsoCertificates:
     def __init__(self, api):
-        from ...client.api import API
+        from ...client.client import API
         self._api: API = api
 
     def get_certificate(self):

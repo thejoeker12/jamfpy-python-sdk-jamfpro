@@ -5,7 +5,7 @@ from ...client.exceptions import *
 
 class Scripts:
     def __init__(self, api):
-        from ...client.api import API
+        from ...client.client import API
         self.api: API = api
 
     def getAll(self):

@@ -11,18 +11,19 @@ import requests
 # This lib
 from .auth import OAuth, BearerAuth
 from .exceptions import ConfigError
+from .logging import get_logger
 
 # Endpoints
-from ..resources.classic.clc_computers import ClassicComputers
-from ..resources.pro.pro_api_management import (
+from ..endpoints.classic.clc_computers import ClassicComputers
+from ..endpoints.pro.pro_api_management import (
     APIRolePrivileges,
     APIIntegrations,
     APIRoles
 )
-from ..resources.pro.pro_scripts import Scripts
-from ..resources.classic.clc_computer_groups import ComputerGroups
-from ..resources.pro.pro_sso_certificate import SsoCertificates
-from .logger import get_logger
+from ..endpoints.pro.pro_scripts import Scripts
+from ..endpoints.classic.clc_computer_groups import ComputerGroups
+from ..endpoints.pro.pro_sso_certificate import SsoCertificates
+
 
 
 class API:
@@ -169,7 +170,6 @@ class API:
     def do(self, request: requests.Request) -> requests.Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
-        
         self._refresh_session_headers()
 
         self.logger.debug("Prepping %s", request)

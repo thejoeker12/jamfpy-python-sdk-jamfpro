@@ -9,8 +9,8 @@ import logging
 import requests
 
 # This Lib
-from .api import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
-from .logger import get_logger
+from .client import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
+from .logging import get_logger
 from .auth import OAuth, BearerAuth
 from .utility import import_config
 from ..config.defaultconfig import defaultconfig, MasterConfig
