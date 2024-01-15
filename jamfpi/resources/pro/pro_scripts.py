@@ -34,7 +34,6 @@ class Scripts:
         
         while resp_len != 0:
             page_number += 1
-            print(page_number)
             url = base_url + suffix_template.format(page_number=page_number, page_size=page_size)
             req = Request("GET", url=url, headers=headers)
             resp = self.api.do(req)
