@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 from ..config.defaultconfig import defaultconfig
 
-def import_config(filepath) -> str:
+def import_json(filepath) -> str:
     """imports config file and parses as json"""
     with open(filepath, "r", encoding="UTF-8") as file:
         json_file = json.load(file)

@@ -1,6 +1,6 @@
 from .client.init_client import init_client
 from .client.utility import (
-    import_config,
+    import_json,
     get_bearer_token, 
     generate_client_token,
     fix_jamf_time_to_iso

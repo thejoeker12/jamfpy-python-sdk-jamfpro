@@ -12,9 +12,9 @@ import requests
 from .client import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
 from .logging import get_logger
 from .auth import OAuth, BearerAuth
-from .utility import import_config
+from .utility import import_json
 from ..config.defaultconfig import defaultconfig, MasterConfig
-from .exceptions import InitError, ConfigError
+from .exceptions import JamfPiInitError, ConfigError
 
 
 def init_client(
@@ -33,7 +33,7 @@ def init_client(
         mode: str = None,
         debug_params: list = None,
         custom_auth: OAuth or BearerAuth = None
-        # custom_endpoints: str = None WIP
+        # custom_endpoints: str = None // TODO
 ):
 
     """Initilizes a new Jamf instance object"""
@@ -66,7 +66,7 @@ def init_client(
 
     # Config File
     if config_filepath:
-        imported = import_config(config_filepath)
+        imported = import_json(config_filepath)
         libconfig = MasterConfig(imported)
         logger.info("Config: Custom - PATH %s", config_filepath)
     else:
@@ -107,7 +107,7 @@ def init_client(
             basic_auth_token=basic_token,
         )
     else:
-        raise InitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
+        raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
     auth._set_new_token()
     

@@ -7,7 +7,7 @@ from typing import Callable, Optional
 from base64 import b64encode
 
 from .logging import get_logger
-from .exceptions import JamfAPIError, InitError, AuthError
+from .exceptions import JamfAPIError, JamfPiInitError, AuthError
 from ..config.defaultconfig import ROUND_AMOUNT
 from .utility import fix_jamf_time_to_iso
 
