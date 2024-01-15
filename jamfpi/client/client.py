@@ -10,19 +10,24 @@ import requests
 
 # This lib
 from .auth import OAuth, BearerAuth
-from .exceptions import ConfigError
+from .exceptions import JamfPiConfigError
 from .logging import get_logger
 
 # Endpoints
+# Classic
 from ..endpoints.classic.clc_computers import ClassicComputers
+from ..endpoints.classic.clc_computer_groups import ComputerGroups
+from ..endpoints.classic.clc_policies import Policies
+
+# Pro
 from ..endpoints.pro.pro_api_management import (
     APIRolePrivileges,
     APIIntegrations,
     APIRoles
 )
 from ..endpoints.pro.pro_scripts import Scripts
-from ..endpoints.classic.clc_computer_groups import ComputerGroups
 from ..endpoints.pro.pro_sso_certificate import SsoCertificates
+from ..endpoints.pro.pro_icon import Icons
 
 
 
@@ -45,6 +50,7 @@ class API:
         self._logger_config: dict = config["logging"]
         self._auth_method: str = config["auth_method"]
         self._session: requests.Session = config["session"]
+        self._safe_mode: bool = config["safe_mode"]
 
         # Public
         self.tenant: str = config["tenant"]
@@ -154,7 +160,7 @@ class API:
         if self._version == "pro":
             return self.base_url.format(jamfapiversion=target)
 
-        raise ConfigError("Invalid API version")
+        raise JamfPiConfigError("Invalid API version")
 
 
     def header(self, key: str) -> dict:
@@ -167,16 +173,26 @@ class API:
             raise KeyError("Invalid header key provided") from ve
 
 
-    def do(self, request: requests.Request) -> requests.Response:
+    def do(self, request: requests.Request, timeout=10) -> requests.Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
         self._refresh_session_headers()
 
-        self.logger.debug("Prepping %s", request)
+        do_debug_string = "Prepping: Method: %s at: %s with headers: %s"
+
+        request_header_log = "no headers supplied"
+        if request.headers:
+            request_header_log = request.headers if not self._safe_mode else "[redacted]"
+
+        self.logger.debug(do_debug_string, request.method, request.url, request_header_log)
         prepped = self._session.prepare_request(request)
 
-        self.logger.debug("Sending %s", prepped)
-        response = self._session.send(prepped)
+        prepped_header_log = "no headers supplied"
+        if prepped.headers:
+            prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
+
+        self.logger.debug(do_debug_string, prepped.method, prepped.url, prepped_header_log)
+        response = self._session.send(prepped, timeout=timeout)
 
         if isinstance(response, tuple):
             http_response = response[0]
@@ -184,7 +200,8 @@ class API:
             http_response = response
 
         if not http_response.ok:
-            self.logger.critical("Request %s failed. Response: %s", request, response)
+            error_text = response.text or "no error supplied"
+            self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
 
         return response
 
@@ -201,6 +218,7 @@ class ClassicAPI(API):
         # Endpoints
         self.computers = ClassicComputers(self)
         self.computergroups = ComputerGroups(self)
+        self.policies = Policies(self)
 
 
     # Magic Methods
@@ -221,6 +239,7 @@ class ProAPI(API):
         self.apiroles = APIRoles(self)
         self.scripts = Scripts(self)
         self.sso = SsoCertificates(self)
+        self.icons = Icons(self)
 
 
     # Magic Methods
@@ -300,7 +319,7 @@ class JamfTenant:
             self.initiated_tenants.append(self.pro)
 
         if not classic and not pro:
-            raise ConfigError("No APIs Provided for Jamf Object")
+            raise JamfPiConfigError("No APIs Provided for Jamf Object")
 
     # Methods
     def __str__(self):

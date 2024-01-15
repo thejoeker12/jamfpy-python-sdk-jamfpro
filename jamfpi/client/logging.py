@@ -17,7 +17,8 @@ def get_logger(
     Defaults to default values in either context
     """
 
-    DEFAULT_LEVEL = 30
+    # // TODO Probably move these values to default config
+    DEFAULT_LEVEL = 20
     DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
     if config:

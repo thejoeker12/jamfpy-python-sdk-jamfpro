@@ -7,7 +7,7 @@ from typing import Callable, Optional
 from base64 import b64encode
 
 from .logging import get_logger
-from .exceptions import JamfAPIError, JamfPiInitError, AuthError
+from .exceptions import JamfAPIError, JamfPiInitError, JamfAuthError
 from ..config.defaultconfig import ROUND_AMOUNT
 from .utility import fix_jamf_time_to_iso
 
@@ -120,7 +120,7 @@ class Auth:
         if self.check_token_is_expired():
             self._set_new_token()
             if self.check_token_in_buffer():
-                raise AuthError("Buffer longer than token lifetime")
+                raise JamfAuthError("Buffer longer than token lifetime")
             
         elif self.check_token_in_buffer():
             if self. _method == "bearer":
@@ -129,7 +129,7 @@ class Auth:
                 self._set_new_token()
 
             if self.check_token_in_buffer():
-                raise AuthError("Buffer longer than token lifetime")
+                raise JamfAuthError("Buffer longer than token lifetime")
 
 
     def token(self) -> None:
@@ -227,7 +227,7 @@ class OAuth(Auth):
         """
         Pleaced to ensure interface symetry.
         """
-        raise AuthError("Action not available with OAuth interface.")
+        raise JamfAuthError("Action not available with OAuth interface.")
 
 
 
