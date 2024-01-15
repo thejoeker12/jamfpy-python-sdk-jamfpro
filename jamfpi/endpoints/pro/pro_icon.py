@@ -4,6 +4,7 @@
 from pathlib import Path
 from ..endpoint_parent import Endpoint
 from requests import Request, Response, request
+from ...client.utility import create_single_file_payload
 
 class Icons(Endpoint):
     suffix = "/icon"
@@ -37,13 +38,11 @@ class Icons(Endpoint):
             file.write(image_resp.content)
 
         return image_resp
-    
+
     def upload(self, image_filepath: Path) -> Response :
         url = self._api.url(1) + self.suffix
         headers = self._api.header("basic")
-        file = open(image_filepath, "rb")
-        file_name = image_filepath.name
-        payload = {"file": (file_name, file, "image/png")}
+        payload = create_single_file_payload(image_filepath, image_filepath.name, "png")
         req = Request("POST", url=url, headers=headers, files=payload)
         resp = self._api.do(req)
         return resp

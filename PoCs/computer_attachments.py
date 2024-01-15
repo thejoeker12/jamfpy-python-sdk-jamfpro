@@ -20,14 +20,5 @@ jamf = jamfpi.init_client(
     safe_mode=True
 )
 
-# policy_with_icon = jamf.classic.policies.get_by_id(198, "json")
-# print(policy_with_icon)
-# pprint(policy_with_icon.json())
-
-# icon = jamf.pro.icons.get_by_id(2)
-# print(icon)
-# pprint(icon.json())
-
-upload = jamf.pro.icons.upload(Path("cat2.png"))
-print(upload)
-
+upload_to_comp = jamf.pro.computers_inventory.upload_attachment(15, Path("things.pdf"))
+print(upload_to_comp)

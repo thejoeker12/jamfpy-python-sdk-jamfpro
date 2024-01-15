@@ -4,6 +4,7 @@ import json
 import requests
 from datetime import datetime
 from ..config.defaultconfig import defaultconfig
+from pathlib import Path
 
 def import_json(filepath) -> str:
     """imports config file and parses as json"""
@@ -91,3 +92,7 @@ def format_jamf_datetime(date_time_code):
     datetime_compatible = date_time_code.replace("T", " ").split(".")[0]
     formatted_datetime = datetime.strptime(datetime_compatible, "%Y-%m-%d %H:%M:%S")
     return formatted_datetime
+
+def create_single_file_payload(path_to_file: Path, filename_at_endpoint: str, file_format: str):
+    with open(path_to_file, "rb") as file:
+        return {"file": (filename_at_endpoint, file.read(), f"image/{file_format}")}

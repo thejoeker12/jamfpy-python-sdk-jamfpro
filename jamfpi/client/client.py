@@ -2,7 +2,8 @@
 Jamf API Client Main
 """
 
-# pylint: disable=relative-beyond-top-level
+# pylint: disable=relative-beyond-top-level, too-many-arguments, line-too-long, too-many-instance-attributes
+# // TODO Proper class, function and module docstrings!
 
 # Libraries
 from typing import Any
@@ -28,6 +29,7 @@ from ..endpoints.pro.pro_api_management import (
 from ..endpoints.pro.pro_scripts import Scripts
 from ..endpoints.pro.pro_sso_certificate import SsoCertificates
 from ..endpoints.pro.pro_icon import Icons
+from ..endpoints.pro.pro_computers_inventory import ComputersInventory
 
 
 
@@ -178,20 +180,20 @@ class API:
         self._check_if_closed()
         self._refresh_session_headers()
 
-        do_debug_string = "Prepping: Method: %s at: %s with headers: %s"
+        do_debug_string = "%s: Method: %s at: %s with headers: %s"
 
         request_header_log = "no headers supplied"
         if request.headers:
             request_header_log = request.headers if not self._safe_mode else "[redacted]"
 
-        self.logger.debug(do_debug_string, request.method, request.url, request_header_log)
+        self.logger.debug(do_debug_string, "prepping", request.method, request.url, request_header_log)
         prepped = self._session.prepare_request(request)
 
         prepped_header_log = "no headers supplied"
         if prepped.headers:
             prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
 
-        self.logger.debug(do_debug_string, prepped.method, prepped.url, prepped_header_log)
+        self.logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
         response = self._session.send(prepped, timeout=timeout)
 
         if isinstance(response, tuple):
@@ -202,6 +204,8 @@ class API:
         if not http_response.ok:
             error_text = response.text or "no error supplied"
             self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
+
+        self.logger.debug("Success: %s", http_response.status_code)
 
         return response
 
@@ -240,6 +244,7 @@ class ProAPI(API):
         self.scripts = Scripts(self)
         self.sso = SsoCertificates(self)
         self.icons = Icons(self)
+        self.computers_inventory = ComputersInventory(self)
 
 
     # Magic Methods
