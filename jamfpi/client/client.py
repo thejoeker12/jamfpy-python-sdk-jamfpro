@@ -178,7 +178,13 @@ class API:
         self.logger.debug("Sending %s", prepped)
         response = self._session.send(prepped)
 
-        # TODO Response handler here
+        if isinstance(response, tuple):
+            http_response = response[0]
+        elif isinstance(response, requests.Response):
+            http_response = response
+
+        if not http_response.ok:
+            self.logger.critical("Request %s failed. Response: %s", request, response)
 
         return response
 
