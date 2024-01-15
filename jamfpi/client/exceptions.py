@@ -5,14 +5,16 @@ class JamfAPIError(Exception):
 
 
 
-class ConfigError(Exception):
+class JamfPiConfigError(Exception):
     """Module Configuration error"""
 
 
 
-class InitError(Exception):
+class JamfPiInitError(Exception):
     """Module initiation error"""
 
 
-class AuthError(Exception):
+class JamfAuthError(Exception):
     """Module Auth error"""
+
+

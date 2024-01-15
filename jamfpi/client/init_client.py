@@ -12,9 +12,9 @@ import requests
 from .client import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
 from .logging import get_logger
 from .auth import OAuth, BearerAuth
-from .utility import import_config
+from .utility import import_json
 from ..config.defaultconfig import defaultconfig, MasterConfig
-from .exceptions import InitError, ConfigError
+from .exceptions import JamfPiInitError, JamfPiConfigError
 
 
 def init_client(
@@ -31,9 +31,9 @@ def init_client(
         logging_format: str = None,
         token_exp_threshold_mins: int = None,
         mode: str = None,
-        debug_params: list = None,
+        safe_mode: bool = True,
         custom_auth: OAuth or BearerAuth = None
-        # custom_endpoints: str = None WIP
+        # custom_endpoints: str = None // TODO
 ):
 
     """Initilizes a new Jamf instance object"""
@@ -66,7 +66,7 @@ def init_client(
 
     # Config File
     if config_filepath:
-        imported = import_config(config_filepath)
+        imported = import_json(config_filepath)
         libconfig = MasterConfig(imported)
         logger.info("Config: Custom - PATH %s", config_filepath)
     else:
@@ -81,6 +81,7 @@ def init_client(
             raise RuntimeError("Bad custom Session Type", session)
         
     session = session or requests.Session()
+    session
     logger.debug("Shared requests.Session initialised")
 
 
@@ -107,7 +108,7 @@ def init_client(
             basic_auth_token=basic_token,
         )
     else:
-        raise InitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
+        raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
     auth._set_new_token()
     
@@ -119,7 +120,7 @@ def init_client(
         "session": session,
         "auth_method": auth_method,
         "auth": auth,
-        "debug_params": debug_params
+        "safe_mode": safe_mode
     }
 
 
@@ -145,7 +146,7 @@ def init_client(
         raise Exception("Nope try again...") # WIP.
 
     else:
-        raise ConfigError("Invalid API Mode")
+        raise JamfPiConfigError("Invalid API Mode")
 
     logger.info("%s Init Complete", tenant_name)
 
