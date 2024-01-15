@@ -178,6 +178,8 @@ class API:
         self.logger.debug("Sending %s", prepped)
         response = self._session.send(prepped)
 
+        # TODO Response handler here
+
         return response
 
 

@@ -16,3 +16,7 @@ class InitError(Exception):
 
 class AuthError(Exception):
     """Module Auth error"""
+
+
+def response_handler():
+    pass
