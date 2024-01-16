@@ -19,6 +19,7 @@ from .logging import get_logger
 from ..endpoints.classic.clc_computers import ClassicComputers
 from ..endpoints.classic.clc_computer_groups import ComputerGroups
 from ..endpoints.classic.clc_policies import Policies
+from ..endpoints.classic.clc_osxconfiguration_profiles import ConfigurationProfiles
 
 # Pro
 from ..endpoints.pro.pro_api_management import (
@@ -223,6 +224,7 @@ class ClassicAPI(API):
         self.computers = ClassicComputers(self)
         self.computergroups = ComputerGroups(self)
         self.policies = Policies(self)
+        self.configuration_profiles = ConfigurationProfiles(self)
 
 
     # Magic Methods

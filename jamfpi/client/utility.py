@@ -5,6 +5,9 @@ import requests
 from datetime import datetime
 from ..config.defaultconfig import defaultconfig
 from pathlib import Path
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
+
 
 def import_json(filepath) -> str:
     """imports config file and parses as json"""
@@ -96,3 +99,11 @@ def format_jamf_datetime(date_time_code):
 def create_single_file_payload(path_to_file: Path, filename_at_endpoint: str, file_format: str):
     with open(path_to_file, "rb") as file:
         return {"file": (filename_at_endpoint, file.read(), f"image/{file_format}")}
+
+def pretty_print_xml(xml_data):
+    tree = ET.ElementTree(ET.fromstring(xml_data))
+    rough_string = ET.tostring(tree.getroot(), 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+
+    return reparsed.toprettyxml(indent="  ")
+

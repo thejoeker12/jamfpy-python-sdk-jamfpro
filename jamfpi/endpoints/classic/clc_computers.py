@@ -1,11 +1,9 @@
 import requests
 from ..objects.obj_computer import Computer
+from ..endpoint_parent import Endpoint
 
-class ClassicComputers:
-    def __init__(self, api_config):
-        self._api = api_config
-
-
+class ClassicComputers(Endpoint):
+    """TO DO""" # // TODO
     def get_all(self) -> (requests.Response, list):
         """Gets all computers from parent API obj"""
         suffix = "/computers/subset/basic"
