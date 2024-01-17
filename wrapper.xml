@@ -1,0 +1,14 @@
+<os_x_configuration_profile>
+    <general>
+        <name>Test From Python Lib</name>
+        <site>
+            <id>-1</id>
+            <name>None</name>
+        </site>
+        <category>
+            <id>-1</id>
+            <name>No category assigned</name>
+        </category>
+        <payloads>{PAYLOAD}</payloads>
+    </general>
+</os_x_configuration_profile>

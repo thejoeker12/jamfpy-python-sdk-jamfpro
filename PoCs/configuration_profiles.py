@@ -8,6 +8,7 @@ sys.path.append(parent_dir)
 
 import jamfpi
 from pprint import pprint
+import html
 
 
 
@@ -23,10 +24,12 @@ jamf = jamfpi.init_client(
 )
 
 obj = jamf.classic.configuration_profiles.get_by_id(280)
-# with open("saved.xml", "w") as file:
-#     file.write(obj.text)
 
+wrapper = open("wrapper.xml", 'r').read()
 
-with open("saved.xml", "r") as file:
-    updatedConfig = file.read()
-    update = jamf.classic.configuration_profiles.update_by_id(280, updatedConfig)
+with open("test_config_profile.mobileconfig", "r") as file:
+    raw_payload = file.read()
+    escaped_payload = html.escape(raw_payload)
+    complete = wrapper.format(PAYLOAD=escaped_payload)
+    print(complete)
+    update = jamf.classic.configuration_profiles.create(complete)
