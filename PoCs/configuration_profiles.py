@@ -8,10 +8,9 @@ sys.path.append(parent_dir)
 
 import jamfpi
 from pprint import pprint
-from pathlib import Path
-import xml.etree.ElementTree as ET
-import html
-import xmltodict
+
+
+
 
 config = jamfpi.import_json("client_auth.json")
 
@@ -23,9 +22,11 @@ jamf = jamfpi.init_client(
     safe_mode=True
 )
 
-xml = jamf.classic.configuration_profiles.get_by_id(278).text
-json = xmltodict.parse(xml)
-plist = json["os_x_configuration_profile"]["general"]["payloads"]
-plist_to_dict = xmltodict.parse(plist)
+obj = jamf.classic.configuration_profiles.get_by_id(280)
+# with open("saved.xml", "w") as file:
+#     file.write(obj.text)
 
-print(plist_to_dict["plist"]["dict"].keys())
+
+with open("saved.xml", "r") as file:
+    updatedConfig = file.read()
+    update = jamf.classic.configuration_profiles.update_by_id(280, updatedConfig)

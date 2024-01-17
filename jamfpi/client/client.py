@@ -176,7 +176,7 @@ class API:
             raise KeyError("Invalid header key provided") from ve
 
 
-    def do(self, request: requests.Request, timeout=10) -> requests.Response:
+    def do(self, request: requests.Request, timeout=10, error_on_fail: bool = True) -> requests.Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
         self._refresh_session_headers()
@@ -197,6 +197,8 @@ class API:
         self.logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
         response = self._session.send(prepped, timeout=timeout)
 
+        # Logging
+
         if isinstance(response, tuple):
             http_response = response[0]
         elif isinstance(response, requests.Response):
@@ -204,9 +206,14 @@ class API:
 
         if not http_response.ok:
             error_text = response.text or "no error supplied"
-            self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
-
-        self.logger.debug("Success: %s", http_response.status_code)
+            
+            if error_on_fail:
+                self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
+                raise requests.HTTPError("Bad response:", http_response.status_code)
+            
+            self.logger.warn("Request %s failed. Response: %s, error: %s", request, response, error_text)
+        else:
+            self.logger.info("Success: Code: %s Req: %s %s", http_response.status_code, prepped.method, response.url)
 
         return response
 

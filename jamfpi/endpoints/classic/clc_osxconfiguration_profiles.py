@@ -6,14 +6,23 @@ class ConfigurationProfiles(Endpoint):
     """Configuration profiles object"""
     suffix = "/osxconfigurationprofiles"
 
-    def get_by_id(self, id: int):
+    def get_by_id(self, id: int, accept_format: str = "xml"):
+        if accept_format.lower() not in ["json", "xml"]:
+            raise ValueError("Invalid accept format provided (allowed: 'xml', 'json'): %s", accept_format)
+
         url = self._api.url() + self.suffix + f"/id/{id}"
-        headers = self._api.header("basic-xml")
+        headers = self._api.header(f"basic-{accept_format}")
         req = Request("GET", url=url, headers=headers)
         resp = self._api.do(req)
         return resp
     
 
+    def update_by_id(self, id: int, updatedConfiguration: str):
+        url = self._api.url() + self.suffix + f"/id/{id}"
+        headers = self._api.header("put")
+        req = Request("PUT", url=url, headers=headers, params=updatedConfiguration)
+        resp = self._api.do(req)
+        return resp
 
 
 
