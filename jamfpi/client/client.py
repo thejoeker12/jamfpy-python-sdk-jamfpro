@@ -208,10 +208,10 @@ class API:
             error_text = response.text or "no error supplied"
             
             if error_on_fail:
-                self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
+                self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
                 raise requests.HTTPError("Bad response:", http_response.status_code)
             
-            self.logger.warn("Request %s failed. Response: %s, error: %s", request, response, error_text)
+            self.logger.warn("Request failed. Response: %s, error: %s", response, error_text)
         else:
             self.logger.info("Success: Code: %s Req: %s %s", http_response.status_code, prepped.method, response.url)
 

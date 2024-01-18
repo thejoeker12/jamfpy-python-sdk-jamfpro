@@ -1,6 +1,10 @@
+<os_x_configuration_profile>
+    <general>
+        <name>JL JamfPi Test 224pm</name>
+        <description/>
         <site>
             <id>-1</id>
-            <name>Test Getting Really Upset</name>
+            <name>None</name>
         </site>
         <category>
             <id>-1</id>

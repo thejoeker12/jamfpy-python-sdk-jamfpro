@@ -30,8 +30,12 @@ defaultconfig = {
                 "accept": "text/xml"
             },
             "put": {
-                "accept": "application/json",
+                "accept": "text/xml",
                 "content-type": "text/xml"
+            },
+            "post": {
+                "accept": "text/xml",
+                "content-type": "application/xml"
             }
         },
         "pro": {

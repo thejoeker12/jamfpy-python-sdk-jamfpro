@@ -20,7 +20,7 @@ jamf = jamfpi.init_client(
     client_id=config["clientId"],
     client_secret=config["clientSecret"],
     logging_level=10,
-    safe_mode=False
+    safe_mode=True
 )
 
 wrapper_template = open("wrapper.xml", 'r').read()
@@ -28,4 +28,7 @@ payload = open("test_config_profile.mobileconfig", "r").read()
 payload_escaped = html.escape(payload)
 completed_payload = wrapper_template.format(PAYLOAD=payload_escaped)
 
-create = jamf.classic.configuration_profiles.create(completed_payload)
+# create = jamf.classic.configuration_profiles.create(completed_payload)
+# print(create, create.text)
+
+print(completed_payload)
