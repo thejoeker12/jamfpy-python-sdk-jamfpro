@@ -25,9 +25,9 @@ class ConfigurationProfiles(Endpoint):
         return resp
     
     def create(self, config_profile: str):
-        url = self._api.url() + self.suffix + "/id/0"
+        url = self._api.url() + self.suffix + "/id/1000"
         headers = self._api.header("put")
-        req = Request("POST", url=url, headers=headers, params=config_profile)
+        req = Request("POST", url=url, headers=headers, data=config_profile)
         resp = self._api.do(req)
         return resp
 
