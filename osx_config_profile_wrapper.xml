@@ -1,6 +1,6 @@
 <os_x_configuration_profile>
     <general>
-        <name>JL JamfPi Test 224pm</name>
+        <name>{NAME}</name>
         <description/>
         <site>
             <id>-1</id>

@@ -20,7 +20,7 @@ class ConfigurationProfiles(Endpoint):
     def update_by_id(self, id: int, updatedConfiguration: str):
         url = self._api.url() + self.suffix + f"/id/{id}"
         headers = self._api.header("put")
-        req = Request("PUT", url=url, headers=headers, params=updatedConfiguration)
+        req = Request("PUT", url=url, headers=headers, data=updatedConfiguration)
         resp = self._api.do(req)
         return resp
     

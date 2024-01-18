@@ -24,11 +24,17 @@ jamf = jamfpi.init_client(
 )
 
 wrapper_template = open("wrapper.xml", 'r').read()
-payload = open("test_config_profile.mobileconfig", "r").read()
+payload = open("Test from iMazing JL.mobileconfig", "r").read()
 payload_escaped = html.escape(payload)
-completed_payload = wrapper_template.format(PAYLOAD=payload_escaped)
+completed_payload = wrapper_template.format(PAYLOAD=payload_escaped, NAME="Test from iMazing JL")
+with open("completed_payload_no_jamf.mobileconfig", "w") as file:
+    file.write(completed_payload)
 
-# create = jamf.classic.configuration_profiles.create(completed_payload)
+# create = jamf.classic.configuration_profiles.update_by_id(285, completed_payload)
 # print(create, create.text)
 
-print(completed_payload)
+get = jamf.classic.configuration_profiles.get_by_id(285)
+with open("downloaded285.mobileconfig", "w") as file:
+    file.write(get.text)
+
+# print(completed_payload)
