@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1">
+    <dict>
+        <!-- Keeps key but changes value -->
+        <key>PayloadUUID</key>
+        <string>04fdf599-0c06-4564-a996-5954c30c0491</string>
+        <key>PayloadType</key>
+        <string>Configuration</string>
+
+        <!-- Added key -->
+        <key>PayloadOrganization</key>
+        <string>Lloyds Bank</string>
+
+        <!-- Keeps key but changes value -->
+        <key>PayloadIdentifier</key>
+        <string>04fdf599-0c06-4564-a996-5954c30c0491</string>
+
+        <key>PayloadDisplayName</key>
+        <string>Test from iMazing JL Friday 19</string>
+
+        <!-- Again adds empty tags for all fields if not filled -->
+        <key>PayloadDescription</key>
+        <string />
+
+        <key>PayloadVersion</key>
+        <integer>1</integer>
+
+        <!-- Again adds empty tags for all fields if not filled -->
+        <key>PayloadEnabled</key>
+        <true />
+        <key>PayloadRemovalDisallowed</key>
+        <true />
+
+        <!-- Added key -->
+        <key>PayloadScope</key>
+        <string>System</string>
+        
+        <!-- Payload content moved to the bottom -->
+        <key>PayloadContent</key>
+        <array>
+            <dict>
+                <key>PayloadUUID</key>
+                <string>2F65D244-8BFC-46CE-8FC3-8222EE47F57D</string>
+                <key>PayloadType</key>
+                <string>com.apple.shareddeviceconfiguration</string>
+
+                <!-- Added field - PayloadOrganization -->
+                <key>PayloadOrganization</key>
+                <string>Lloyds Bank</string>
+
+                <key>PayloadIdentifier</key>
+                <string>com.apple.shareddeviceconfiguration.2F65D244-8BFC-46CE-8FC3-8222EE47F57D</string>
+                <key>PayloadDisplayName</key>
+                <string>Lock Screen Message</string>
+
+                <!-- Adds empty keys -->
+                <key>PayloadDescription</key>
+                <string />
+
+                <key>PayloadVersion</key>
+                <integer>1</integer>
+
+                <!-- Adds empty keys -->
+                <key>PayloadEnabled</key>
+                <true />
+
+                <key>LockScreenFootnote</key>
+                <string>Look up</string>
+                <key>IfLostReturnToMessage</key>
+                <string>If lost make this script work before returning</string>
+            </dict>
+        </array>
+    </dict>
+</plist>

@@ -230,7 +230,7 @@ class OAuth(Auth):
             self.logger.debug("Token set successfully")
 
         else:
-            raise HTTPError("Bad call response")
+            raise JamfAuthError("Error getting token.", call, call.text)
 
 
     def _keep_alive_token(self):

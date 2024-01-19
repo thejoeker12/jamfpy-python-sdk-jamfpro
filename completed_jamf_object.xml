@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <os_x_configuration_profile>
     <general>
-        <name>Test from iMazing JL</name>
+        <name>Test from iMazing JL Friday 19</name>
         <description/>
         <site>
             <id>-1</id>
@@ -22,26 +22,30 @@
 	&lt;key&gt;PayloadContent&lt;/key&gt;
 	&lt;array&gt;
 		&lt;dict&gt;
+			&lt;key&gt;IfLostReturnToMessage&lt;/key&gt;
+			&lt;string&gt;If lost make this script work before returning&lt;/string&gt;
+			&lt;key&gt;LockScreenFootnote&lt;/key&gt;
+			&lt;string&gt;Look up&lt;/string&gt;
 			&lt;key&gt;PayloadDisplayName&lt;/key&gt;
-			&lt;string&gt;Finder&lt;/string&gt;
+			&lt;string&gt;Lock Screen Message&lt;/string&gt;
 			&lt;key&gt;PayloadIdentifier&lt;/key&gt;
-			&lt;string&gt;com.apple.finder.8439DC72-7AA9-47B7-9CA9-15356B4A7216&lt;/string&gt;
+			&lt;string&gt;com.apple.shareddeviceconfiguration.2F65D244-8BFC-46CE-8FC3-8222EE47F57D&lt;/string&gt;
 			&lt;key&gt;PayloadType&lt;/key&gt;
-			&lt;string&gt;com.apple.finder&lt;/string&gt;
+			&lt;string&gt;com.apple.shareddeviceconfiguration&lt;/string&gt;
 			&lt;key&gt;PayloadUUID&lt;/key&gt;
-			&lt;string&gt;8439DC72-7AA9-47B7-9CA9-15356B4A7216&lt;/string&gt;
+			&lt;string&gt;2F65D244-8BFC-46CE-8FC3-8222EE47F57D&lt;/string&gt;
 			&lt;key&gt;PayloadVersion&lt;/key&gt;
 			&lt;integer&gt;1&lt;/integer&gt;
 		&lt;/dict&gt;
 	&lt;/array&gt;
 	&lt;key&gt;PayloadDisplayName&lt;/key&gt;
-	&lt;string&gt;Test from iMazing JL&lt;/string&gt;
+	&lt;string&gt;Test Profile From iMazing Friday 19&lt;/string&gt;
 	&lt;key&gt;PayloadIdentifier&lt;/key&gt;
-	&lt;string&gt;Josephs-MacBook-Air.2A89AAEF-EE5E-4025-8358-0CEE7D25E6AD&lt;/string&gt;
+	&lt;string&gt;IDENTIFIERGOESHERE101&lt;/string&gt;
 	&lt;key&gt;PayloadType&lt;/key&gt;
 	&lt;string&gt;Configuration&lt;/string&gt;
 	&lt;key&gt;PayloadUUID&lt;/key&gt;
-	&lt;string&gt;2A89AAEF-EE5E-4025-8358-0CEE7D25E6AD&lt;/string&gt;
+	&lt;string&gt;D951FECB-CCDE-4298-958D-EF76E294A79C&lt;/string&gt;
 	&lt;key&gt;PayloadVersion&lt;/key&gt;
 	&lt;integer&gt;1&lt;/integer&gt;
 &lt;/dict&gt;
