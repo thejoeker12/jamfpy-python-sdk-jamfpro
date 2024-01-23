@@ -13,21 +13,21 @@ import xml.etree.ElementTree as ET
 
 
 
-config = jamfpi.import_json("client_auth.json")
+# config = jamfpi.import_json("client_auth.json")
 
-jamf = jamfpi.init_client(
-    tenant_name=config["instanceName"],
-    client_id=config["clientId"],
-    client_secret=config["clientSecret"],
-    logging_level=10,
-    safe_mode=True
-)
+# jamf = jamfpi.init_client(
+#     tenant_name=config["instanceName"],
+#     client_id=config["clientId"],
+#     client_secret=config["clientSecret"],
+#     logging_level=10,
+#     safe_mode=True
+# )
 
 # Make full payload
-wrapper_template = open("osx_config_profile_wrapper.xml", 'r').read()
-payload = open("payload.mobileconfig", "r").read()
-payload_escaped = html.escape(payload)
-completed_jamf_object = wrapper_template.format(PAYLOAD=payload_escaped, NAME="Test from iMazing JL Friday 19")
+# wrapper_template = open("osx_config_profile_wrapper.xml", 'r').read()
+# payload = open("payload.mobileconfig", "r").read()
+# payload_escaped = html.escape(payload)
+# completed_jamf_object = wrapper_template.format(PAYLOAD=payload_escaped, NAME="Test from iMazing JL Friday 19")
 
 # Save locally before sending to Jamf
 # with open("completed_jamf_object.xml", "w") as file:
@@ -42,14 +42,23 @@ completed_jamf_object = wrapper_template.format(PAYLOAD=payload_escaped, NAME="T
 #     file.write(get.text)
 
 # Rip the payload out of the newly saved one and save an unescaped version
-with open("downloaded_complete_jamf_object.xml", "r") as file:
-    downloaded_complete_jamf_object = file.read()
-    root = ET.fromstring(downloaded_complete_jamf_object)
-    payloads = root.find(".//payloads")
-    payloads_text = payloads.text
-    with open("downloaded_payload.mobileconfig", "w") as file:
-        file.write(payloads_text)
+# with open("downloaded_complete_jamf_object.xml", "r") as file:
+#     downloaded_complete_jamf_object = file.read()
+#     root = ET.fromstring(downloaded_complete_jamf_object)
+#     payloads = root.find(".//payloads")
+#     payloads_text = payloads.text
+#     with open("downloaded_payload.mobileconfig", "w") as file:
+#         file.write(payloads_text)
 
 
+
+import plistlib
+
+# with open("escaped.mobileconfig", "rb") as file:
+#     load = plistlib.load(file)
+#     load["PayloadDescription"] = "This is not a new description"
+#     pprint(load)
+#     with open("a saved profile.mobileconfig", "wb") as save:
+#         plistlib.dump(load, save)
 
 
