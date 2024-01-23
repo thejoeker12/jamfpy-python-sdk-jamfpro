@@ -1,5 +1,4 @@
 import requests
-from ..objects.obj_computer import Computer
 from ..endpoint_parent import Endpoint
 
 class ClassicComputers(Endpoint):
@@ -14,7 +13,7 @@ class ClassicComputers(Endpoint):
         if call.ok:
             out = []
             for comp in call.json()["computers"]:
-                out.append(Computer(
+                out.append(ClassicComputer(
                     self._api.tenant,
                     comp["serial_number"],
                     comp["id"],
@@ -24,3 +23,9 @@ class ClassicComputers(Endpoint):
             return (call, out)
 
         return (call, None)
+
+
+class ClassicComputer:
+    def __init__(self, serial_number, id):
+        self.serial_number = serial_number
+        self.id = id
