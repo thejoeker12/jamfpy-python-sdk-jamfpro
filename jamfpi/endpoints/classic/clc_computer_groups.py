@@ -45,8 +45,15 @@ class ComputerGroups(Endpoint):
     def get_by_name(self, name: str):
         """// TODO me"""
 
+    
+
 
     # // TODO finish the endpoints
 
 
 # // TODO Write computer group object
+
+
+class ComputerGroup:
+    def __init__(self):
+        "// TODO"

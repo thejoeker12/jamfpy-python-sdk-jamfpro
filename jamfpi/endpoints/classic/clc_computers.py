@@ -3,9 +3,13 @@ from ..endpoint_parent import Endpoint
 
 class ClassicComputers(Endpoint):
     """TO DO""" # // TODO
+
+    _uri = "/computers"
+    
     def get_all(self) -> (requests.Response, list):
         """Gets all computers from parent API obj"""
-        suffix = "/computers/subset/basic"
+
+        suffix = f"{self._uri}/subset/basic"
         url = self._api.url() + suffix
         headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
