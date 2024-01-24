@@ -19,7 +19,7 @@ class ComputerGroups(Endpoint):
                         URL, headers, and other necessary details.
     """
 
-    suffix = "/computergroups"
+    _uri = "/computergroups"
 
     def get_by_id(self, target_id: int):
         """
@@ -35,7 +35,7 @@ class ComputerGroups(Endpoint):
         obj: The response object from the API call, typically containing the
             details of the requested computer group.
         """
-        suffix = self.suffix + f"/id/{target_id}"
+        suffix = self._uri + f"/id/{target_id}"
         url = self._api.url() + suffix
         headers = self._api.header("basic_json")
         req = requests.Request("GET", url=url, headers=headers)

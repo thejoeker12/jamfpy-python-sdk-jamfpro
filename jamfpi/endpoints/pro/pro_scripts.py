@@ -1,24 +1,26 @@
+# // TODO docstring
 from requests import Request
 from ...client.exceptions import *
+from ..endpoint_parent import Endpoint
 
 
 
-class Scripts:
-    def __init__(self, api):
-        from ...client.client import API
-        self.api: API = api
+class Scripts(Endpoint):
+    _uri = "/scripts"
 
-    def getAll(self):
+    def get_all(self):
+        # // TODO docstring
         page_size = 200
         page_number = 0
-        suffix_template = "/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
-        base_url = self.api.url("1")
-        headers = self.api.header("basic")
+        suffix_template = f"/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
+        base_url = self._api.url("1")
+        headers = self._api.header("basic")
 
         url = base_url + suffix_template.format(page_number=page_number, page_size=page_size)
         req = Request("GET", url=url, headers=headers)
-        resp = self.api.do(req)
+        resp = self._api.do(req)
 
+        # // NOTE this is where your current page logic is
         out_list = []
         if resp.ok:
             resp_json = resp.json()
@@ -36,7 +38,7 @@ class Scripts:
             page_number += 1
             url = base_url + suffix_template.format(page_number=page_number, page_size=page_size)
             req = Request("GET", url=url, headers=headers)
-            resp = self.api.do(req)
+            resp = self._api.do(req)
             if resp.ok:
                 resp_json = resp.json()
                 resp_len = len(resp_json["results"])
@@ -50,10 +52,9 @@ class Scripts:
             
 
 
-    def getByID(self, id):
-        suffix = f"/scripts/{id}"
-        url = self.api.url("1") + suffix
-        print(url)
+    def get_by_id(self, target_id: int):
+        # // TODO docstring
+        url = self.api.url("1") + f"{self._uri}/{target_id}"
         headers = self.api.header("basic")
         req = Request("GET", url=url, headers=headers)
         resp = self.api.do(req)
@@ -63,10 +64,10 @@ class Scripts:
         return resp, None
     
 
-    def create(
-            name: str,
-            info: str = None,
-            notes: str = None,
-            priority: str = None
-    ):
-        pass
+    # def create(
+    #         name: str,
+    #         info: str = None,
+    #         notes: str = None,
+    #         priority: str = None
+    # ):
+    #     pass

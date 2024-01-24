@@ -9,7 +9,6 @@ Classes:
 """
 # pylint: disable=relative-beyond-top-level, too-many-arguments, line-too-long
 # // NOTE Above pylint flags disabled for this file only on purpose.
-# // TODO Proper class, function and module docstrings!
 
 # Libs
 import datetime
@@ -177,14 +176,14 @@ class Auth:
                 raise JamfAuthError("Buffer longer than token lifetime")
 
 
-    def token(self) -> None:
+    def token(self) -> str:
         """Checks token validity and returns token string if valid"""
         self.logger.debug("FUNCTION: token")
         self.check_token()
         return self._token_str
 
 
-    def invalidate(self):
+    def invalidate(self) -> bool:
         """
         invalidates token
         """
@@ -231,7 +230,7 @@ class OAuth(Auth):
             token_exp_thold_mins,
             oauth_cid,
             oauth_cs
-    ):
+    ) -> None:
         """Initializes the OAuth object with necessary configuration and credentials.
 
         Args:
@@ -255,13 +254,13 @@ class OAuth(Auth):
 
     # Magic
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns a string representation of the OAuth object."""
         return f"OAuth Object for {self._tenant}"
 
     # Private
 
-    def _set_new_token(self):
+    def _set_new_token(self) -> None:
         """Requests and sets a new OAuth token."""
         self.logger.debug("FUNCTION: _set_new_token")
 
@@ -294,7 +293,7 @@ class OAuth(Auth):
             raise JamfAuthError("Error getting token.", call, call.text)
 
 
-    def _keep_alive_token(self):
+    def _keep_alive_token(self) -> None:
         """Placeholder method for OAuth, raises an error as it's not applicable."""
         raise JamfAuthError("Action not available with OAuth interface.")
 
@@ -326,7 +325,7 @@ class BearerAuth(Auth):
             username: Optional[str] = None,
             password: Optional[str] = None,
             basic_auth_token: Optional[str] = None,
-    ):
+    ) -> None:
         
         """
         Initializes the BearerAuth object with necessary configuration and credentials.
@@ -355,14 +354,14 @@ class BearerAuth(Auth):
 
 
     # Magic
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns a string representation of the BearerAuth object."""
 
         return f"Bearer Token Object for {self._tenant}"
 
 
     # Private
-    def _init_auth(self):
+    def _init_auth(self) -> None:
         """Initializes the authentication by setting the basic auth token."""
         self.logger.debug("FUNCTION: _init_auth")
         if self.username and self.password:
@@ -372,7 +371,7 @@ class BearerAuth(Auth):
             pass
 
 
-    def _set_new_token(self):
+    def _set_new_token(self) -> None:
         """Requests and sets a new Bearer token using stored credentials."""
         self.logger.debug("FUNCTION: _set_new_token")
         url = self._base_url + self._libconfig.urls["auth"]["bearer"]
@@ -400,7 +399,7 @@ class BearerAuth(Auth):
             raise JamfAuthError("Error getting new token")
 
 
-    def _keep_alive_token(self):
+    def _keep_alive_token(self) -> None:
         """Keeps the current Bearer token alive and updates its expiration time."""
         self.logger.debug("_keep_alive_token starting")
 

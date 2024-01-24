@@ -10,7 +10,7 @@ def get_logger(
         level: int = None,
         format: str = None,
         config: str = None
-    ):
+    ) -> logging.Logger:
     """
     Returns default logger configuration for JamfAPI Client
     Prioritises Config over individual values

@@ -34,7 +34,7 @@ def init_client(
         safe_mode: bool = True,
         custom_auth: OAuth or BearerAuth = None
         # custom_endpoints: str = None // TODO Custom endpoints.
-):
+) -> JamfTenant:
 
     """Initilizes a new Jamf instance object"""
 

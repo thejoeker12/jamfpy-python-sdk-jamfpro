@@ -1,17 +1,17 @@
 import requests
-from ..objects.obj_api_management import *
 from ...client.exceptions import *
+from ..endpoint_parent import Endpoint
 
-class APIRoles:
-    def __init__(self, api):
-        self.api = api
+class APIRoles(Endpoint):
+    # // TODO docstring
+    _uri = "/api-roles"
 
     def get_all(self):
-        suffix = "/api-roles"
-        url = self.api.url("1") + suffix
-        headers = self.api.header("basic")
+        # // TODO docstring
+        url = self._api.url("1") + self._uri
+        headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
-        call = self.api.do(req)
+        call = self._api.do(req)
 
         if call.ok:
             return call
@@ -20,31 +20,31 @@ class APIRoles:
 
     
 
-class APIRolePrivileges:
-    def __init__(self, api):
-        self.api = api
+class APIRolePrivileges(Endpoint):
+    # // TODO docstring
 
+    _uri = "/api-role-privileges"
 
     def get_all(self):
-        suffix = "/api-role-privileges"
-        url = self.api.url("1") + suffix
-        headers = self.api.header("basic")
+        # // TODO docstring
+        url = self._api.url("1") + self._uri
+        headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
-        call = self.api.do(req)
+        call = self._api.do(req)
         return call
 
 
-class APIIntegrations:
-    def __init__(self, api):
-        self.api = api
+class APIIntegrations(Endpoint):
+    # // TODO docstring
+    _uri = "/api-integrations"
 
 
     def get_all(self) -> (requests.Response, list or None):
-        suffix = "/api-integrations"
-        url = self.api.url("1") + suffix
-        headers = self.api.header("basic")
+        # // TODO docstring
+        url = self._api.url("1") + self._uri
+        headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
-        call = self.api.do(req)
+        call = self._api.do(req)
         if call.ok:
             out_list = []
             payload = call.json()["results"]
@@ -64,7 +64,7 @@ class APIIntegrations:
 
 
     
-
+# // TODO all of this
 class APIIntegration:
     def __init__(
             self,

@@ -1,13 +1,13 @@
 from requests import Request
+from ..endpoint_parent import Endpoint
 
-class SsoCertificates:
-    def __init__(self, api):
-        from ...client.client import API
-        self._api: API = api
+class SsoCertificates(Endpoint):
+    # // TODO docstring
+    _uri = "/sso/cert"
 
     def get_certificate(self):
-        suffix = "/sso/cert"
-        url = self._api.url("1") + suffix
+        # // TODO docstring
+        url = self._api.url("1") + self._uri
         headers = self._api.header("basic-json")
         request = Request("GET", url=url, headers=headers)
         call = self._api.do(request)

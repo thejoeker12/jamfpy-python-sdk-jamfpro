@@ -150,7 +150,7 @@ class API:
         self.logger.info("%s closed", str(self))
 
 
-    def url(self, target=None) -> None:
+    def url(self, target=None) -> str:
         """
         Allows access to base url from endpoint
         Universal interface across API versions
@@ -166,7 +166,7 @@ class API:
         raise JamfPiConfigError("Invalid API version")
 
 
-    def header(self, key: str) -> dict:
+    def header(self, key: str) -> str:
         """Returns given set of headers from config"""
         self._check_if_closed()
         try:
@@ -199,21 +199,16 @@ class API:
 
         # Logging
 
-        if isinstance(response, tuple):
-            http_response = response[0]
-        elif isinstance(response, requests.Response):
-            http_response = response
-
-        if not http_response.ok:
+        if not response.ok:
             error_text = response.text or "no error supplied"
             
             if error_on_fail:
                 self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
-                raise requests.HTTPError("Bad response:", http_response.status_code)
+                raise requests.HTTPError("Bad response:", response.status_code)
             
             self.logger.warn("Request failed. Response: %s, error: %s", response, error_text)
         else:
-            self.logger.info("Success: Code: %s Req: %s %s", http_response.status_code, prepped.method, response.url)
+            self.logger.info("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
         return response
 
@@ -235,7 +230,7 @@ class ClassicAPI(API):
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
@@ -257,7 +252,7 @@ class ProAPI(API):
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
@@ -277,7 +272,7 @@ class AuthManagerProAPI(API):
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} AUTH ONLY API Client for {self.tenant}"
 
 
@@ -299,7 +294,7 @@ class CustomAPI(API):
         for ep in endpoints:
             setattr(self, ep.__name__, ep(self))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} Custom Endpoint for {self.tenant}"
 
 
@@ -336,10 +331,10 @@ class JamfTenant:
             raise JamfPiConfigError("No APIs Provided for Jamf Object")
 
     # Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf API Client for Tenant: {self.tenant} using {self._auth_method}"
 
-    def close(self):
+    def close(self) -> None:
         """Closes all initied apis"""
         self._logger.warning("Closing APIs")
         for api in self.initiated_tenants:

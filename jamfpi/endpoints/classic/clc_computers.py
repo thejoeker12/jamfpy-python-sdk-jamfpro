@@ -30,6 +30,7 @@ class ClassicComputers(Endpoint):
 
 
 class ClassicComputer:
+    # // TODO docstring
     def __init__(self, serial_number, id):
         self.serial_number = serial_number
         self.id = id
