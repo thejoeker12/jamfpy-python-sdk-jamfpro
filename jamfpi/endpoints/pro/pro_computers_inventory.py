@@ -1,9 +1,10 @@
 """Endpoints for Jamf Pro Computers Inventory"""
 
-from ..endpoint_parent import Endpoint
-from ...client.utility import create_single_file_payload
 from pathlib import Path
 from requests import Request
+from ..endpoint_parent import Endpoint
+from ...client.utility import create_single_file_payload
+
 
 class ComputersInventory(Endpoint):
     _uri = "/computers-inventory"

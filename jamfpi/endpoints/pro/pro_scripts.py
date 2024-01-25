@@ -1,6 +1,6 @@
 # // TODO docstring
 from requests import Request
-from ...client.exceptions import *
+from ...client.exceptions import JamfAPIError
 from ..endpoint_parent import Endpoint
 
 
@@ -29,11 +29,11 @@ class Scripts(Endpoint):
                 out_list.append(i)
             if resp_len < page_size:
                 return resp, resp_json["results"]
-            
+
         else:
             raise JamfAPIError("problem")
-        
-        
+
+
         while resp_len != 0:
             page_number += 1
             url = base_url + suffix_template.format(page_number=page_number, page_size=page_size)
@@ -45,11 +45,11 @@ class Scripts(Endpoint):
                 for i in resp_json["results"]:
                     out_list.append(i)
             else:
-                raise JamfAPIError("Bad call on page: %s", page_number)
-            
+                raise JamfAPIError(f"Bad call on page: {page_number}")
+
         return resp, out_list
 
-            
+
 
 
     def get_by_id(self, target_id: int):
@@ -62,7 +62,7 @@ class Scripts(Endpoint):
             return (resp, None)
 
         return resp, None
-    
+
 
     # def create(
     #         name: str,

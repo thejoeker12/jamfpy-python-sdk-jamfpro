@@ -1,7 +1,7 @@
 """Endpint module for Jamf Pro API - API Management"""
 
 import requests
-from ...client.exceptions import *
+from ...client.exceptions import JamfAPIError
 from ..endpoint_parent import Endpoint
 
 
@@ -70,53 +70,54 @@ class APIIntegrations(Endpoint):
 class APIIntegration:
     def __init__(
             self,
-            accessTokenLifetimeSeconds: int,
-            authorizationScopes: list,
-            clientId: str,
-            displayName: str,
+            access_token_lifetime_seconds: int,
+            authorization_scopes: list,
+            client_id: str,
+            display_name: str,
             enabled: bool,
-            id: int,
+            obj_id: int,
             raw
     ) -> None:
-        self.accessTokenLifetimeSeconds = accessTokenLifetimeSeconds
-        self.authorizationScopes = authorizationScopes
-        self.clientId = clientId
-        self.displayName = displayName
+        self.access_token_lifetime_seconds = access_token_lifetime_seconds
+        self.authorization_scopes = authorization_scopes
+        self.client_id = client_id
+        self.display_name = display_name
         self.enabled = enabled
-        self.id = id
+        self.obj_id = obj_id
         self.raw = raw
 
 
-    def isEmpty(self):
-        if len(self.authorizationScopes) == 1:
-            if self.authorizationScopes[0].split("-", maxsplit=1)[0] == "placeholder":
+    def is_empty(self):
+        if len(self.authorization_scopes) == 1:
+            if self.authorization_scopes[0].split("-", maxsplit=1)[0] == "placeholder":
                 return True
         return False
 
+# // TODO Revamp Objects
 
 class APIRole:
     def __init__(
             self,
             api,
-            displayName: str,
-            id: int,
+            display_name: str,
+            obj_id: int,
             privileges: list,
             raw: dict
 
     ):
-        self.displayName = displayName
-        self.id = id
+        self.display_name = display_name
+        self.obj_id = obj_id
         self.privileges = privileges
         self.raw = raw
         self.api = api
 
 
     def update_perms(self, perms=None):
-        suffix = f"/api-roles/{self.id}"
+        suffix = f"/api-roles/{self.obj_id}"
         url = self.api.url("1") + suffix
         headers = self.api.header("put")
         payload = {
-            "displayName": self.displayName,
+            "displayName": self.display_name,
             "privileges": perms or []
         }
         req = requests.Request(
@@ -128,5 +129,5 @@ class APIRole:
         resp = self.api.do(req)
         if resp.ok:
             return resp
-        else:
-            raise JamfAPIError("Bad request", resp, resp.text)
+
+        raise JamfAPIError("Bad request", resp, resp.text)

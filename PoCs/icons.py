@@ -3,7 +3,7 @@
 import sys
 import os
 
-# pylint: disable=wrong-import-position, unused-import
+# pylint: disable=wrong-import-position, unused-import, R0801
 
 this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)
