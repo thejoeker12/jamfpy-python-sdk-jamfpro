@@ -2,6 +2,9 @@ import requests
 from ...client.exceptions import *
 from ..endpoint_parent import Endpoint
 
+# pylint: disable=line-too-long, relative-beyond-top-level, missing-function-docstring, missing-class-docstring, too-few-public-methods
+
+
 class APIRoles(Endpoint):
     # // TODO docstring
     _uri = "/api-roles"
@@ -18,7 +21,6 @@ class APIRoles(Endpoint):
 
         raise JamfAPIError("call error")
 
-    
 
 class APIRolePrivileges(Endpoint):
     # // TODO docstring
@@ -63,7 +65,7 @@ class APIIntegrations(Endpoint):
         return (call, None)
 
 
-    
+
 # // TODO all of this
 class APIIntegration:
     def __init__(
@@ -90,7 +92,7 @@ class APIIntegration:
             if self.authorizationScopes[0].split("-", maxsplit=1)[0] == "placeholder":
                 return True
         return False
-      
+
 
 class APIRole:
     def __init__(
