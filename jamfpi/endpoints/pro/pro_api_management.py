@@ -1,8 +1,10 @@
+"""Endpint module for Jamf Pro API - API Management"""
+
+# pylint: disable=line-too-long, relative-beyond-top-level, missing-function-docstring, missing-class-docstring, too-few-public-methods
+
 import requests
 from ...client.exceptions import *
 from ..endpoint_parent import Endpoint
-
-# pylint: disable=line-too-long, relative-beyond-top-level, missing-function-docstring, missing-class-docstring, too-few-public-methods
 
 
 class APIRoles(Endpoint):

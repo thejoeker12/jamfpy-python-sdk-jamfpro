@@ -1,8 +1,10 @@
 """Endpoint code for Jamf Classic API Policies"""
+
 # pylint: disable=line-too-long, relative-beyond-top-level, missing-function-docstring, missing-class-docstring, too-few-public-methods
 
-from ..endpoint_parent import Endpoint
 from requests import Request
+from ..endpoint_parent import Endpoint
+
 
 class Policies(Endpoint):
     # // TODO docstring
