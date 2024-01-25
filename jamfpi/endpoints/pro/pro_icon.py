@@ -2,8 +2,8 @@
 
 
 from pathlib import Path
-from ..endpoint_parent import Endpoint
 from requests import Request, Response, request
+from ..endpoint_parent import Endpoint
 from ...client.utility import create_single_file_payload
 
 class Icons(Endpoint):
