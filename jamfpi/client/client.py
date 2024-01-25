@@ -2,7 +2,6 @@
 Jamf API Client Main
 """
 
-# pylint: disable=relative-beyond-top-level, too-many-arguments, line-too-long, too-many-instance-attributes
 # // TODO Proper class, function and module docstrings!
 
 # Libraries

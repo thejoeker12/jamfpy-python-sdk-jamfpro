@@ -9,7 +9,7 @@ Classes:
     OAuth: Subclass for handling OAuth specific authentication.
     BearerAuth: Subclass for handling Bearer Token specific authentication.
 """
-# pylint: disable=relative-beyond-top-level, too-many-arguments, line-too-long
+
 # // NOTE Above pylint flags disabled for this file only on purpose.
 
 # Libs

@@ -1,5 +1,4 @@
 """Util"""
-# pylint: disable=line-too-long, relative-beyond-top-level, wrong-import-order
 # // TODO tidy this whole file up
 import json
 from datetime import datetime

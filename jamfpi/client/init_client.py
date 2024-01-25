@@ -2,8 +2,6 @@
 Init function for API Objects
 """
 
-# pylint: disable=relative-beyond-top-level, line-too-long, too-many-arguments, too-many-locals, broad-exception-raised, too-many-branches, unused-argument
-
 # Libs
 from logging import Logger
 import requests

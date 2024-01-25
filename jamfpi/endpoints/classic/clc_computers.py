@@ -1,7 +1,5 @@
 """Jamf Classic API Endpoint Code for Computers"""
 
-# pylint: disable=relative-beyond-top-level, too-few-public-methods, missing-class-docstring
-
 import requests
 from ..endpoint_parent import Endpoint
 

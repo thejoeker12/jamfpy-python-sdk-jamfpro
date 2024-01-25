@@ -1,7 +1,5 @@
 """Endpoints for configuration profiles"""
 
-# pylint: disable=line-too-long, relative-beyond-top-level, missing-function-docstring
-
 from requests import Request
 from ..endpoint_parent import Endpoint
 

@@ -2,7 +2,6 @@
 
 ROUND_AMOUNT = 3
 
-# pylint: disable=too-few-public-methods
 
 defaultconfig = {
     "urls" : {
