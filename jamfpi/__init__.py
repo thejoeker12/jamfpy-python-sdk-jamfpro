@@ -12,9 +12,3 @@ from .client.utility import (
     compare_dict_keys,
     format_jamf_datetime,
 )
-
-
-# Dev Testing
-
-from .client.auth import *
-from .config.defaultconfig import *
