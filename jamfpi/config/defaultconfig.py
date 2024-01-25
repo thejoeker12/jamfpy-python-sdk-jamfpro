@@ -2,6 +2,8 @@
 
 ROUND_AMOUNT = 3
 
+# pylint disable=too-few-public-methods
+
 defaultconfig = {
     "urls" : {
         "base": "https://{tenant}.jamfcloud.com",
@@ -61,13 +63,14 @@ defaultconfig = {
 
 
 class MasterConfig:
+    """Default configuration class"""
     def __init__(
             self,
             data
     ):
         self.data = data
         self.validate_data_structure()
-        
+
     def validate_data_structure(self):
         data = self.data
         try:

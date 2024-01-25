@@ -4,6 +4,8 @@ Default logging module for this library
 
 import logging
 
+# pylint: disable=invalid-name
+
 def get_logger(
         name,
         level: int = None,
