@@ -41,11 +41,10 @@ while calls < 1000:
         while True:
             i = random.randint(1, 1000)
             if i in used_numbers:
-                i = random.randint(1, 1000)
+                pass
             else:
                 break
 
-        
         try:
             resp = call(i)
             if resp.ok:
