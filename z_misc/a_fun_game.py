@@ -26,6 +26,7 @@ text = open(TEXT_PATH, "r").read()
 out = []
 calls = 0
 text_index = 0
+used_numbers = []
 while calls < 1000:
     text_split = text.lower().split()
     user_try = str(input(": "))
@@ -36,7 +37,14 @@ while calls < 1000:
     elif user_try == text_split[text_index]:
         print("Success! :")
         text_index += 1
-        i = random.randint(1, 1000)
+
+        while True:
+            i = random.randint(1, 1000)
+            if i in used_numbers:
+                i = random.randint(1, 1000)
+            else:
+                break
+
         calls += 1
         try:
             resp = call(i)
@@ -45,6 +53,8 @@ while calls < 1000:
 
         except HTTPError as e:
             print(f"Dock-item with ID: {i} does not exist\nBad Luck!")
+
+        used_numbers.append(i)
 
     elif user_try == "q":
         break
