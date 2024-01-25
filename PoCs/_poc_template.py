@@ -1,4 +1,8 @@
-import sys, os
+"""Just a template"""
+import sys
+import os
+
+# pylint: disable=wrong-import-position
 
 this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)

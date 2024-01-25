@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 
 this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)
@@ -6,9 +7,9 @@ sys.path.append(parent_dir)
 
 # Setup Complete
 
-import jamfpi
 from pprint import pprint
 from pathlib import Path
+import jamfpi
 
 config = jamfpi.import_json("client_auth.json")
 
@@ -30,4 +31,3 @@ jamf = jamfpi.init_client(
 
 upload = jamf.pro.icons.upload(Path("cat2.png"))
 print(upload)
-
