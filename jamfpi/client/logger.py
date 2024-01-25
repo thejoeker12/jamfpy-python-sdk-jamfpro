@@ -4,11 +4,10 @@ Default logging module for this library
 
 import logging
 
-
 def get_logger(
         name,
         level: int = None,
-        format: str = None,
+        log_format: str = None,
         config: str = None
     ) -> logging.Logger:
     """
@@ -23,10 +22,10 @@ def get_logger(
 
     if config:
         level = config["logging_level"] or DEFAULT_LEVEL
-        format = config["logging_format"] or DEFAULT_FORMAT
+        log_format = config["logging_format"] or DEFAULT_FORMAT
     elif not config:
         level = level or DEFAULT_LEVEL
-        format = format or DEFAULT_FORMAT
+        log_format = log_format or DEFAULT_FORMAT
 
     logger = logging.getLogger(name)
     if not logger.handlers:
@@ -35,7 +34,7 @@ def get_logger(
         ch = logging.StreamHandler()
         ch.setLevel(level)
 
-        formatter = logging.Formatter(format)
+        formatter = logging.Formatter(log_format)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 

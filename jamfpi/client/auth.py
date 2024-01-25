@@ -1,6 +1,8 @@
 """Python Jamf OAuth Handler
 
-This module provides a handler for managing OAuth authentication with the Jamf API. It supports both OAuth and Bearer token methods, handling token generation, renewal, and invalidation to ensure seamless interaction with Jamf API endpoints.
+This module provides a handler for managing OAuth authentication with the Jamf API. 
+It supports both OAuth and Bearer token methods, handling token generation, renewal, 
+and invalidation to ensure seamless interaction with Jamf API endpoints.
 
 Classes:
     Auth: Base class for handling common authentication tasks.
@@ -14,10 +16,10 @@ Classes:
 import datetime
 from typing import Callable, Optional
 from base64 import b64encode
-from requests import request, HTTPError
+from requests import request
 
 # This module
-from .logging import get_logger
+from .logger import get_logger
 from .exceptions import JamfAuthError
 from ..config.defaultconfig import ROUND_AMOUNT
 from .utility import fix_jamf_time_to_iso
@@ -39,8 +41,6 @@ class Auth:
         _keep_alive_token (Callable): Method reference to keep the token alive.
         _set_new_token (Callable): Method reference to set a new token.
 
-    Methods:
-        [Method docstrings remain unchanged]
     """
 
     # Type assertions
@@ -241,7 +241,7 @@ class OAuth(Auth):
         oauth_cid (str): OAuth client ID.
         oauth_cs (str): OAuth client secret.
         """
-        
+
         super().__init__(
             tenant,
             libconfig,
@@ -326,7 +326,7 @@ class BearerAuth(Auth):
             password: Optional[str] = None,
             basic_auth_token: Optional[str] = None,
     ) -> None:
-        
+
         """
         Initializes the BearerAuth object with necessary configuration and credentials.
 

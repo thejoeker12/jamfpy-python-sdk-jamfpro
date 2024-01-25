@@ -12,7 +12,7 @@ import requests
 # This lib
 from .auth import OAuth, BearerAuth
 from .exceptions import JamfPiConfigError
-from .logging import get_logger
+from .logger import get_logger
 
 # Endpoints
 # Classic
@@ -201,11 +201,11 @@ class API:
 
         if not response.ok:
             error_text = response.text or "no error supplied"
-            
+
             if error_on_fail:
                 self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
                 raise requests.HTTPError("Bad response:", response.status_code)
-            
+
             self.logger.warn("Request failed. Response: %s, error: %s", response, error_text)
         else:
             self.logger.info("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
