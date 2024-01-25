@@ -45,7 +45,7 @@ while calls < 1000:
             else:
                 break
 
-        calls += 1
+        
         try:
             resp = call(i)
             if resp.ok:
@@ -54,6 +54,7 @@ while calls < 1000:
         except HTTPError as e:
             print(f"Dock-item with ID: {i} does not exist\nBad Luck!")
 
+        calls += 1
         used_numbers.append(i)
 
     elif user_try == "q":
