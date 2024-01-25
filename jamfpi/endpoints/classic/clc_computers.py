@@ -1,11 +1,14 @@
+"""Jamf Classic API Endpoint Code for Computers"""
 import requests
 from ..endpoint_parent import Endpoint
+
+# pylint: disable=relative-beyond-top-level, too-few-public-methods
 
 class ClassicComputers(Endpoint):
     """TO DO""" # // TODO
 
     _uri = "/computers"
-    
+
     def get_all(self) -> (requests.Response, list):
         """Gets all computers from parent API obj"""
 
@@ -31,6 +34,7 @@ class ClassicComputers(Endpoint):
 
 class ClassicComputer:
     # // TODO docstring
-    def __init__(self, serial_number, id):
+    def __init__(self, serial_number, comp_id, raw):
         self.serial_number = serial_number
-        self.id = id
+        self.id = comp_id
+        self.raw = raw

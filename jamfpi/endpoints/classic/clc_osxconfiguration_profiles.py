@@ -2,6 +2,8 @@
 from ..endpoint_parent import Endpoint
 from requests import Request
 
+# pylint: disable=line-too-long
+
 class ConfigurationProfiles(Endpoint):
     """Configuration profiles object"""
     _uri = "/osxconfigurationprofiles"
@@ -10,7 +12,7 @@ class ConfigurationProfiles(Endpoint):
         # // TODO docstring
         if accept_format.lower() not in ["json", "xml"]:
             raise ValueError("Invalid accept format provided (allowed: 'xml', 'json'): %s", accept_format)
-        
+
         url = self._api.url() + self._uri
         headers = self._api.header(f"basic-{accept_format}")
         req = Request("GET", url=url, headers=headers)

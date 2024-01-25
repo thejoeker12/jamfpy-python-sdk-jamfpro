@@ -1,5 +1,5 @@
-# // TODO write the docstring
-# pylint ignore missing-module-docstring
+"""Jamf Classic API Endpoint Code for Computer Groups"""
+# pylint: disable=relative-beyond-top-level, too-few-public-methods
 
 import requests
 from ..endpoint_parent import Endpoint
@@ -52,5 +52,6 @@ class ComputerGroups(Endpoint):
 
 
 class ComputerGroup:
+    "// TODO this docstring"
     def __init__(self):
-        "// TODO"
+        "// TODO this docstring"

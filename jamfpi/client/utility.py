@@ -61,7 +61,7 @@ def fix_jamf_time_to_iso(time):
             seconds += "0"
 
         time = f"{date_time_no_seconds}.{seconds}+{s_tz_split[1]}"
- 
+
     return time
 
 
