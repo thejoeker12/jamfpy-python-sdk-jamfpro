@@ -209,7 +209,9 @@ class OAuth(Auth):
     """
     Subclass for handling OAuth authentication with Jamf API.
 
-    This class extends the Auth class, providing specific implementations for OAuth authentication, including token generation and validation.
+    This class extends the Auth class, 
+    providing specific implementations for OAuth authentication, 
+    including token generation and validation.
 
     Attributes:
         [Inherited attributes remain unchanged]
@@ -304,7 +306,8 @@ class BearerAuth(Auth):
     """
     Subclass for handling Bearer Token authentication with Jamf API.
 
-    This class extends the Auth class, providing specific implementations for Bearer Token authentication, including token generation, renewal, and keep-alive functionality.
+    This class extends the Auth class, providing specific implementations for Bearer Token authentication, 
+    including token generation, renewal, and keep-alive functionality.
 
     Attributes:
         [Inherited attributes remain unchanged]
