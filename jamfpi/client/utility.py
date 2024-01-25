@@ -2,11 +2,13 @@
 # // TODO tidy this whole file up
 import json
 from datetime import datetime
-from ..config.defaultconfig import defaultconfig
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import requests
+
+from ..config.defaultconfig import defaultconfig
+
 
 def import_json(filepath) -> str:
     """imports config file and parses as json"""

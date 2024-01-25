@@ -4,6 +4,8 @@ Default logging module for this library
 
 import logging
 
+DEFAULT_LEVEL = 20
+DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 def get_logger(
         name,
@@ -18,8 +20,7 @@ def get_logger(
     """
 
     # // TODO Probably move these values to default config
-    DEFAULT_LEVEL = 20
-    DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
 
     if config:
         level = config["logging_level"] or DEFAULT_LEVEL

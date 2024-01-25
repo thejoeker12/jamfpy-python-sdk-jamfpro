@@ -2,6 +2,8 @@
 Init function for API Objects
 """
 
+# pylint: disable=broad-exception-raised, unused-argument
+
 # Libs
 from logging import Logger
 import requests
