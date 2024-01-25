@@ -1,5 +1,5 @@
 """PoC for configuration profiles"""
-# pylint: disable=wrong-import-position, unused-import
+# pylint: disable=wrong-import-position, unused-import, R0801
 
 import sys
 import os

@@ -2,7 +2,7 @@
 import sys
 import os
 
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position, R0801
 
 
 
