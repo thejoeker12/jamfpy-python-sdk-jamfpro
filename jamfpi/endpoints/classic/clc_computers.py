@@ -1,14 +1,15 @@
 import requests
-from ..objects.obj_computer import Computer
+from ..endpoint_parent import Endpoint
 
-class ClassicComputers:
-    def __init__(self, api_config):
-        self._api = api_config
+class ClassicComputers(Endpoint):
+    """TO DO""" # // TODO
 
-
+    _uri = "/computers"
+    
     def get_all(self) -> (requests.Response, list):
         """Gets all computers from parent API obj"""
-        suffix = "/computers/subset/basic"
+
+        suffix = f"{self._uri}/subset/basic"
         url = self._api.url() + suffix
         headers = self._api.header("basic")
         req = requests.Request("GET", url=url, headers=headers)
@@ -16,7 +17,7 @@ class ClassicComputers:
         if call.ok:
             out = []
             for comp in call.json()["computers"]:
-                out.append(Computer(
+                out.append(ClassicComputer(
                     self._api.tenant,
                     comp["serial_number"],
                     comp["id"],
@@ -26,3 +27,10 @@ class ClassicComputers:
             return (call, out)
 
         return (call, None)
+
+
+class ClassicComputer:
+    # // TODO docstring
+    def __init__(self, serial_number, id):
+        self.serial_number = serial_number
+        self.id = id

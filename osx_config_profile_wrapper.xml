@@ -1,0 +1,39 @@
+<os_x_configuration_profile>
+    <general>
+        <name>{NAME}</name>
+        <description/>
+        <site>
+            <id>-1</id>
+            <name>None</name>
+        </site>
+        <category>
+            <id>-1</id>
+            <name>No category assigned</name>
+        </category>
+        <distribution_method>Install Automatically</distribution_method>
+        <user_removable>false</user_removable>
+        <level>computer</level>
+        <redeploy_on_update>Newly Assigned</redeploy_on_update>
+        <payloads>{PAYLOAD}</payloads>
+    </general>
+    <scope>
+        <all_computers>false</all_computers>
+        <all_jss_users>false</all_jss_users>
+    </scope>
+    <self_service>
+        <self_service_display_name>WiFi Test</self_service_display_name>
+        <install_button_text>Install</install_button_text>
+        <self_service_description>null</self_service_description>
+        <force_users_to_view_description>false</force_users_to_view_description>
+        <security>
+            <removal_disallowed>Never</removal_disallowed>
+        </security>
+        <self_service_icon/>
+        <feature_on_main_page>false</feature_on_main_page>
+        <self_service_categories/>
+        <notification>false</notification>
+        <notification>Self Service</notification>
+        <notification_subject/>
+        <notification_message/>
+    </self_service>
+</os_x_configuration_profile>

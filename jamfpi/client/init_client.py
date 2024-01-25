@@ -2,7 +2,7 @@
 Init function for API Objects
 """
 
-# pylint: disable=relative-beyond-top-level
+# pylint: disable=relative-beyond-top-level, line-too-long
 
 # Libs
 from logging import Logger
@@ -10,7 +10,7 @@ import requests
 
 # This Lib
 from .client import ProAPI, ClassicAPI, AuthManagerProAPI, JamfTenant
-from .logging import get_logger
+from .logger import get_logger
 from .auth import OAuth, BearerAuth
 from .utility import import_json
 from ..config.defaultconfig import defaultconfig, MasterConfig
@@ -34,7 +34,7 @@ def init_client(
         safe_mode: bool = True,
         custom_auth: OAuth or BearerAuth = None
         # custom_endpoints: str = None // TODO Custom endpoints.
-):
+) -> JamfTenant:
 
     """Initilizes a new Jamf instance object"""
 
@@ -108,7 +108,7 @@ def init_client(
     else:
         raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
-    auth._set_new_token()
+    auth.token()
 
     # Master Config
     api_config = {
@@ -172,4 +172,3 @@ def init_auth():
     
     """
     # // TODO Maybe?
-    pass

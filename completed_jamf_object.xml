@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<os_x_configuration_profile>
+    <general>
+        <name>Test from iMazing JL Friday 19</name>
+        <description/>
+        <site>
+            <id>-1</id>
+            <name>None</name>
+        </site>
+        <category>
+            <id>-1</id>
+            <name>No category assigned</name>
+        </category>
+        <distribution_method>Install Automatically</distribution_method>
+        <user_removable>false</user_removable>
+        <level>computer</level>
+        <redeploy_on_update>Newly Assigned</redeploy_on_update>
+        <payloads>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;!DOCTYPE plist PUBLIC &quot;-//Apple//DTD PLIST 1.0//EN&quot; &quot;http://www.apple.com/DTDs/PropertyList-1.0.dtd&quot;&gt;
+&lt;plist version=&quot;1.0&quot;&gt;
+&lt;dict&gt;
+	&lt;key&gt;PayloadContent&lt;/key&gt;
+	&lt;array&gt;
+		&lt;dict&gt;
+			&lt;key&gt;IfLostReturnToMessage&lt;/key&gt;
+			&lt;string&gt;If lost make this script work before returning&lt;/string&gt;
+			&lt;key&gt;LockScreenFootnote&lt;/key&gt;
+			&lt;string&gt;Look up&lt;/string&gt;
+			&lt;key&gt;PayloadDisplayName&lt;/key&gt;
+			&lt;string&gt;Lock Screen Message&lt;/string&gt;
+			&lt;key&gt;PayloadIdentifier&lt;/key&gt;
+			&lt;string&gt;com.apple.shareddeviceconfiguration.2F65D244-8BFC-46CE-8FC3-8222EE47F57D&lt;/string&gt;
+			&lt;key&gt;PayloadType&lt;/key&gt;
+			&lt;string&gt;com.apple.shareddeviceconfiguration&lt;/string&gt;
+			&lt;key&gt;PayloadUUID&lt;/key&gt;
+			&lt;string&gt;2F65D244-8BFC-46CE-8FC3-8222EE47F57D&lt;/string&gt;
+			&lt;key&gt;PayloadVersion&lt;/key&gt;
+			&lt;integer&gt;1&lt;/integer&gt;
+		&lt;/dict&gt;
+	&lt;/array&gt;
+	&lt;key&gt;PayloadDisplayName&lt;/key&gt;
+	&lt;string&gt;Test Profile From iMazing Friday 19&lt;/string&gt;
+	&lt;key&gt;PayloadIdentifier&lt;/key&gt;
+	&lt;string&gt;IDENTIFIERGOESHERE101&lt;/string&gt;
+	&lt;key&gt;PayloadType&lt;/key&gt;
+	&lt;string&gt;Configuration&lt;/string&gt;
+	&lt;key&gt;PayloadUUID&lt;/key&gt;
+	&lt;string&gt;D951FECB-CCDE-4298-958D-EF76E294A79C&lt;/string&gt;
+	&lt;key&gt;PayloadVersion&lt;/key&gt;
+	&lt;integer&gt;1&lt;/integer&gt;
+&lt;/dict&gt;
+&lt;/plist&gt;
+</payloads>
+    </general>
+    <scope>
+        <all_computers>false</all_computers>
+        <all_jss_users>false</all_jss_users>
+    </scope>
+    <self_service>
+        <self_service_display_name>WiFi Test</self_service_display_name>
+        <install_button_text>Install</install_button_text>
+        <self_service_description>null</self_service_description>
+        <force_users_to_view_description>false</force_users_to_view_description>
+        <security>
+            <removal_disallowed>Never</removal_disallowed>
+        </security>
+        <self_service_icon/>
+        <feature_on_main_page>false</feature_on_main_page>
+        <self_service_categories/>
+        <notification>false</notification>
+        <notification>Self Service</notification>
+        <notification_subject/>
+        <notification_message/>
+    </self_service>
+</os_x_configuration_profile>

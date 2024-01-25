@@ -12,13 +12,14 @@ import requests
 # This lib
 from .auth import OAuth, BearerAuth
 from .exceptions import JamfPiConfigError
-from .logging import get_logger
+from .logger import get_logger
 
 # Endpoints
 # Classic
 from ..endpoints.classic.clc_computers import ClassicComputers
 from ..endpoints.classic.clc_computer_groups import ComputerGroups
 from ..endpoints.classic.clc_policies import Policies
+from ..endpoints.classic.clc_osxconfiguration_profiles import ConfigurationProfiles
 
 # Pro
 from ..endpoints.pro.pro_api_management import (
@@ -149,7 +150,7 @@ class API:
         self.logger.info("%s closed", str(self))
 
 
-    def url(self, target=None) -> None:
+    def url(self, target=None) -> str:
         """
         Allows access to base url from endpoint
         Universal interface across API versions
@@ -165,7 +166,7 @@ class API:
         raise JamfPiConfigError("Invalid API version")
 
 
-    def header(self, key: str) -> dict:
+    def header(self, key: str) -> str:
         """Returns given set of headers from config"""
         self._check_if_closed()
         try:
@@ -175,7 +176,7 @@ class API:
             raise KeyError("Invalid header key provided") from ve
 
 
-    def do(self, request: requests.Request, timeout=10) -> requests.Response:
+    def do(self, request: requests.Request, timeout=10, error_on_fail: bool = True) -> requests.Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
         self._refresh_session_headers()
@@ -196,16 +197,18 @@ class API:
         self.logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
         response = self._session.send(prepped, timeout=timeout)
 
-        if isinstance(response, tuple):
-            http_response = response[0]
-        elif isinstance(response, requests.Response):
-            http_response = response
+        # Logging
 
-        if not http_response.ok:
+        if not response.ok:
             error_text = response.text or "no error supplied"
-            self.logger.critical("Request %s failed. Response: %s, error: %s", request, response, error_text)
 
-        self.logger.debug("Success: %s", http_response.status_code)
+            if error_on_fail:
+                self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
+                raise requests.HTTPError("Bad response:", response.status_code)
+
+            self.logger.warn("Request failed. Response: %s, error: %s", response, error_text)
+        else:
+            self.logger.info("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
         return response
 
@@ -223,10 +226,11 @@ class ClassicAPI(API):
         self.computers = ClassicComputers(self)
         self.computergroups = ComputerGroups(self)
         self.policies = Policies(self)
+        self.configuration_profiles = ConfigurationProfiles(self)
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
@@ -248,7 +252,7 @@ class ProAPI(API):
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
@@ -268,7 +272,7 @@ class AuthManagerProAPI(API):
 
 
     # Magic Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} AUTH ONLY API Client for {self.tenant}"
 
 
@@ -290,7 +294,7 @@ class CustomAPI(API):
         for ep in endpoints:
             setattr(self, ep.__name__, ep(self))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf {self._version} Custom Endpoint for {self.tenant}"
 
 
@@ -327,10 +331,10 @@ class JamfTenant:
             raise JamfPiConfigError("No APIs Provided for Jamf Object")
 
     # Methods
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Jamf API Client for Tenant: {self.tenant} using {self._auth_method}"
 
-    def close(self):
+    def close(self) -> None:
         """Closes all initied apis"""
         self._logger.warning("Closing APIs")
         for api in self.initiated_tenants:

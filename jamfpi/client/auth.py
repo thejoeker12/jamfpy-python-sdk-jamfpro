@@ -1,16 +1,25 @@
-"""Python Jamf OAuth Handler"""
+"""Python Jamf OAuth Handler
+
+This module provides a handler for managing OAuth authentication with the Jamf API. 
+It supports both OAuth and Bearer token methods, handling token generation, renewal, 
+and invalidation to ensure seamless interaction with Jamf API endpoints.
+
+Classes:
+    Auth: Base class for handling common authentication tasks.
+    OAuth: Subclass for handling OAuth specific authentication.
+    BearerAuth: Subclass for handling Bearer Token specific authentication.
+"""
 # pylint: disable=relative-beyond-top-level, too-many-arguments, line-too-long
 # // NOTE Above pylint flags disabled for this file only on purpose.
-# // TODO Proper class, function and module docstrings!
 
 # Libs
 import datetime
 from typing import Callable, Optional
 from base64 import b64encode
-from requests import request, HTTPError
+from requests import request
 
 # This module
-from .logging import get_logger
+from .logger import get_logger
 from .exceptions import JamfAuthError
 from ..config.defaultconfig import ROUND_AMOUNT
 from .utility import fix_jamf_time_to_iso
@@ -18,7 +27,23 @@ from .utility import fix_jamf_time_to_iso
 AUTH_REQUEST_TIMEOUT = 20
 
 class Auth:
-    """Parent auth object for Jamf API object"""
+    """
+    Base authentication class for Jamf API interactions.
+
+    This class handles common authentication tasks such as token checking,
+    expiration monitoring, and URL initialization. It serves as a parent class
+    for specific authentication methods like OAuth and Bearer Token.
+
+    Attributes:
+        _token_str (str, optional): The current authentication token.
+        token_expiry (datetime.time): Token expiration time.
+        _method (str): The authentication method used ('oauth' or 'bearer').
+        _keep_alive_token (Callable): Method reference to keep the token alive.
+        _set_new_token (Callable): Method reference to set a new token.
+
+    """
+
+    # Type assertions
     _token_str: Optional[str]
     token_expiry: datetime.time
     _method: str
@@ -32,6 +57,15 @@ class Auth:
             logger_cfg: dict,
             token_exp_thold_mins: int
     ):
+        """
+        Initializes the Auth object with the necessary configuration.
+
+        Args:
+        tenant (str): The name of the tenant.
+        libconfig (dict): Library configuration parameters.
+        logger_cfg (dict): Logger configuration.
+        token_exp_thold_mins (int): Threshold in minutes for token expiration.
+        """
         self._tenant = tenant
         self._libconfig = libconfig
         self._logger_cfg = logger_cfg
@@ -42,9 +76,8 @@ class Auth:
 
 
     def _init_logger(self) -> None:
-        """
-        Applies proivded custom logger or uses config
-        """
+        """Initializes the logger using provided or default configuration."""
+
         self.logger = self._logger_cfg["custom_logger"] or get_logger (
             name=f"{self._tenant}-auth-{self._method}",
             config=self._logger_cfg
@@ -80,7 +113,8 @@ class Auth:
         now = 10:30am
         self.token_expiry = 10:31
         
-        function will return True
+        Returns:
+            bool: True if token is within the buffer period, False otherwise.
         """
         self.logger.debug("FUNCTION: check_token_in_buffer")
 
@@ -104,7 +138,10 @@ class Auth:
 
     def check_token_is_expired(self) -> bool:
         """
-        Checks if token expiry time has passed
+        Checks if the current token has expired.
+
+        Returns:
+            bool: True if the token has expired, False otherwise.
         """
         self.logger.debug("FUNCTION: check_token_is_expired")
 
@@ -139,14 +176,14 @@ class Auth:
                 raise JamfAuthError("Buffer longer than token lifetime")
 
 
-    def token(self) -> None:
-        """Checks token and returns"""
+    def token(self) -> str:
+        """Checks token validity and returns token string if valid"""
         self.logger.debug("FUNCTION: token")
         self.check_token()
         return self._token_str
 
 
-    def invalidate(self):
+    def invalidate(self) -> bool:
         """
         invalidates token
         """
@@ -169,8 +206,22 @@ class Auth:
 
 
 class OAuth(Auth):
-    """OAuth subclass"""
+    """
+    Subclass for handling OAuth authentication with Jamf API.
+
+    This class extends the Auth class, providing specific implementations for OAuth authentication, including token generation and validation.
+
+    Attributes:
+        [Inherited attributes remain unchanged]
+        _oauth_cid (str): OAuth client ID.
+        _oauth_cs (str): OAuth client secret.
+
+    Methods:
+        [Method docstrings remain unchanged]
+    """
+
     _method = "oauth"
+
     def __init__(
             self,
             tenant,
@@ -179,7 +230,18 @@ class OAuth(Auth):
             token_exp_thold_mins,
             oauth_cid,
             oauth_cs
-    ):
+    ) -> None:
+        """Initializes the OAuth object with necessary configuration and credentials.
+
+        Args:
+        tenant (str): The name of the tenant.
+        libconfig (dict): Library configuration parameters.
+        logger_cfg (dict): Logger configuration.
+        token_exp_thold_mins (int): Threshold in minutes for token expiration.
+        oauth_cid (str): OAuth client ID.
+        oauth_cs (str): OAuth client secret.
+        """
+
         super().__init__(
             tenant,
             libconfig,
@@ -192,16 +254,14 @@ class OAuth(Auth):
 
     # Magic
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Returns a string representation of the OAuth object."""
         return f"OAuth Object for {self._tenant}"
 
     # Private
 
-    def _set_new_token(self):
-        """
-        Get new token
-        update self values
-        """
+    def _set_new_token(self) -> None:
+        """Requests and sets a new OAuth token."""
         self.logger.debug("FUNCTION: _set_new_token")
 
         endpoint = self._libconfig.urls["auth"]["oauth"]
@@ -230,20 +290,30 @@ class OAuth(Auth):
             self.logger.debug("Token set successfully")
 
         else:
-            raise HTTPError("Bad call response")
+            raise JamfAuthError("Error getting token.", call, call.text)
 
 
-    def _keep_alive_token(self):
-        """
-        Pleaced to ensure interface symetry.
-        """
+    def _keep_alive_token(self) -> None:
+        """Placeholder method for OAuth, raises an error as it's not applicable."""
         raise JamfAuthError("Action not available with OAuth interface.")
 
 
 
 
 class BearerAuth(Auth):
-    """BearerAuth Subclass"""
+    """
+    Subclass for handling Bearer Token authentication with Jamf API.
+
+    This class extends the Auth class, providing specific implementations for Bearer Token authentication, including token generation, renewal, and keep-alive functionality.
+
+    Attributes:
+        [Inherited attributes remain unchanged]
+        username (str, optional): The username for basic authentication.
+        password (str, optional): The password for basic authentication.
+        basic_auth_token (str, optional): The basic auth token if provided.
+
+    Methods:
+    """
     _method = "bearer"
 
     def __init__(
@@ -255,7 +325,20 @@ class BearerAuth(Auth):
             username: Optional[str] = None,
             password: Optional[str] = None,
             basic_auth_token: Optional[str] = None,
-    ):
+    ) -> None:
+
+        """
+        Initializes the BearerAuth object with necessary configuration and credentials.
+
+        Args:
+        tenant (str): The name of the tenant.
+        libconfig (dict): Library configuration parameters.
+        logger_cfg (dict): Logger configuration.
+        token_exp_thold_mins (int): Threshold in minutes for token expiration.
+        username (str, optional): Username for basic authentication.
+        password (str, optional): Password for basic authentication.
+        basic_auth_token (str, optional): Precomputed basic auth token.
+        """
 
         super().__init__(
             tenant=tenant,
@@ -271,15 +354,15 @@ class BearerAuth(Auth):
 
 
     # Magic
-    def __str__(self):
+    def __str__(self) -> str:
+        """Returns a string representation of the BearerAuth object."""
+
         return f"Bearer Token Object for {self._tenant}"
 
 
     # Private
-    def _init_auth(self):
-        """
-        Sets basic auth token if user name and password are provided
-        """
+    def _init_auth(self) -> None:
+        """Initializes the authentication by setting the basic auth token."""
         self.logger.debug("FUNCTION: _init_auth")
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
@@ -288,12 +371,8 @@ class BearerAuth(Auth):
             pass
 
 
-    def _set_new_token(self):
-
-        """
-        Gets new token using stored credentials
-        update obj values
-        """
+    def _set_new_token(self) -> None:
+        """Requests and sets a new Bearer token using stored credentials."""
         self.logger.debug("FUNCTION: _set_new_token")
         url = self._base_url + self._libconfig.urls["auth"]["bearer"]
 
@@ -320,11 +399,8 @@ class BearerAuth(Auth):
             raise JamfAuthError("Error getting new token")
 
 
-    def _keep_alive_token(self):
-        """"
-        Keeps token alive
-        updates obj values
-        """
+    def _keep_alive_token(self) -> None:
+        """Keeps the current Bearer token alive and updates its expiration time."""
         self.logger.debug("_keep_alive_token starting")
 
         url = self._base_url + self._libconfig.urls["auth"]["keep-alive"]

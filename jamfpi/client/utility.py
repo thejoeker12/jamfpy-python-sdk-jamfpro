@@ -5,6 +5,9 @@ import requests
 from datetime import datetime
 from ..config.defaultconfig import defaultconfig
 from pathlib import Path
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
+
 
 def import_json(filepath) -> str:
     """imports config file and parses as json"""
@@ -14,7 +17,7 @@ def import_json(filepath) -> str:
     return json_file
 
 
-def get_bearer_token(basic_credentials, cloud_tenant_name):
+def get_bearer_token(basic_credentials, cloud_tenant_name) -> dict:
     """Accepts basic credentials and jamf instance strings, returns barer token"""
     config = defaultconfig
     endpoint = config["urls"]["bearer_token"]
@@ -27,7 +30,7 @@ def get_bearer_token(basic_credentials, cloud_tenant_name):
     raise requests.HTTPError(f"Bad response: {token_request.status_code}\n{token_request.text}")
 
 
-def generate_client_token(cloud_tenant_name, client_id, client_secret):
+def generate_client_token(cloud_tenant_name, client_id, client_secret) -> dict:
     """Generated client token with secret and client id"""
     url = f"https://{cloud_tenant_name}.jamfcloud.com/api/oauth/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -41,22 +44,6 @@ def generate_client_token(cloud_tenant_name, client_id, client_secret):
         return call.json()
 
     raise requests.HTTPError("Bad call", call, call.text)
-
-
-def response_handler(response, raise_error=False):
-    """
-    Warns if unsuccessful status code detected
-    Throws error on unsuccess detection if "raise_error" is True
-    """
-    if response.ok:
-        return True
-
-    response_str = f"{(response.request.method).upper()} Call to {response.url} failed with error {response.status_code}"
-    print(response_str)
-    if raise_error:
-        error_str = f"Bad Response:\n{response.status_code}\nError Text:\n{response.text}"
-        raise requests.HTTPError(error_str)
-    return False
 
 
 def fix_jamf_time_to_iso(time):
@@ -96,3 +83,11 @@ def format_jamf_datetime(date_time_code):
 def create_single_file_payload(path_to_file: Path, filename_at_endpoint: str, file_format: str):
     with open(path_to_file, "rb") as file:
         return {"file": (filename_at_endpoint, file.read(), f"image/{file_format}")}
+
+def pretty_print_xml(xml_data):
+    tree = ET.ElementTree(ET.fromstring(xml_data))
+    rough_string = ET.tostring(tree.getroot(), 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+
+    return reparsed.toprettyxml(indent="  ")
+
