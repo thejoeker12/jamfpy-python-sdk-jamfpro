@@ -2,6 +2,6 @@ from setuptools import setup, find_packages
 
 setup(
     name='jamfpi',
-    version='0.0.1',
+    version='1.0.0',
     packages=find_packages()
 )
