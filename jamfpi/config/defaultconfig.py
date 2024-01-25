@@ -2,7 +2,7 @@
 
 ROUND_AMOUNT = 3
 
-# pylint disable=too-few-public-methods
+# pylint: disable=too-few-public-methods
 
 defaultconfig = {
     "urls" : {
@@ -72,6 +72,7 @@ class MasterConfig:
         self.validate_data_structure()
 
     def validate_data_structure(self):
+        """validates structure of config data"""
         data = self.data
         try:
             self.urls = data["urls"]

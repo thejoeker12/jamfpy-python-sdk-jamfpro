@@ -6,7 +6,7 @@ from .client.utility import (
     get_bearer_token,
     generate_client_token,
     fix_jamf_time_to_iso,
-    pretty_print_xml
+    pretty_xml
 )
 from .client.utility import (
     compare_dict_keys,

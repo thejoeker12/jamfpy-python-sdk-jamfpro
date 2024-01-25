@@ -1,5 +1,5 @@
 """Util"""
-# pylint: disable=line-too-long, relative-beyond-top-level
+# pylint: disable=line-too-long, relative-beyond-top-level, wrong-import-order
 # // TODO tidy this whole file up
 import json
 from datetime import datetime
@@ -61,10 +61,8 @@ def fix_jamf_time_to_iso(time):
             seconds += "0"
 
         time = f"{date_time_no_seconds}.{seconds}+{s_tz_split[1]}"
-
-        return time
-    else:
-        return time
+ 
+    return time
 
 
 def compare_dict_keys(dict1, dict2):
