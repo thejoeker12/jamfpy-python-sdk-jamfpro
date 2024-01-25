@@ -108,7 +108,7 @@ def init_client(
     else:
         raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
-    auth.token()
+    auth.set_new_token()
 
     # Master Config
     api_config = {
