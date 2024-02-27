@@ -14,12 +14,18 @@ sys.path.append(parent_dir)
 
 # Setup Complete
 
-# import jamfpi
-# import plistlib
+import jamfpi
+import plistlib
 
-# with open("escaped.mobileconfig", "rb") as file:
-#     load = plistlib.load(file)
-#     load["PayloadDescription"] = "This is not a new description"
-#     pprint(load)
-#     with open("a saved profile.mobileconfig", "wb") as save:
-#         plistlib.dump(load, save)
+config = jamfpi.import_json("clientauth.json")
+
+client = jamfpi.init_client(
+    tenant_name="lbgsandbox",
+    client_id=config["clientId"],
+    client_secret=config["clientSecret"],
+    logging_level=10
+)
+
+profile = client.classic.configuration_profiles.get_by_id(325, "json")
+profile_json = profile.json()
+print(profile_json)
