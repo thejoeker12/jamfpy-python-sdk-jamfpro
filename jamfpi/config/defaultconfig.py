@@ -34,7 +34,11 @@ defaultconfig = {
                 "accept": "text/xml",
                 "content-type": "text/xml"
             },
-            "post": {
+            "post-json": {
+                "accept": "application/json",
+                "content-type": "application/xml"
+            },
+            "post-xml": {
                 "accept": "text/xml",
                 "content-type": "application/xml"
             }

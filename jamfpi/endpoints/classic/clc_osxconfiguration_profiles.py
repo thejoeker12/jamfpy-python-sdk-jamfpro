@@ -40,10 +40,10 @@ class ConfigurationProfiles(Endpoint):
         return resp
 
 
-    def create(self, config_profile: str):
+    def create(self, config_profile: str, accept_format: str = "xml"):
         # // TODO docstring
         url = self._api.url() + self._uri + "/id/0"
-        headers = self._api.header("post")
+        headers = self._api.header(f"basic-{accept_format}")
         req = Request("POST", url=url, headers=headers, data=config_profile)
         resp = self._api.do(req)
         return resp
