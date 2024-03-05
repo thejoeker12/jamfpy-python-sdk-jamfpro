@@ -94,8 +94,15 @@ def cleanup():
             raise Exception(f"Failed to delete profile {profile_id}")
 
 
+def test_create_profile():
+    full_payload = open("payload.mobileconfig", "r").read()
+    create = client.classic.configuration_profiles.create(full_payload, "json")
+    print(create.status_code)
+    print(create.text)
+
+
 def main():
-    test_in_out_key()
+    test_create_profile()
 
 
 main()
