@@ -15,6 +15,7 @@ import jamfpi
 import plistlib
 import random
 from xml.etree import ElementTree
+import xml.dom.minidom
 import logging
 
 config = jamfpi.import_json("clientauth.json")
@@ -94,15 +95,17 @@ def cleanup():
             raise Exception(f"Failed to delete profile {profile_id}")
 
 
-def test_create_profile():
-    full_payload = open("payload.mobileconfig", "r").read()
-    create = client.classic.configuration_profiles.create(full_payload, "json")
-    print(create.status_code)
-    print(create.text)
+def test_get():
+    prof_id = 379
+    get = client.classic.configuration_profiles.get_by_id(prof_id)
+    dom = xml.dom.minidom.parseString(get.text)
+    pretty = dom.toprettyxml(indent="   ")
+    pretty = "\n".join(line for line in pretty.split("\n") if line.strip())
+    print(pretty)
 
 
 def main():
-    test_create_profile()
+    test_get()
 
 
 main()

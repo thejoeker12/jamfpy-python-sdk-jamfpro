@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<os_x_configuration_profile>
+    <general>
+        <id>377</id>
+        <name>Resource Scope Testing 5</name>
+        <description />
+        <site>
+            <id>-1</id>
+            <name>None</name>
+        </site>
+        <category>
+            <id>5</id>
+            <name>Applications</name>
+        </category>
+        <distribution_method>Install Automatically</distribution_method>
+        <user_removable>false</user_removable>
+        <level>System</level>
+        <uuid>8d3d304f-bcbe-40ed-a95b-cf39a91a8b1d</uuid>
+        <redeploy_on_update>Newly Assigned</redeploy_on_update>
+        <payloads>
+            &lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;!DOCTYPE plist PUBLIC
+            "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+            &lt;plist
+            version="1"&gt;&lt;dict&gt;&lt;key&gt;PayloadUUID&lt;/key&gt;&lt;string&gt;8d3d304f-bcbe-40ed-a95b-cf39a91a8b1d&lt;/string&gt;&lt;key&gt;PayloadType&lt;/key&gt;&lt;string&gt;Configuration&lt;/string&gt;&lt;key&gt;PayloadOrganization&lt;/key&gt;&lt;string&gt;Lloyds
+            Bank&lt;/string&gt;&lt;key&gt;PayloadIdentifier&lt;/key&gt;&lt;string&gt;8d3d304f-bcbe-40ed-a95b-cf39a91a8b1d&lt;/string&gt;&lt;key&gt;PayloadDisplayName&lt;/key&gt;&lt;string&gt;Resource
+            Scope Testing
+            5&lt;/string&gt;&lt;key&gt;PayloadDescription&lt;/key&gt;&lt;string/&gt;&lt;key&gt;PayloadVersion&lt;/key&gt;&lt;integer&gt;1&lt;/integer&gt;&lt;key&gt;PayloadEnabled&lt;/key&gt;&lt;true/&gt;&lt;key&gt;PayloadRemovalDisallowed&lt;/key&gt;&lt;true/&gt;&lt;key&gt;PayloadScope&lt;/key&gt;&lt;string&gt;System&lt;/string&gt;&lt;key&gt;PayloadContent&lt;/key&gt;&lt;array/&gt;&lt;/dict&gt;&lt;/plist&gt;</payloads>
+    </general>
+    <scope>
+        <all_computers>false</all_computers>
+        <all_jss_users>false</all_jss_users>
+        <computers>
+            <computer>
+                <id>16</id>
+                <name>APIGWFYKTF</name>
+                <udid>APIFF74D-C6B7-5589-93A9-19E8BDFEDKTF</udid>
+            </computer>
+            <computer>
+                <id>18</id>
+                <name>APIGWFYFGH</name>
+                <udid>APIFF74D-C6B7-5589-93A9-19E8BDFEDFGH</udid>
+            </computer>
+        </computers>
+        <buildings />
+        <departments />
+        <computer_groups>
+            <computer_group>
+                <id>53</id>
+                <name>tf-example-computergroup-operating-system-like-macos-14</name>
+            </computer_group>
+        </computer_groups>
+        <jss_users>
+            <user>
+                <id>4</id>
+                <name>Jane Smith</name>
+            </user>
+        </jss_users>
+        <jss_user_groups />
+        <limitations>
+            <users />
+            <user_groups />
+            <network_segments />
+            <ibeacons />
+        </limitations>
+        <exclusions>
+            <computers />
+            <buildings />
+            <departments />
+            <computer_groups />
+            <users />
+            <user_groups />
+            <network_segments />
+            <ibeacons />
+            <jss_users />
+            <jss_user_groups />
+        </exclusions>
+    </scope>
+    <self_service>
+        <self_service_display_name>Resource Scope Testing 5</self_service_display_name>
+        <install_button_text>Install</install_button_text>
+        <self_service_description />
+        <force_users_to_view_description>false</force_users_to_view_description>
+        <security>
+            <removal_disallowed>Never</removal_disallowed>
+        </security>
+        <self_service_icon />
+        <feature_on_main_page>false</feature_on_main_page>
+        <self_service_categories />
+        <notification>false</notification>
+        <notification>Self Service</notification>
+        <notification_subject />
+        <notification_message />
+    </self_service>
+</os_x_configuration_profile>
