@@ -1,17 +1,27 @@
 package main
 
-import (
-	"encoding/xml"
-)
+import "fmt"
 
-type test struct {
-	TestKey int `xml:"test_key,omitempty"`
+type TestChild struct {
+	value string
+}
+
+type TestParent struct {
+	Child TestChild
+}
+
+func testFunc(value_to_set string, home *string) {
+	*home = value_to_set
 }
 
 func main() {
-	var test_bool test
-	// test_bool.TestKey = 1
-	xmlData, _ := xml.MarshalIndent(test_bool, "", "  ")
+	var target TestParent
+	fmt.Printf("%+v\n", target)
+	var value_to_set string
+	value_to_set = "Hello I am a string"
+	target.Child.value = value_to_set
+	fmt.Printf("%+v\n", target)
+	testFunc("This is the new value", &target.Child.value)
 
-	println(string(xmlData))
+	fmt.Printf("%+v\n", target)
 }

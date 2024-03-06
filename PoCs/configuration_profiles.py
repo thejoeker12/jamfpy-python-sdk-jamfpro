@@ -96,7 +96,7 @@ def cleanup():
 
 
 def test_get():
-    prof_id = 379
+    prof_id = 386
     get = client.classic.configuration_profiles.get_by_id(prof_id)
     dom = xml.dom.minidom.parseString(get.text)
     pretty = dom.toprettyxml(indent="   ")
