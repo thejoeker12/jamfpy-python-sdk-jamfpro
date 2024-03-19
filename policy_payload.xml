@@ -1,0 +1,79 @@
+<policy>
+	<general>
+		<name>{NAME}</name>
+		<!-- <enabled>true</enabled> -->
+		<!-- <trigger>string</trigger>
+		<trigger_checkin>false</trigger_checkin>
+		<trigger_enrollment_complete>false</trigger_enrollment_complete>
+		<trigger_login>false</trigger_login>
+		<trigger_logout>false</trigger_logout>
+		<trigger_network_state_changed>false</trigger_network_state_changed>
+		<trigger_startup>false</trigger_startup>
+		<trigger_other>string</trigger_other>
+		<frequency>Once per computer</frequency>
+		<location_user_only>false</location_user_only>
+		<target_drive>/</target_drive>
+		<offline>false</offline> -->
+		<!-- <category>
+			<id>5</id>
+			<name>Applications</name>
+		</category> -->
+		<!-- <network_limitations>
+			<minimum_network_connection>No Minimum</minimum_network_connection>
+			<any_ip_address>true</any_ip_address>
+		</network_limitations> -->
+		<!-- <network_requirements>Any</network_requirements> -->
+		<!-- <site>
+			<id>-1</id>
+			<name>None</name>
+		</site> -->
+	</general>
+	<!-- <scope>
+		<all_computers>true</all_computers>
+		<computers/>
+		<computer_groups/>
+		<buildings/>
+		<departments/>
+		<limit_to_users>
+			<user_groups/>
+		</limit_to_users>
+		<limitations>
+			<users/>
+			<user_groups/>
+			<network_segments/>
+			<ibeacons/>
+		</limitations>
+		<exclusions>
+			<computers/>
+			<computer_groups/>
+			<buildings/>
+			<departments/>
+			<users/>
+			<user_groups/>
+			<network_segments/>
+			<ibeacons/>
+		</exclusions>
+	</scope> -->
+	<!-- <self_service>
+		<use_for_self_service>true</use_for_self_service>
+		<self_service_display_name>Install Firefox</self_service_display_name>
+		<install_button_text>Install</install_button_text>
+		<reinstall_button_text>Reinstall</reinstall_button_text>
+		<self_service_description>Install or update Firefox to version 48.0.2.</self_service_description>
+		<force_users_to_view_description>false</force_users_to_view_description>
+		<self_service_icon/>
+		<feature_on_main_page>false</feature_on_main_page>
+		<self_service_categories>
+			<category>
+				<id>5</id>
+				<name>Applications</name>
+				<display_in>true</display_in>
+				<feature_in>false</feature_in>
+			</category>
+		</self_service_categories>
+		<notification>false</notification>
+		<notification>Self Service</notification>
+		<notification_subject>Install Firefox</notification_subject>
+		<notification_message/>
+	</self_service> -->
+</policy>

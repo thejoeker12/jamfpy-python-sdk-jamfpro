@@ -12,3 +12,4 @@ clientauth.json
 completed_payload_no_jamf.mobileconfig
 downloaded285.mobileconfig
 osx_config_profile_wrapper.xml
+*.json
