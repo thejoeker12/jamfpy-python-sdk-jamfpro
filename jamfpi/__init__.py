@@ -8,7 +8,12 @@ from .client.utility import (
     fix_jamf_time_to_iso,
     pretty_xml
 )
+
 from .client.utility import (
     compare_dict_keys,
     format_jamf_datetime,
+)
+
+from .client.client import (
+    JamfTenant
 )
