@@ -86,94 +86,80 @@ def get_save_xml(jamf_id, client: jamfpi.JamfTenant, name="PlaceholderName"):
             out.write(policy_get_text)
 
 
-def parse_404_response(html_text):
-    soup = BeautifulSoup(html_text, "html.parser")
-    get_jp_app = soup.find_all("jp-app")
-    try_get_code = soup.find_all("code")
-    print(try_get_code)
+# Automated GUI checking
 
-
-def set_up_driver(init_url: str) -> dict:
+def get_driver(init_url: str) -> dict:
     options = webdriver.ChromeOptions()
     options.add_experimental_option("detach", True)
 
     driver = webdriver.Chrome(options=options)
     driver.get(init_url)
 
-    session_id = driver.session_id
-    executor_url = driver.command_executor._url
-    session_info = {
-        "session_id": session_id,
-        "executor_url": executor_url
-    }
 
     input("Press enter after logging in...")
 
-    with open("session_info.json", "w") as file:
-        out_json = json.dumps(session_info)
-        file.write(out_json)
-
-    return session_info
-
-
-    driver.get(baseURL)
-
-    # Not needed if you login manually
-    # cookies = chrome_cookies(url, browser="Chrome", curl_cookie_file="save_here.json")
-    # print("Setting cookies...")
-    # for k in cookies:
-    #     cookie = {"domain": "lbgsandbox.jamfcloud.com", "name": k, "value": cookies[k]}
-    #     print(cookie)
-    #     driver.add_cookie(cookie)
-
-    input("press enter to open page ")
-
-    driver.get(url)
-    driver.implicitly_wait(5)
-    time.sleep(5)
-    info = driver.page_source
-
-    input("press enter to close ")
-
-    driver.close()
-
-    return info
-    
-
-def connect_to_driver_from_arg(session_info):
-    driver = webdriver.Remote(command_executor=session_info["executor_url"])
-    driver.session_id = session_info["session_id"]
     return driver
 
 
-def connect_to_driver_from_file(filename):
-    with open(filename, "r") as file:
-        session_info = json.loads(file.read())
-
-    executor_url = session_info["executor_url"]
-    session_id = session_info["session_id"]
-
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("detach", True)
-    driver = webdriver.Remote(command_executor=executor_url, options=options)
-    driver.session_id = session_id
+def get_policy_page_source(policy_jamf_id, driver: webdriver.Chrome, wait_time: int = 5):
+    driver.get(f"https://lbgsandbox.jamfcloud.com/policies.html?id={policy_jamf_id}&o=r")
+    time.sleep(5)
+    return driver.page_source
 
 
-def connect_to_chrome():
-    options = webdriver.ChromeOptions()
-    options.add_argument("--remote-debugging-port=9222")
-    driver = webdriver.Chrome(options=options)
+def close_driver_with_input(driver: webdriver.Chrome):
+    input("Press enter to close driver: ")
+    driver.close()
 
 
+def parse_page(html_text) -> str:
+    soup = BeautifulSoup(html_text, "html.parser")
+    print(soup.text)
+    with open("out.html", "w") as file:
+        file.write(str(soup))
 
-def open_page(driver: webdriver.Chrome):
-    driver.get("https://lbgsandbox.jamfcloud.com/policies.html?id=310&o=r")
+    if 'class="code">404</h1>' in str(soup):
+        return("This page was not found!: ")
+
+    return "this page was found!: "
 
 
 def main():
     # connect_to_driver_from_file("session_info.json")
-    connect_to_chrome()
+    driver = get_driver("https://lbgsandbox.jamfcloud.com")
+    for i in [310, 311, 312]:
+        print("\n--------")
+        page_html = get_policy_page_source(i, driver)
+        found_text = parse_page(page_html)
+        print(found_text + str(i))
+        print("\n--------")
+    close_driver_with_input(driver)
+
+
 
 
 main()
 
+# def connect_to_driver_from_arg(session_info):
+#     driver = webdriver.Remote(command_executor=session_info["executor_url"])
+#     driver.session_id = session_info["session_id"]
+#     return driver
+
+
+# def connect_to_driver_from_file(filename):
+#     with open(filename, "r") as file:
+#         session_info = json.loads(file.read())
+
+#     executor_url = session_info["executor_url"]
+#     session_id = session_info["session_id"]
+
+#     options = webdriver.ChromeOptions()
+#     options.add_experimental_option("detach", True)
+#     driver = webdriver.Remote(command_executor=executor_url, options=options)
+#     driver.session_id = session_id
+
+
+# def connect_to_chrome():
+#     options = webdriver.ChromeOptions()
+#     options.add_argument("--remote-debugging-port=9222")
+#   
