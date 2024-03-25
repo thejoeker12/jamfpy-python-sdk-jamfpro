@@ -21,7 +21,7 @@ from pycookiecheat import chrome_cookies
 from bs4 import BeautifulSoup
 import time
 
-def get_jamf_client(client: jamfpi.JamfTenant) -> jamfpi.JamfTenant:
+def new_jamf_client() -> jamfpi.JamfTenant:
 
     config = jamfpi.import_json("clientauth.json")
 
@@ -36,9 +36,9 @@ def get_jamf_client(client: jamfpi.JamfTenant) -> jamfpi.JamfTenant:
 
 
 def delete_all():
-    client = get_jamf_client()
-    all = client.classic.policies.get_all()
-    if all.ok:
+    client = new_jamf_client()
+    all_policies = client.classic.policies.get_all()
+    if all_policies.ok:
         all_json = all.json()["policies"]
     else:
         raise Exception("problem")\
@@ -51,13 +51,17 @@ def delete_all():
     print("cleanup finished")
 
 
-def make_from_file(save: bool, client: jamfpi.JamfTenant):
+def make_from_file(save: bool, client: jamfpi.JamfTenant, payload_filename: str):
     policy_name = f"Test From Python-{random.randint(1,10000)}"
-    policy = open("policy_payload.xml", "r").read()
+    file = open(payload_filename, "r")
+    policy = file.read()
     policy_with_name = policy.format(NAME=policy_name)
-    print(f"Name: {policy_name}")
+    file.close()
 
     create_policy = client.classic.policies.create(policy_with_name)
+    if not create_policy.ok:
+        raise Exception("Error creating policy")
+
 
     xml_data = create_policy.text
     root = ElementTree.fromstring(xml_data)
@@ -65,6 +69,9 @@ def make_from_file(save: bool, client: jamfpi.JamfTenant):
 
     if save:
         get_save_json(id_number, policy_name)
+        get_save_xml(id_number, policy_name)
+
+    return id_number
 
 
 def get_save_json(jamf_id, client: jamfpi.JamfTenant, name="",):
@@ -88,7 +95,7 @@ def get_save_xml(jamf_id, client: jamfpi.JamfTenant, name="PlaceholderName"):
 
 # Automated GUI checking
 
-def get_driver(init_url: str) -> dict:
+def new_driver(init_url: str) -> dict:
     options = webdriver.ChromeOptions()
     options.add_experimental_option("detach", True)
 
@@ -96,14 +103,14 @@ def get_driver(init_url: str) -> dict:
     driver.get(init_url)
 
 
-    input("Press enter after logging in...")
+    input("Log in and then press enter...")
 
     return driver
 
 
 def get_policy_page_source(policy_jamf_id, driver: webdriver.Chrome, wait_time: int = 5):
     driver.get(f"https://lbgsandbox.jamfcloud.com/policies.html?id={policy_jamf_id}&o=r")
-    time.sleep(5)
+    time.sleep(wait_time)
     return driver.page_source
 
 
@@ -112,7 +119,7 @@ def close_driver_with_input(driver: webdriver.Chrome):
     driver.close()
 
 
-def parse_page(html_text) -> str:
+def get_policy_page_status(html_text) -> str:
     soup = BeautifulSoup(html_text, "html.parser")
     print(soup.text)
     with open("out.html", "w") as file:
@@ -124,42 +131,48 @@ def parse_page(html_text) -> str:
     return "this page was found!: "
 
 
+def single_timed_policy_propogation_test(jamf_client: jamfpi.JamfTenant, driver: webdriver.Chrome, policy_payload_filename):
+    # Start timing here
+    created_policy_id = make_from_file(
+        save=False,
+        client=jamf_client,
+        payload_filename=policy_payload_filename
+    )
+
+    found = False
+    while not found:
+        policy_html = get_policy_page_source(created_policy_id, driver)
+        found = get_policy_page_status(policy_html)
+
+    # Stop timing here
+        
+
+    return "time_elapsed"
+        
+
+def master_test(quantity: int, jamf_instance_name: str, policy_payload_filename: str):
+    out = []
+    driver = new_driver(f"https://{jamf_instance_name}.jamfcloud.com")
+    client = new_jamf_client()
+    for i in range(quantity):
+        duration = single_timed_policy_propogation_test(
+            jamf_client=client,
+            driver=driver,
+            policy_payload_filename=policy_payload_filename
+        )
+        out.append({
+            "time_to_create": duration
+        })
+
+    master_test_to_csv(out)
+
+
+def master_test_to_csv(master_test_data):
+    pass
+
+
 def main():
-    # connect_to_driver_from_file("session_info.json")
-    driver = get_driver("https://lbgsandbox.jamfcloud.com")
-    for i in [310, 311, 312]:
-        print("\n--------")
-        page_html = get_policy_page_source(i, driver)
-        found_text = parse_page(page_html)
-        print(found_text + str(i))
-        print("\n--------")
-    close_driver_with_input(driver)
-
-
+    master_test(50)
 
 
 main()
-
-# def connect_to_driver_from_arg(session_info):
-#     driver = webdriver.Remote(command_executor=session_info["executor_url"])
-#     driver.session_id = session_info["session_id"]
-#     return driver
-
-
-# def connect_to_driver_from_file(filename):
-#     with open(filename, "r") as file:
-#         session_info = json.loads(file.read())
-
-#     executor_url = session_info["executor_url"]
-#     session_id = session_info["session_id"]
-
-#     options = webdriver.ChromeOptions()
-#     options.add_experimental_option("detach", True)
-#     driver = webdriver.Remote(command_executor=executor_url, options=options)
-#     driver.session_id = session_id
-
-
-# def connect_to_chrome():
-#     options = webdriver.ChromeOptions()
-#     options.add_argument("--remote-debugging-port=9222")
-#   
