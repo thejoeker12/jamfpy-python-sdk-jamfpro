@@ -1,15 +1,16 @@
 """PoC for configuration profiles"""
 # pylint: disable=wrong-import-position, unused-import, R0801
 
+# Dir specific setup rubbish
+
 import sys
 import os
-from pprint import pprint
 
 this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)
 sys.path.append(parent_dir)
 
-# Setup Complete
+# Script
 
 import jamfpi
 import random
@@ -17,12 +18,15 @@ from xml.etree import ElementTree
 import logging
 import json
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from pycookiecheat import chrome_cookies
 from bs4 import BeautifulSoup
 import time
 
-def new_jamf_client() -> jamfpi.JamfTenant:
+# Helpers
 
+def new_jamf_client() -> jamfpi.JamfTenant:
+    """Returns new jamf client using auth from file """
     config = jamfpi.import_json("clientauth.json")
 
     client = jamfpi.init_client(
@@ -35,124 +39,184 @@ def new_jamf_client() -> jamfpi.JamfTenant:
     return client
 
 
-def delete_all():
-    client = new_jamf_client()
+def delete_all(client: jamfpi.JamfTenant):
+    """Deletes all policies from jamf instance"""
     all_policies = client.classic.policies.get_all()
+
     if all_policies.ok:
-        all_json = all.json()["policies"]
+        all_json = all_policies.json()["policies"]
     else:
-        raise Exception("problem")\
+        raise Exception("problem")
         
     for p in all_json:
         delete = client.classic.policies.delete_by_id(p["id"])
         if delete.ok:
             print(f"Deleted {p['id']} successfully")
 
-    print("cleanup finished")
 
+def make_from_file(
+        client: jamfpi.JamfTenant, 
+        filename: str = "policy_payload.xml", 
+        save: bool = False
+    ) -> tuple[str, str]:
+    """Makes new policy in Jamf from file"""
 
-def make_from_file(save: bool, client: jamfpi.JamfTenant, payload_filename: str):
     policy_name = f"Test From Python-{random.randint(1,10000)}"
-    file = open(payload_filename, "r")
-    policy = file.read()
-    policy_with_name = policy.format(NAME=policy_name)
-    file.close()
+    with open(filename, "r") as file:
+        policy = file.read()
+        policy_with_name = policy.format(NAME=policy_name)
 
     create_policy = client.classic.policies.create(policy_with_name)
+
     if not create_policy.ok:
         raise Exception("Error creating policy")
 
-
     xml_data = create_policy.text
     root = ElementTree.fromstring(xml_data)
-    id_number = root.find("id").text
+    policy_id = root.find("id").text
 
     if save:
-        get_save_json(id_number, policy_name)
-        get_save_xml(id_number, policy_name)
+        get_save_json(policy_id, policy_name)
+        get_save_xml(policy_id, policy_name)
 
-    return id_number
+    return policy_id, policy_name
 
 
-def get_save_json(jamf_id, client: jamfpi.JamfTenant, name="",):
+def get_save_json(jamf_id: str, client: jamfpi.JamfTenant, out_filename: str = ""):
+    """get policy by id and save to json file"""
     get_policy = client.classic.policies.get_by_id(jamf_id, "json")
-    if get_policy.ok:
-        policy_get_json = get_policy.json()
-        if name == "":
-            name = policy_get_json["policy"]["general"]["name"]
-        with open(f"{name}.json", "w", encoding="UTF-8") as out:
-            out_json = json.dumps(policy_get_json)
-            out.write(out_json)
+    if not get_policy.ok:
+        raise Exception("problem")
+    
+    policy_get_json = get_policy.json()
+    if out_filename == "":
+        out_filename = policy_get_json["policy"]["general"]["name"]
+    with open(f"{out_filename}.json", "w", encoding="UTF-8") as out:
+        out_json = json.dumps(policy_get_json)
+        out.write(out_json)
 
 
-def get_save_xml(jamf_id, client: jamfpi.JamfTenant, name="PlaceholderName"):
+def get_save_xml(jamf_id: str, client: jamfpi.JamfTenant, out_filename="PlaceholderName-"):
+    """get policy by id and save to xml file"""
+    out_filename += jamf_id
     get_policy = client.classic.policies.get_by_id(jamf_id, "xml")
-    if get_policy.ok:
-        policy_get_text = get_policy.text
-        with open(f"{name}.xml", "w", encoding="UTF-8") as out:
-            out.write(policy_get_text)
+    if not get_policy.ok:
+        raise Exception("problem")
+    
+    policy_get_text = get_policy.text
+    with open(f"{out_filename}.xml", "w", encoding="UTF-8") as out:
+        out.write(policy_get_text)
 
 
 # Automated GUI checking
 
-def new_driver(init_url: str) -> dict:
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("detach", True)
+def new_chrome_webdriver(init_url: str, options: webdriver.ChromeOptions = None) -> dict:
+    if options == None:
+        options = webdriver.ChromeOptions()
+        options.add_experimental_option("detach", True)
 
     driver = webdriver.Chrome(options=options)
     driver.get(init_url)
 
-
-    input("Log in and then press enter...")
+    print("please log in to Jamf")
+    input("press enter to continue...")
 
     return driver
 
 
-def get_policy_page_source(policy_jamf_id, driver: webdriver.Chrome, wait_time: int = 5):
-    driver.get(f"https://lbgsandbox.jamfcloud.com/policies.html?id={policy_jamf_id}&o=r")
-    time.sleep(wait_time)
-    return driver.page_source
-
-
 def close_driver_with_input(driver: webdriver.Chrome):
-    input("Press enter to close driver: ")
+    input("press enter to close driver...")
     driver.close()
 
 
-def get_policy_page_status(html_text) -> str:
-    soup = BeautifulSoup(html_text, "html.parser")
-    print(soup.text)
-    with open("out.html", "w") as file:
-        file.write(str(soup))
-
-    if 'class="code">404</h1>' in str(soup):
-        return("This page was not found!: ")
-
-    return "this page was found!: "
+# Replace this with a more standardised option for other resource types
+def get_policy_page_source(driver: webdriver.Chrome, policy_jamf_id: str, wait_time: int = 5):
+    driver.get(f"https://lbgsandbox.jamfcloud.com/policies.html?id={policy_jamf_id}")
+    while wait_time > 0:
+        print(f"waiting.. {wait_time}")
+        time.sleep(1)
+        wait_time -= 1
 
 
-def single_timed_policy_propogation_test(jamf_client: jamfpi.JamfTenant, driver: webdriver.Chrome, policy_payload_filename):
-    # Start timing here
-    created_policy_id = make_from_file(
+def check_not_found(driver: webdriver.Chrome):
+    status_code_class_list = driver.find_elements(By.CLASS_NAME, "code")
+    if len(status_code_class_list) == 0:
+        return False
+    
+    if status_code_class_list[0].text == "404":
+        return True
+    
+    raise Exception("neither condition met")
+
+
+def check_found(driver: webdriver.Chrome, policy_name: str):
+    if policy_name in driver.page_source:
+        return True
+    
+    return False
+
+
+def get_policy_page_status(driver: webdriver.Chrome, policy_name, poll_interval_time: int = 1, max_polls: int = 10) -> tuple[str, int]:
+    loading_poll_count = 0
+    is_missing_count = 0
+    is_missing = False
+    is_found = False
+    iteration_count = 0
+
+    while not is_found:
+
+        is_missing = check_not_found(driver)
+        if is_missing:
+            is_missing_count += 1
+
+        if is_missing_count >= max_polls:
+            return "error - never found", None, None
+
+        is_found = check_found(driver, policy_name)
+        if is_found:
+            break
+        
+        if not is_missing:
+            loading_poll_count += 1
+            if loading_poll_count >= max_polls:
+                return "error", loading_poll_count, None
+    
+        iteration_count += 1
+        if iteration_count >= max_polls:
+            return "error", iteration_count, 0
+        
+        print(f"Iteration: {iteration_count}\nis_missing: {is_missing}\nis_found: {is_found}\nloading_poll_count: {loading_poll_count}")
+
+        time.sleep(poll_interval_time)
+
+    
+    total_load_time = loading_poll_count * poll_interval_time
+    total_missing_time = (iteration_count - loading_poll_count) * poll_interval_time
+    print(f"Total load time: {total_load_time} seconds")
+    print(f"Total missing time: {total_missing_time} seconds")
+
+    if is_missing:
+        return "missing", total_load_time, total_load_time
+    
+    if is_found:
+        return "found", total_load_time, total_missing_time
+
+
+def single_timed_policy_propogation_test(driver: webdriver.Chrome, jamf_client: jamfpi.JamfTenant, policy_payload_filename, policy_name):
+    policy_id, policy_name = make_from_file(
         save=False,
         client=jamf_client,
         payload_filename=policy_payload_filename
     )
 
-    found = False
-    while not found:
-        policy_html = get_policy_page_source(created_policy_id, driver)
-        found = get_policy_page_status(policy_html)
-
-    # Stop timing here
+    status, a, b = get_policy_page_status(driver, policy_name, 0.5, 10)
         
-
     return "time_elapsed"
 
 
 def master_test(quantity: int, jamf_instance_name: str, policy_payload_filename: str):
     out = []
-    driver = new_driver(f"https://{jamf_instance_name}.jamfcloud.com")
+    driver = new_chrome_webdriver(f"https://{jamf_instance_name}.jamfcloud.com")
     client = new_jamf_client()
     for i in range(quantity):
         duration = single_timed_policy_propogation_test(
@@ -172,7 +236,17 @@ def master_test_to_csv(master_test_data):
 
 
 def main():
-    master_test(50)
+    driver = new_chrome_webdriver("https://lbgsandbox.jamfcloud.com")
+
+    get_policy_page_source("310", driver, wait_time=1)
+    result = get_policy_page_status(driver, "Test From Python-917")
+    print(result)
+
+    get_policy_page_source("312", driver, wait_time=1)
+    result = get_policy_page_status(driver, "Test From Python-917")
+    print(result)
+
+    close_driver_with_input(driver)
 
 
 main()
