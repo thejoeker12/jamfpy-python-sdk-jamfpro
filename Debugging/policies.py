@@ -148,7 +148,7 @@ def single_timed_policy_propogation_test(jamf_client: jamfpi.JamfTenant, driver:
         
 
     return "time_elapsed"
-        
+
 
 def master_test(quantity: int, jamf_instance_name: str, policy_payload_filename: str):
     out = []
