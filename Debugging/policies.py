@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 import time
 from datetime import datetime
 from pprint import pprint
+import requests
 
 def new_jamf_client() -> jamfpi.JamfTenant:
     """Returns new jamf client using auth from file """
@@ -34,6 +35,8 @@ def new_jamf_client() -> jamfpi.JamfTenant:
         client_secret=config["clientSecret"],
         logging_level=logging.INFO
     )
+
+    client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
     return client
 
 POLICY_NAMES = []
@@ -67,7 +70,7 @@ def make_from_file(
         get_save_json(policy_id, policy_name)
         get_save_xml(policy_id, policy_name)
 
-    return policy_id, policy_name
+    return policy_id, policy_name, create_policy
 
 
 def get_save_json(jamf_id: str, client: jamfpi.JamfTenant, out_filename: str = ""):
@@ -111,21 +114,114 @@ def delete_all(client: jamfpi.JamfTenant):
             print(f"Deleted {p['id']} successfully")
 
 
-def main():
-    INGRESS_VALUE = "f248e7b703882ffc"
-    client = new_jamf_client()
-    client.classic._session.cookies.set(name="jpro-ingress", value=INGRESS_VALUE)
-    p_id, p_name = make_from_file(
-        client=client,
-        filename="policy_payload.xml",
-        save=False
-    )  
-
-    print(f"success creating {p_name} at {p_id}")
+def getCurrentIngressCookie():
+    cookies = chrome_cookies("https://lbgsandbox.jamfcloud.com")
+    if len(cookies) != 0:
+        ingress_cookie = cookies["jpro-ingress"]
+        return ingress_cookie
+    
+    raise Exception("No cookies found")
 
 
 # def main():
 #     client = new_jamf_client()
+#     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
+#     p_id, p_name = make_from_file(
+#         client=client,
+#         filename="policy_payload.xml",
+#         save=False
+#     )  
+
+#     print(f"success creating {p_name} at {p_id}")
+
+
+# def main():
+#     client1 = new_jamf_client()
+#     client2 = new_jamf_client()
+#     client2.classic._session.cookies.set(name="jpro-ingress", value="cb9c9769c9f87d32")
+
+#     pid1, pname1 = make_from_file(
+#         client=client1,
+#         filename="policy_payload.xml",
+#         save=False
+#     )
+
+#     pid2, pname2 = make_from_file(
+#         client=client2,
+#         filename="policy_payload.xml",
+#         save=False
+#     )
+
+
+APP1 = "cb9c9769c9f87d32"
+APP2 = "f248e7b703882ffc"
+
+def main():
+    maker = new_jamf_client()
+    maker.classic._session.cookies.set(
+        name="jpro-ingress",
+        value=APP1
+    )
+
+    checker = new_jamf_client()
+    checker.classic._session.cookies.set(
+        name="jpro-ingress",
+        value=APP2
+    )
+
+    out_list = []
+    test_count = 0
+    for i in range(5):
+        check_count = 0
+        print(f"Starting test: {test_count}")
+        target_policy_id, target_policy_name, resp = make_from_file(
+            client=maker,
+            filename="policy_payload.xml",
+            save=False
+        )
+        print(resp.status_code)
+
+        create_time = datetime.now()
+
+        found = False
+        while not found:
+            print(f"Test {test_count}\nCheck Count: {check_count}")
+            check = checker.classic.policies.get_by_id(target_policy_id, "xml")
+            print(f"Check Status: {check.status_code}")
+            if check.ok:
+                found = True
+
+            check_count += 1
+            time.sleep(1)
+
+        found_time = datetime.now()
+
+
+        out = {
+            "created": create_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "found": found_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "delta": found_time - create_time
+        }
+        print(out)
+        out_list.append(out)
+        test_count += 1 
+
+    for i in out_list:
+        print(i)
+
+        
+
+
+
+
+
+
+
+    
+
+# def main():
+#     client = new_jamf_client()
 #     delete_all(client)
+
 
 main()

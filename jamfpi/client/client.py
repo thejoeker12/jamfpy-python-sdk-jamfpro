@@ -205,9 +205,9 @@ class API:
                 self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
                 raise requests.HTTPError("Bad response:", response.status_code)
 
-            self.logger.warn("Request failed. Response: %s, error: %s", response, error_text)
+            self.logger.debug("Request failed. Response: %s, error: %s", response, error_text)
         else:
-            self.logger.info("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
+            self.logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
         return response
 

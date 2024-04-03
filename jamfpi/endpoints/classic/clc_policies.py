@@ -20,7 +20,7 @@ class Policies(Endpoint):
         url = self._api.url() + self._uri + f"/id/{target_id}"
         headers = self._api.header(f"basic-{resp_type}")
         req = Request("GET", url, headers=headers)
-        resp = self._api.do(req)
+        resp = self._api.do(req, error_on_fail=False)
         return resp
 
     def create(self, policy_xml: str):
