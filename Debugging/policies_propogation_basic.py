@@ -31,8 +31,10 @@ def main():
         raw_req = requests.Request("GET", f"https://{INSTANCE_NAME}.jamfcloud.com/JSSResource/policies", headers=headers)
         prepped = session.prepare_request(raw_req)
         resp = session.send(prepped)
-        ingress_cookie_value = session.cookies.get_dict()["jpro-ingress"]
-        INGRESS_VALUES.append(ingress_cookie_value)
+        print(resp)
+        print(session.cookies.get_dict())
+        # ingress_cookie_value = session.cookies.get_dict()
+        # INGRESS_VALUES.append(ingress_cookie_value)
 
 
 
