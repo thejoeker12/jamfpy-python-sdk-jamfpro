@@ -24,3 +24,108 @@ import time
 from datetime import datetime
 from pprint import pprint
 
+def new_jamf_client() -> jamfpi.JamfTenant:
+    """Returns new jamf client using auth from file """
+    config = jamfpi.import_json("clientauth.json")
+
+    client = jamfpi.init_client(
+        tenant_name="lbgsandbox",
+        client_id=config["clientId"],
+        client_secret=config["clientSecret"],
+        logging_level=logging.INFO
+    )
+    return client
+
+POLICY_NAMES = []
+def make_from_file(
+        client: jamfpi.JamfTenant, 
+        filename: str = "policy_payload.xml", 
+        save: bool = False
+    ) -> tuple[str, str]:
+    """Makes new policy in Jamf from file"""
+
+    policy_name = f"Test From Python-{random.randint(1,10000)}"
+    while policy_name in POLICY_NAMES:
+        policy_name = f"Test From Python-{random.randint(1,10000)}"
+
+    POLICY_NAMES.append(policy_name)
+
+    with open(filename, "r") as file:
+        policy = file.read()
+        policy_with_name = policy.format(NAME=policy_name)
+
+    create_policy = client.classic.policies.create(policy_with_name)
+
+    if not create_policy.ok:
+        raise Exception("Error creating policy")
+
+    xml_data = create_policy.text
+    root = ElementTree.fromstring(xml_data)
+    policy_id = root.find("id").text
+
+    if save:
+        get_save_json(policy_id, policy_name)
+        get_save_xml(policy_id, policy_name)
+
+    return policy_id, policy_name
+
+
+def get_save_json(jamf_id: str, client: jamfpi.JamfTenant, out_filename: str = ""):
+    """get policy by id and save to json file"""
+    get_policy = client.classic.policies.get_by_id(jamf_id, "json")
+    if not get_policy.ok:
+        raise Exception("problem")
+    
+    policy_get_json = get_policy.json()
+    if out_filename == "":
+        out_filename = policy_get_json["policy"]["general"]["name"]
+    with open(f"{out_filename}.json", "w", encoding="UTF-8") as out:
+        out_json = json.dumps(policy_get_json)
+        out.write(out_json)
+
+
+def get_save_xml(jamf_id: str, client: jamfpi.JamfTenant, out_filename="PlaceholderName-"):
+    """get policy by id and save to xml file"""
+    out_filename += jamf_id
+    get_policy = client.classic.policies.get_by_id(jamf_id, "xml")
+    if not get_policy.ok:
+        raise Exception("problem")
+    
+    policy_get_text = get_policy.text
+    with open(f"{out_filename}.xml", "w", encoding="UTF-8") as out:
+        out.write(policy_get_text)
+
+
+def delete_all(client: jamfpi.JamfTenant):
+    """Deletes all policies from jamf instance"""
+    all_policies = client.classic.policies.get_all()
+
+    if all_policies.ok:
+        all_json = all_policies.json()["policies"]
+    else:
+        raise Exception("problem")
+        
+    for p in all_json:
+        delete = client.classic.policies.delete_by_id(p["id"])
+        if delete.ok:
+            print(f"Deleted {p['id']} successfully")
+
+
+def main():
+    INGRESS_VALUE = "f248e7b703882ffc"
+    client = new_jamf_client()
+    client.classic._session.cookies.set(name="jpro-ingress", value=INGRESS_VALUE)
+    p_id, p_name = make_from_file(
+        client=client,
+        filename="policy_payload.xml",
+        save=False
+    )  
+
+    print(f"success creating {p_name} at {p_id}")
+
+
+# def main():
+#     client = new_jamf_client()
+#     delete_all(client)
+
+main()
