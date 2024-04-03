@@ -187,7 +187,7 @@ class Auth:
         """
         invalidates token
         """
-        url = self._libconfig.urls["invalidate-token"]
+        url = self._libconfig.urls["auth"]["invalidate-token"]
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"

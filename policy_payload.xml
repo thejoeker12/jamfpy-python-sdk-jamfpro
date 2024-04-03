@@ -1,9 +1,9 @@
 <policy>
 	<general>
 		<name>{NAME}</name>
-		<!-- <enabled>true</enabled> -->
+		<enabled>true</enabled>
 		<!-- <trigger>CHECKIN</trigger> -->
-		<!-- <trigger_checkin>true</trigger_checkin> -->
+		<trigger_checkin>true</trigger_checkin>
 		<!-- <trigger_enrollment_complete>true</trigger_enrollment_complete> -->
 		<!-- <trigger_login>true</trigger_login> -->
 		<!-- <trigger_logout>true</trigger_logout> -->
@@ -12,21 +12,21 @@
 		<!-- <trigger_other>I am a trigger</trigger_other> -->
 		<!-- <frequency>Once per computer</frequency> -->
 		<!-- <location_user_only>true</location_user_only> -->
-		<!-- <target_drive>//things</target_drive> -->
+		<target_drive>//things</target_drive>
 		<offline>true</offline>
-		<!-- <category>
+		<category>
 			<id>5</id>
 			<name>Applications</name>
-		</category> -->
+		</category>
 		<!-- <network_limitations>
 			<minimum_network_connection>No Minimum</minimum_network_connection>
 			<any_ip_address>true</any_ip_address>
 		</network_limitations> -->
 		<!-- <network_requirements>Any</network_requirements> -->
-		<!-- <site>
+		<site>
 			<id>-1</id>
 			<name>None</name>
-		</site> -->
+		</site>
 	</general>
 	<!-- <scope>
 		<all_computers>true</all_computers>
@@ -54,7 +54,7 @@
 			<ibeacons/>
 		</exclusions>
 	</scope> -->
-	<!-- <self_service>
+	<self_service>
 		<use_for_self_service>true</use_for_self_service>
 		<self_service_display_name>Install Firefox</self_service_display_name>
 		<install_button_text>Install</install_button_text>
@@ -75,5 +75,5 @@
 		<notification>Self Service</notification>
 		<notification_subject>Install Firefox</notification_subject>
 		<notification_message/>
-	</self_service> -->
+	</self_service>
 </policy>

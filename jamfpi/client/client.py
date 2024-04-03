@@ -323,7 +323,7 @@ class JamfTenant:
             self.initiated_tenants.append(self.classic)
 
         if pro:
-            self.pro: ProAPI or AuthManagerProAPI = pro
+            self.pro: ProAPI = pro
             self.initiated_tenants.append(self.pro)
 
         if not classic and not pro:
