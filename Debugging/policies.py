@@ -39,6 +39,7 @@ def new_jamf_client() -> jamfpi.JamfTenant:
     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
     return client
 
+
 POLICY_NAMES = []
 def make_from_file(
         client: jamfpi.JamfTenant, 
@@ -123,105 +124,28 @@ def getCurrentIngressCookie():
     raise Exception("No cookies found")
 
 
-# def main():
-#     client = new_jamf_client()
-#     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
-#     p_id, p_name = make_from_file(
-#         client=client,
-#         filename="policy_payload.xml",
-#         save=False
-#     )  
-
-#     print(f"success creating {p_name} at {p_id}")
-
-
-# def main():
-#     client1 = new_jamf_client()
-#     client2 = new_jamf_client()
-#     client2.classic._session.cookies.set(name="jpro-ingress", value="cb9c9769c9f87d32")
-
-#     pid1, pname1 = make_from_file(
-#         client=client1,
-#         filename="policy_payload.xml",
-#         save=False
-#     )
-
-#     pid2, pname2 = make_from_file(
-#         client=client2,
-#         filename="policy_payload.xml",
-#         save=False
-#     )
-
-
-APP1 = "cb9c9769c9f87d32"
-APP2 = "f248e7b703882ffc"
-
 def main():
-    maker = new_jamf_client()
-    maker.classic._session.cookies.set(
-        name="jpro-ingress",
-        value=APP1
-    )
+    client = new_jamf_client()
+    client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
+    p_id, p_name, _ = make_from_file(
+        client=client,
+        filename="policy_payload.xml",
+        save=False
+    )  
 
-    checker = new_jamf_client()
-    checker.classic._session.cookies.set(
-        name="jpro-ingress",
-        value=APP2
-    )
+    print(f"success creating {p_name} at {p_id}")
 
-    out_list = []
-    test_count = 0
-    for i in range(5):
-        check_count = 0
-        print(f"Starting test: {test_count}")
-        target_policy_id, target_policy_name, resp = make_from_file(
-            client=maker,
-            filename="policy_payload.xml",
-            save=False
-        )
-        print(resp.status_code)
-
-        create_time = datetime.now()
-
-        found = False
-        while not found:
-            print(f"Test {test_count}\nCheck Count: {check_count}")
-            check = checker.classic.policies.get_by_id(target_policy_id, "xml")
-            print(f"Check Status: {check.status_code}")
-            if check.ok:
-                found = True
-
-            check_count += 1
-            time.sleep(1)
-
-        found_time = datetime.now()
+    cleanup_input = input("Cleanup?: ").lower()
+    if cleanup_input in ["y", "yes"]:
+        del_resp = client.classic.policies.delete_by_id(p_id)
+        if del_resp.ok:
+            print("deleted successfully")
 
 
-        out = {
-            "created": create_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "found": found_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "delta": found_time - create_time
-        }
-        print(out)
-        out_list.append(out)
-        test_count += 1 
-
-    for i in out_list:
-        print(i)
-
-        
-
-
-
-
-
-
-
-    
-
-# def main():
-#     client = new_jamf_client()
-#     delete_all(client)
+def cleanup():
+    client = new_jamf_client()
+    delete_all(client)
 
 
 main()
+# cleanup()
