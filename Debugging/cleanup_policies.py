@@ -26,6 +26,8 @@ from datetime import datetime
 from pprint import pprint
 import requests
 
+TEST_PREFIX = "Resource Building Test"
+
 def new_jamf_client() -> jamfpi.JamfTenant:
     """Returns new jamf client using auth from file """
     config = jamfpi.import_json("clientauth.json")
@@ -40,18 +42,17 @@ def new_jamf_client() -> jamfpi.JamfTenant:
     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
     return client
 
-
-POLICY_NAMES = []
 def make_from_file(
         client: jamfpi.JamfTenant, 
         filename: str = "policy_payload.xml", 
         save: bool = False
     ) -> tuple[str, str]:
+    POLICY_NAMES = []
     """Makes new policy in Jamf from file"""
 
-    policy_name = f"Test From Python-{random.randint(1,10000)}"
+    policy_name = f"{TEST_PREFIX}-{random.randint(1,10000)}"
     while policy_name in POLICY_NAMES:
-        policy_name = f"Test From Python-{random.randint(1,10000)}"
+        policy_name = f"{TEST_PREFIX}-{random.randint(1,10000)}"
 
     POLICY_NAMES.append(policy_name)
 
@@ -100,7 +101,7 @@ def get_save_xml(jamf_id: str, client: jamfpi.JamfTenant, out_filename="Placehol
     with open(f"{out_filename}.xml", "w", encoding="UTF-8") as out:
         out.write(policy_get_text)
 
-EXCLUDED = ["1029"]
+EXCLUDED = ["1022"]
 def delete_all(client: jamfpi.JamfTenant):
     """Deletes all policies from jamf instance"""
     all_policies = client.classic.policies.get_all()
@@ -109,7 +110,7 @@ def delete_all(client: jamfpi.JamfTenant):
         all_json = all_policies.json()["policies"]
     else:
         raise Exception("problem")
-    
+        
     for p in all_json:
         if str(p["id"]) not in EXCLUDED:
             delete = client.classic.policies.delete_by_id(p["id"])
@@ -151,11 +152,5 @@ def cleanup():
     delete_all(client)
 
 
-def get():
-    client = new_jamf_client()
-    get_save_xml("1029", client, "saved")
-
-
-# main()
+main()
 # cleanup()
-get()
