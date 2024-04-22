@@ -128,7 +128,7 @@ def getCurrentIngressCookie():
 
 
 def main():
-    TARGET_FILE = "account_testing.xml"
+    TARGET_FILE = "printer_testing.xml"
     SAVE = True
     client = new_jamf_client()
     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
@@ -159,6 +159,6 @@ def get():
     get_save_xml("1029", client, "saved")
 
 
-# main()
+main()
 # cleanup()
-get()
+# get()
