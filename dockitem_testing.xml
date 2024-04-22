@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <policy>
     <general>
-        <id>1022</id>
-        <name>Test - not managed by TF</name>
+        <name>{NAME}</name>
         <enabled>true</enabled>
         <trigger>EVENT</trigger>
         <trigger_checkin>false</trigger_checkin>
@@ -11,7 +10,7 @@
         <trigger_network_state_changed>false</trigger_network_state_changed>
         <trigger_startup>false</trigger_startup>
         <trigger_other />
-        <frequency>Ongoing</frequency>
+        <frequency>Once per computer</frequency>
         <retry_event>none</retry_event>
         <retry_attempts>-1</retry_attempts>
         <notify_on_each_failed_retry>false</notify_on_each_failed_retry>
@@ -19,8 +18,8 @@
         <target_drive>/</target_drive>
         <offline>false</offline>
         <category>
-            <id>5</id>
-            <name>Applications</name>
+            <id>-1</id>
+            <name>No category assigned</name>
         </category>
         <date_time_limitations>
             <activation_date />
@@ -29,14 +28,12 @@
             <expiration_date />
             <expiration_date_epoch>0</expiration_date_epoch>
             <expiration_date_utc />
-            <no_execute_on>
-                <day>Tue</day>
-            </no_execute_on>
+            <no_execute_on />
             <no_execute_start />
             <no_execute_end />
         </date_time_limitations>
         <network_limitations>
-            <minimum_network_connection>Ethernet</minimum_network_connection>
+            <minimum_network_connection>No Minimum</minimum_network_connection>
             <any_ip_address>true</any_ip_address>
             <network_segments />
         </network_limitations>
@@ -46,7 +43,7 @@
             <force_afp_smb>false</force_afp_smb>
             <sus>default</sus>
         </override_default_settings>
-        <network_requirements>Ethernet</network_requirements>
+        <network_requirements>Any</network_requirements>
         <site>
             <id>-1</id>
             <name>None</name>
@@ -90,7 +87,7 @@
         <self_service_categories />
         <notification>false</notification>
         <notification_type>Self Service</notification_type>
-        <notification_subject>Test - not managed by TF</notification_subject>
+        <notification_subject>Not managed by TF</notification_subject>
         <notification_message />
     </self_service>
     <package_configuration>
@@ -100,14 +97,44 @@
         <distribution_point>default</distribution_point>
     </package_configuration>
     <scripts>
-        <size>0</size>
+        <size>1</size>
+        <script>
+            <id>7268</id>
+            <name>test_script</name>
+            <priority>After</priority>
+            <parameter4 />
+            <parameter5 />
+            <parameter6 />
+            <parameter7 />
+            <parameter8 />
+            <parameter9 />
+            <parameter10 />
+            <parameter11 />
+        </script>
     </scripts>
     <printers>
-        <size>0</size>
+        <size>2</size>
         <leave_existing_default />
+        <printer>
+            <id>1740</id>
+            <name>HP 9th Floor 2</name>
+            <action>install</action>
+            <make_default>true</make_default>
+        </printer>
+        <printer>
+            <id>1763</id>
+            <name>New printer</name>
+            <action>install</action>
+            <make_default>true</make_default>
+        </printer>
     </printers>
     <dock_items>
-        <size>0</size>
+        <size>1</size>
+        <dock_item>
+            <id>1352</id>
+            <!-- <name>Test</name> -->
+            <action>Add To End</action>
+        </dock_item>
     </dock_items>
     <account_maintenance>
         <accounts>

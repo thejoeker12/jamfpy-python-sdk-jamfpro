@@ -62,6 +62,7 @@ def make_from_file(
     create_policy = client.classic.policies.create(policy_with_name)
 
     if not create_policy.ok:
+        print(create_policy.text)
         raise Exception("Error creating policy")
 
     xml_data = create_policy.text
@@ -69,8 +70,8 @@ def make_from_file(
     policy_id = root.find("id").text
 
     if save:
-        get_save_json(policy_id, policy_name)
-        get_save_xml(policy_id, policy_name)
+        get_save_json(policy_id, client)
+        get_save_xml(policy_id, client)
 
     return policy_id, policy_name, create_policy
 
@@ -127,12 +128,14 @@ def getCurrentIngressCookie():
 
 
 def main():
+    TARGET_FILE = "account_testing.xml"
+    SAVE = True
     client = new_jamf_client()
     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
     p_id, p_name, _ = make_from_file(
         client=client,
-        filename="policy_payload.xml",
-        save=False
+        filename=TARGET_FILE,
+        save=SAVE
     )  
 
     print(f"success creating {p_name} at {p_id}")
