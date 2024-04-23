@@ -154,11 +154,11 @@ def cleanup():
     delete_all(client)
 
 
-def get():
+def get(pid):
     client = new_jamf_client()
-    get_save_xml("1029", client, "saved")
+    get_save_xml(str(pid), client, "saved")
 
 
-main()
+# main()
 # cleanup()
-# get()
+get(1055)
