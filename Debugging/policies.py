@@ -127,8 +127,8 @@ def getCurrentIngressCookie():
     raise Exception("No cookies found")
 
 
-def main():
-    TARGET_FILE = "printer_testing.xml"
+def main(filename):
+    TARGET_FILE = filename
     SAVE = True
     client = new_jamf_client()
     client.classic._session.cookies.set(name="jpro-ingress", value=getCurrentIngressCookie())
@@ -159,6 +159,6 @@ def get(pid):
     get_save_xml(str(pid), client, "saved")
 
 
-# main()
+# main("policy_test_package.xml")
 # cleanup()
-get(1086)
+get(1189)
