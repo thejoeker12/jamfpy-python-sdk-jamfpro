@@ -19,6 +19,7 @@ from ..endpoints.classic.clc_computers import ClassicComputers
 from ..endpoints.classic.clc_computer_groups import ComputerGroups
 from ..endpoints.classic.clc_policies import Policies
 from ..endpoints.classic.clc_osxconfiguration_profiles import ConfigurationProfiles
+from ..endpoints.classic.clc_computer_extension_attributes import ExtensionAttributes
 
 # Pro
 from ..endpoints.pro.pro_api_management import (
@@ -226,6 +227,7 @@ class ClassicAPI(API):
         self.computergroups = ComputerGroups(self)
         self.policies = Policies(self)
         self.configuration_profiles = ConfigurationProfiles(self)
+        self.computer_extension_attributes = ExtensionAttributes(self)
 
 
     # Magic Methods
