@@ -30,6 +30,9 @@ defaultconfig = {
             "basic-xml": {
                 "accept": "text/xml"
             },
+            "basic": {
+                "accept": "text/xml"
+            },
             "put": {
                 "accept": "text/xml",
                 "content-type": "text/xml"
