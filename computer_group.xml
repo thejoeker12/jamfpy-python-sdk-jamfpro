@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<computer_group>
+    <name>{NAME}</name>
+    <is_smart>false</is_smart>
+    <site>
+        <id>0</id>
+        <!-- <name>None</name> -->
+    </site>
+    <computers>
+        <size>1</size>
+        <computer>
+            <id>
+                17
+            </id>
+        </computer>
+    </computers>
+</computer_group>
