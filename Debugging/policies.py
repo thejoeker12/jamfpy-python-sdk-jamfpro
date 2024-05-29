@@ -24,7 +24,8 @@ from bs4 import BeautifulSoup
 import time
 from datetime import datetime
 from pprint import pprint
-import requests
+
+
 
 def new_jamf_client() -> jamfpi.JamfTenant:
     """Returns new jamf client using auth from file """
