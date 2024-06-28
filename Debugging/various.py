@@ -24,38 +24,18 @@ jamf = jamfpi.init_client(
 )
 
 
-request = requests.Request("GET", url="https://lbgsandbox.jamfcloud.com/JSSResource/computerextensionattributes/id/5290")
-resp = jamf.classic.do(request, error_on_fail=False)
-print(resp.text)
-xml = parseString(resp.text)
-print(xml.toprettyxml())
-
-# request = requests.Request("GET", url="https://lbgsandbox.jamfcloud.com/api/v1/scripts")
-# resp = jamf.classic.do(request, error_on_fail=False)
-# if resp.ok:
-#     rjson = resp.json()["results"]
-#     for i in rjson:
-#         request = requests.Request("DELETE", url=f"https://lbgsandbox.jamfcloud.com/api/v1/scripts/{i['id']}")
-#         resp = jamf.classic.do(request, error_on_fail=False)
 
 
-# data = {
-#     "name": "script name",
-#     # "categoryId": 5
-# }
+urls = [
+    "https://lbgsandbox.jamfcloud.com/JSSResource/accounts/userid/510",
+    "https://lbgsandbox.jamfcloud.com/JSSResource/accounts/groupid/1789"
+]
 
-# request = requests.Request("POST", url="https://lbgsandbox.jamfcloud.com/api/v1/scripts", json=data)
-# resp = jamf.classic.do(request, error_on_fail=False)
-# if resp.ok:
-#     pprint(resp.json())
-#     rjson = resp.json()
-# else:
-#     print("error")
+for url in urls:
+    request = requests.Request("GET", url=url)
+    resp = jamf.classic.do(request, error_on_fail=False)
+    xml = parseString(resp.text)
+    print(url)
+    print(xml.toprettyxml())
+    print("\n\n-------------------\n\n")
 
-
-# request = requests.Request("GET", url=f"https://lbgsandbox.jamfcloud.com/api/v1/scripts/{rjson['id']}")
-# resp = jamf.classic.do(request, error_on_fail=False)
-# if resp.ok:
-#     pprint(resp.json())
-# else:
-#     print("error")
