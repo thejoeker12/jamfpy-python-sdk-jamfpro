@@ -49,6 +49,7 @@ class Icons(Endpoint):
         headers = self._api.header("basic")
         payload = create_single_file_payload(image_filepath, image_filepath.name, "png")
         req = Request("POST", url=url, headers=headers, files=payload)
+        print(req.files)
         resp = self._api.do(req)
         return resp
 
