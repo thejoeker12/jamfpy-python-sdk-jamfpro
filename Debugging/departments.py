@@ -12,7 +12,7 @@ this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)
 sys.path.append(parent_dir)
 
-import jamfpi
+import jamfpy
 import random
 from xml.etree import ElementTree
 import logging
@@ -26,12 +26,12 @@ from datetime import datetime
 from pprint import pprint
 import requests
 
-config = jamfpi.import_json("clientauth.json")
+config = jamfpy.import_json("clientauth.json")
 
 APP1 = "cb9c9769c9f87d32"
 APP2 = "f248e7b703882ffc"
 
-client = jamfpi.init_client(
+client = jamfpy.init_client(
     tenant_name="lbgsandbox",
     client_id=config["clientId"],
     client_secret=config["clientSecret"],
@@ -40,7 +40,7 @@ client = jamfpi.init_client(
 
 POLICY_NAMES = []
 def make_from_file(
-        client: jamfpi.JamfTenant, 
+        client: jamfpy.JamfTenant, 
         filename: str = "policy_payload.xml"
     ) -> tuple[str, str]:
     """Makes new policy in Jamf from file"""

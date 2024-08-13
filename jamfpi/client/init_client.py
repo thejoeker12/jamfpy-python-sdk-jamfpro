@@ -14,7 +14,7 @@ from .logger import get_logger
 from .auth import OAuth, BearerAuth
 from .utility import import_json
 from ..config.defaultconfig import defaultconfig, MasterConfig
-from .exceptions import JamfPiInitError, JamfPiConfigError
+from .exceptions import jamfpyInitError, jamfpyConfigError
 
 
 def init_client(
@@ -106,7 +106,7 @@ def init_client(
             basic_auth_token=basic_token,
         )
     else:
-        raise JamfPiInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
+        raise jamfpyInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
     auth.set_new_token()
 
@@ -144,7 +144,7 @@ def init_client(
         raise Exception("Nope try again...") # WIP. // NOTE This is where custom endpoints will go
 
     else:
-        raise JamfPiConfigError("Invalid API Mode")
+        raise jamfpyConfigError("Invalid API Mode")
 
     logger.info("%s Init Complete", tenant_name)
 

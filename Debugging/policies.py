@@ -8,11 +8,11 @@ import os
 this_dir = os.path.dirname(__file__)
 parent_dir = os.path.dirname(this_dir)
 sys.path.append(parent_dir)
-sys.path.append("/Users/joseph/github/jamfpi/")
+sys.path.append("/Users/joseph/github/jamfpy/")
 
 # Script
 
-import jamfpi
+import jamfpy
 import random
 from xml.etree import ElementTree
 import logging
@@ -27,11 +27,11 @@ from pprint import pprint
 
 
 
-def new_jamf_client() -> jamfpi.JamfTenant:
+def new_jamf_client() -> jamfpy.JamfTenant:
     """Returns new jamf client using auth from file """
-    config = jamfpi.import_json("clientauth.json")
+    config = jamfpy.import_json("clientauth.json")
 
-    client = jamfpi.init_client(
+    client = jamfpy.init_client(
         tenant_name="lbgsandbox",
         client_id=config["clientId"],
         client_secret=config["clientSecret"],
@@ -44,7 +44,7 @@ def new_jamf_client() -> jamfpi.JamfTenant:
 
 POLICY_NAMES = []
 def make_from_file(
-        client: jamfpi.JamfTenant, 
+        client: jamfpy.JamfTenant, 
         filename: str = "policy_payload.xml", 
         save: bool = False
     ) -> tuple[str, str]:
@@ -77,7 +77,7 @@ def make_from_file(
     return policy_id, policy_name, create_policy
 
 
-def get_save_json(jamf_id: str, client: jamfpi.JamfTenant, out_filename: str = ""):
+def get_save_json(jamf_id: str, client: jamfpy.JamfTenant, out_filename: str = ""):
     """get policy by id and save to json file"""
     get_policy = client.classic.policies.get_by_id(jamf_id, "json")
     if not get_policy.ok:
@@ -91,7 +91,7 @@ def get_save_json(jamf_id: str, client: jamfpi.JamfTenant, out_filename: str = "
         out.write(out_json)
 
 
-def get_save_xml(jamf_id: str, client: jamfpi.JamfTenant, out_filename="PlaceholderName-"):
+def get_save_xml(jamf_id: str, client: jamfpy.JamfTenant, out_filename="PlaceholderName-"):
     """get policy by id and save to xml file"""
     out_filename += jamf_id
     get_policy = client.classic.policies.get_by_id(jamf_id, "xml")
@@ -103,7 +103,7 @@ def get_save_xml(jamf_id: str, client: jamfpi.JamfTenant, out_filename="Placehol
         out.write(policy_get_text)
 
 EXCLUDED = ["1029"]
-def delete_all(client: jamfpi.JamfTenant):
+def delete_all(client: jamfpy.JamfTenant):
     """Deletes all policies from jamf instance"""
     all_policies = client.classic.policies.get_all()
 

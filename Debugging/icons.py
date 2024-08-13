@@ -13,11 +13,11 @@ sys.path.append(parent_dir)
 
 from pprint import pprint
 from pathlib import Path
-import jamfpi
+import jamfpy
 
-config = jamfpi.import_json("/Users/joseph/github/terraform-sandbox/clientauth.json")
+config = jamfpy.import_json("/Users/joseph/github/terraform-sandbox/clientauth.json")
 
-jamf = jamfpi.init_client(
+jamf = jamfpy.init_client(
     tenant_name=config["instanceName"],
     client_id=config["clientId"],
     client_secret=config["clientSecret"],

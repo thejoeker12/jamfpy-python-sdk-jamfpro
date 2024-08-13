@@ -1,4 +1,4 @@
-"""Master init for JamfPi Library"""
+"""Master init for jamfpy Library"""
 
 from .client.init_client import init_client
 from .client.utility import (

@@ -10,7 +10,7 @@ import requests
 
 # This lib
 from .auth import OAuth, BearerAuth
-from .exceptions import JamfPiConfigError
+from .exceptions import jamfpyConfigError
 from .logger import get_logger
 
 # Endpoints
@@ -164,7 +164,7 @@ class API:
         if self._version == "pro":
             return self.base_url.format(jamfapiversion=target)
 
-        raise JamfPiConfigError("Invalid API version")
+        raise jamfpyConfigError("Invalid API version")
 
 
     def header(self, key: str) -> str:
@@ -331,7 +331,7 @@ class JamfTenant:
             self.initiated_tenants.append(self.pro)
 
         if not classic and not pro:
-            raise JamfPiConfigError("No APIs Provided for Jamf Object")
+            raise jamfpyConfigError("No APIs Provided for Jamf Object")
 
     # Methods
     def __str__(self) -> str:

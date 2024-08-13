@@ -11,16 +11,16 @@ sys.path.append(parent_dir)
 
 # Setup Complete
 
-import jamfpi
+import jamfpy
 import plistlib
 import random
 from xml.etree import ElementTree
 import xml.dom.minidom
 import logging
 
-config = jamfpi.import_json("clientauth.json")
+config = jamfpy.import_json("clientauth.json")
 
-client = jamfpi.init_client(
+client = jamfpy.init_client(
     tenant_name="lbgsandbox",
     client_id=config["clientId"],
     client_secret=config["clientSecret"],

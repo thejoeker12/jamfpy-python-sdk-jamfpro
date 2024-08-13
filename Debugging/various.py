@@ -10,14 +10,14 @@ sys.path.append(parent_dir)
 
 # Setup Complete
 
-import jamfpi
+import jamfpy
 import requests
 from xml.dom.minidom import parseString
 from pprint import pprint
 
-config = jamfpi.import_json("clientauth.json")
+config = jamfpy.import_json("clientauth.json")
 
-jamf = jamfpi.init_client(
+jamf = jamfpy.init_client(
     tenant_name=config["instanceName"],
     client_id=config["clientId"],
     client_secret=config["clientSecret"]

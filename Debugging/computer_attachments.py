@@ -14,12 +14,12 @@ sys.path.append(parent_dir)
 
 # from pprint import pprint
 from pathlib import Path
-import jamfpi
+import jamfpy
 
 
-config = jamfpi.import_json("client_auth.json")
+config = jamfpy.import_json("client_auth.json")
 
-jamf = jamfpi.init_client(
+jamf = jamfpy.init_client(
     tenant_name=config["instanceName"],
     client_id=config["clientId"],
     client_secret=config["clientSecret"],
