@@ -15,7 +15,7 @@ from pprint import pprint
 from pathlib import Path
 import jamfpi
 
-config = jamfpi.import_json("client_auth.json")
+config = jamfpi.import_json("/Users/joseph/github/terraform-sandbox/clientauth.json")
 
 jamf = jamfpi.init_client(
     tenant_name=config["instanceName"],
@@ -33,5 +33,5 @@ jamf = jamfpi.init_client(
 # print(icon)
 # pprint(icon.json())
 
-upload = jamf.pro.icons.upload(Path("cat2.png"))
+upload = jamf.pro.icons.upload(Path("/Users/joseph/github/go-api-sdk-jamfpro/examples/icon/UploadIcon/cat.png"))
 print(upload)
