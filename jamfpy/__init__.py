@@ -17,6 +17,3 @@ from .client.utility import (
 from .client.client import (
     JamfTenant
 )
-
-
-__all__ = [init_client, JamfTenant]
