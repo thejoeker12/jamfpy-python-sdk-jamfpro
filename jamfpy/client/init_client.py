@@ -75,9 +75,6 @@ def init_client(
 
 
     # Session
-    if session:
-        if isinstance(session, requests.Session):
-            raise RuntimeError("Bad custom Session Type", session)
 
     session = session or requests.Session()
     logger.debug("Shared requests.Session initialised")
