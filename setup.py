@@ -1,7 +1,7 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='jamfpy',
     version='0.1.1',
-    packages=["jamfpy"]
+    packages=find_packages()
 )
