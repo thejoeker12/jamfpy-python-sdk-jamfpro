@@ -6,4 +6,6 @@
 # Python stuff
 jamfapi.egg-info
 __pycache__
+
+# Macos
 .DS_Store
