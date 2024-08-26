@@ -17,3 +17,5 @@ from .client.utility import (
 from .client.client import (
     JamfTenant
 )
+
+from .client.logger import get_logger
