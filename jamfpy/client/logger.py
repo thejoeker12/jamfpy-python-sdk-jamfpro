@@ -3,6 +3,7 @@ Default logging module for this library
 """
 
 import logging
+import sys
 
 DEFAULT_LEVEL = 20
 DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -33,7 +34,7 @@ def get_logger(
     if not logger.handlers:
         logger.setLevel(level)
 
-        ch = logging.StreamHandler()
+        ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(level)
 
         formatter = logging.Formatter(log_format)
