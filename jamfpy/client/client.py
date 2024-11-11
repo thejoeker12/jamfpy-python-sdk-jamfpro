@@ -21,6 +21,7 @@ from ..endpoints.classic.clc_policies import Policies
 from ..endpoints.classic.clc_osxconfiguration_profiles import ConfigurationProfiles
 from ..endpoints.classic.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.classic.clc_categories import Categories
+from ..endpoints.classic.clc_dock_items import DockItems
 
 # Pro
 from ..endpoints.pro.pro_api_management import (
@@ -230,6 +231,7 @@ class ClassicAPI(API):
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
         self.categories = Categories(self)
+        self.dockitems = DockItems(self)
 
 
     # Magic Methods
