@@ -54,8 +54,8 @@ class Scripts(Endpoint):
 
     def get_by_id(self, target_id: int):
         # // TODO docstring
-        url = self.api.url("1") + f"{self._uri}/{target_id}"
-        headers = self.api.header("basic")
+        url = self._api.url("1") + f"{self._uri}/{target_id}"
+        headers = self._api.header("basic")
         req = Request("GET", url=url, headers=headers)
         resp = self._api.do(req)
         if resp.ok:
@@ -66,8 +66,8 @@ class Scripts(Endpoint):
     
     def delete_by_id(self, target_id: int):
         # // TODO docstring
-        url = self.api.url("1") + f"{self._uri}/{target_id}"
-        headers = self.api.header("basic")
+        url = self._api.url("1") + f"{self._uri}/{target_id}"
+        headers = self._api.header("basic")
         req = Request("DELETE", url=url, headers=headers)
         resp = self._api.do(req)
         if resp.ok:
