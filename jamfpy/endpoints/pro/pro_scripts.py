@@ -63,6 +63,18 @@ class Scripts(Endpoint):
 
         return resp, None
 
+    
+    def delete_by_id(self, target_id: int):
+        # // TODO docstring
+        url = self.api.url("1") + f"{self._uri}/{target_id}"
+        headers = self.api.header("basic")
+        req = Request("DELETE", url=url, headers=headers)
+        resp = self.api.do(req)
+        if resp.ok:
+            return (resp, None)
+
+        return resp
+
 
     # def create(
     #         name: str,
