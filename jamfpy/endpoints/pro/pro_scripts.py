@@ -57,7 +57,7 @@ class Scripts(Endpoint):
         url = self.api.url("1") + f"{self._uri}/{target_id}"
         headers = self.api.header("basic")
         req = Request("GET", url=url, headers=headers)
-        resp = self.api.do(req)
+        resp = self._api.do(req)
         if resp.ok:
             return (resp, None)
 
@@ -69,7 +69,7 @@ class Scripts(Endpoint):
         url = self.api.url("1") + f"{self._uri}/{target_id}"
         headers = self.api.header("basic")
         req = Request("DELETE", url=url, headers=headers)
-        resp = self.api.do(req)
+        resp = self._api.do(req)
         if resp.ok:
             return (resp, None)
 
