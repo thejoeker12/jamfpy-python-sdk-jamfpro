@@ -41,7 +41,7 @@ def get_logger(
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 
-    if len(logger.name < 6):
+    if len(logger.name) < 6:
         for _ in range(6 - len(logger.name)):
             logger.name = logger.name + " "
 
