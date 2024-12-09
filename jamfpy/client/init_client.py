@@ -56,6 +56,7 @@ def init_client(
         name=f"{tenant_name}-ini",
         config=logger_config
     )
+
     logger.debug("Init Logger initialised")
 
 
@@ -91,6 +92,7 @@ def init_client(
             oauth_cid=client_id,
             oauth_cs=client_secret
         )
+
     elif (username and password) or basic_token:
         auth_method = "bearer"
         auth = BearerAuth(
@@ -102,6 +104,7 @@ def init_client(
             password=password,
             basic_auth_token=basic_token,
         )
+        
     else:
         raise jamfpyInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 

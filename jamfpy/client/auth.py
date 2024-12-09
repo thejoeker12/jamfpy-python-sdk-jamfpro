@@ -10,8 +10,6 @@ Classes:
     BearerAuth: Subclass for handling Bearer Token specific authentication.
 """
 
-# // NOTE Above pylint flags disabled for this file only on purpose.
-
 # Libs
 import datetime
 from typing import Callable, Optional
@@ -298,8 +296,6 @@ class OAuth(Auth):
     def _keep_alive_token(self) -> None:
         """Placeholder method for OAuth, raises an error as it's not applicable."""
         raise JamfAuthError("Action not available with OAuth interface.")
-
-
 
 
 class BearerAuth(Auth):
