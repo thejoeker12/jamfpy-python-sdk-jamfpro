@@ -6,7 +6,7 @@ import logging
 import sys
 
 DEFAULT_LEVEL = 20
-DEFAULT_FORMAT = '%(asctime)s - %(levelname)s - %(name)s: %(message)s'
+DEFAULT_FORMAT = '%(asctime)s(%(name)s:) [%(levelname)s]: %(message)s'
 
 def get_logger(
         name,
