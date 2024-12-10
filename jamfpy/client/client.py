@@ -6,7 +6,7 @@ Jamf API Client Main
 
 # Libraries
 from typing import Any
-import requests
+from requests import Session, Request, Response, HTTPError
 
 # This lib
 from .auth import OAuth, BearerAuth
@@ -48,24 +48,20 @@ class API:
             config: dict[str: Any],
             version: str
     ) -> None:
-
-        # Private
+        
         self._version: str = version
         self._libconfig: dict = config["libconfig"]
         self._logger_config: dict = config["logging"]
         self._auth_method: str = config["auth_method"]
-        self._session: requests.Session = config["session"]
+        self._session: Session = config["session"]
         self._safe_mode: bool = config["safe_mode"]
 
-        # Public
         self.tenant: str = config["tenant"]
-        self.auth: OAuth or BearerAuth = config["auth"]
+        self.auth: OAuth | BearerAuth = config["auth"]
 
-        # Init Methods - Logging
         self._init_logging()
         self.logger.debug("API initialising...")
 
-        # Init Methods
         self._init_baseurl()
         self._init_headers()
 
@@ -178,7 +174,7 @@ class API:
             raise KeyError("Invalid header key provided") from ve
 
 
-    def do(self, request: requests.Request, timeout=10, error_on_fail: bool = True) -> requests.Response:
+    def do(self, request: Request, timeout=10, error_on_fail: bool = True) -> Response:
         """Takes request, preps and sends"""
         self._check_if_closed()
         self._refresh_session_headers()
@@ -206,7 +202,7 @@ class API:
 
             if error_on_fail:
                 self.logger.critical("Request failed. Response: %s, error: %s", response, error_text)
-                raise requests.HTTPError("Bad response:", response.status_code)
+                raise HTTPError("Bad response:", response.status_code)
 
             self.logger.debug("Request failed. Response: %s, error: %s", response, error_text)
         else:
