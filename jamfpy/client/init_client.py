@@ -32,8 +32,7 @@ def init_client(
         token_exp_threshold_mins: int = None,
         mode: str = None,
         safe_mode: bool = True,
-        custom_auth: OAuth or BearerAuth = None
-        # custom_endpoints: str = None // TODO Custom endpoints.
+        # custom_auth: OAuth | BearerAuth = None
 ) -> JamfTenant:
 
     """Initilizes a new Jamf instance object"""
@@ -42,8 +41,7 @@ def init_client(
     # Logger Setup
     if custom_logger:
         if not isinstance(custom_logger, Logger):
-            raise RuntimeError("Bad custom logger type", type(custom_logger))
-
+            raise RuntimeError("Bad custom logger type:", type(custom_logger))
 
     logger_config = {
         "custom_logger": custom_logger,
@@ -57,9 +55,6 @@ def init_client(
         config=logger_config
     )
 
-    logger.debug("Init Logger initialised")
-
-
     # Init Start
     logger.debug("%s client init started", tenant_name)
 
@@ -72,11 +67,9 @@ def init_client(
     else:
         libconfig = MasterConfig(defaultconfig)
         logger.info("Config: Default")
-    # Validate config HERE
 
 
     # Session
-
     session = session or requests.Session()
     logger.debug("Shared requests.Session initialised")
 
@@ -104,7 +97,7 @@ def init_client(
             password=password,
             basic_auth_token=basic_token,
         )
-        
+
     else:
         raise jamfpyInitError("Bad combination of Authentication info provided.\nPlease refer to docs.")
 
@@ -123,35 +116,28 @@ def init_client(
 
 
     # Mode
-    if not mode:
-        classic = ClassicAPI(api_config)
-        pro = ProAPI(api_config)
+    match mode:
+        case None | "":
+            classic = ClassicAPI(api_config)
+            pro = ProAPI(api_config)
 
-    elif mode == "classic":
-        classic = ClassicAPI(api_config)
-        pro = None
+        case "classic":
+            classic = ClassicAPI(api_config)
+            pro = None
 
-    elif mode == "pro":
-        classic = None
-        pro = ProAPI(api_config)
+        case "pro":
+            classic = None
+            pro = ProAPI(api_config)
 
-    elif mode == "auth":
-        classic = None
-        pro = AuthManagerProAPI(api_config)
+        case "auth":
+            classic = None
+            pro = AuthManagerProAPI(api_config)
 
-    elif mode == "custom":
-        print("Feature not built yet")
-        raise Exception("Nope try again...") # WIP. // NOTE This is where custom endpoints will go
-
-    else:
-        raise jamfpyConfigError("Invalid API Mode")
+        case _:
+            raise jamfpyConfigError("Invalid API Mode")
 
     logger.info("%s Init Complete", tenant_name)
 
-    # Cleanup
-    del logger
-
-    # Return Tenant
     return JamfTenant(
         tenant=tenant_name,
         auth_method=auth_method,
@@ -159,16 +145,3 @@ def init_client(
         classic=classic,
         pro=pro
     )
-
-
-
-
-def init_auth():
-    """
-    Function for initialising an Auth object
-    for use in multiple API objects
-
-    Advanced users only
-    
-    """
-    # // TODO Maybe?
