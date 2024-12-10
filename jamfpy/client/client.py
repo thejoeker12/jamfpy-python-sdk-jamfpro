@@ -4,6 +4,7 @@ Jamf API Client Main
 
 from typing import Any
 from requests import Session, Request, Response, HTTPError
+from logging import Logger
 
 from .auth import OAuth, BearerAuth
 from .exceptions import jamfpyConfigError
@@ -26,6 +27,9 @@ from ..endpoints.pro.pro_scripts import Scripts
 from ..endpoints.pro.pro_sso_certificate import SsoCertificates
 from ..endpoints.pro.pro_icon import Icons
 from ..endpoints.pro.pro_computers_inventory import ComputersInventory
+
+
+VALID_AUTH_METHODS = ["oauth2", "basic"]
 
 
 class API:
@@ -249,26 +253,6 @@ class ProAPI(API):
         return f"Jamf {self._version} API Client for {self.tenant}"
 
 
-class AuthManagerProAPI(API):
-    """API with only Auth management endpoints"""
-
-    _version = "pro"
-    _short_name = "auth"
-
-    def __init__(self, config):
-        super().__init__(config, self._version)
-
-        # Endpoints
-        self.apiintegrations = APIIntegrations(self)
-        self.apiroleprivileges = APIRolePrivileges(self)
-        self.apiroles = APIRoles(self)
-
-
-    # Magic Methods
-    def __str__(self) -> str:
-        return f"Jamf {self._version} AUTH ONLY API Client for {self.tenant}"
-
-
 class CustomAPI(API):
     """Custom API Endpoint for dynamic endpoint assignment"""
 
@@ -291,45 +275,102 @@ class CustomAPI(API):
         return f"Jamf {self._version} Custom Endpoint for {self.tenant}"
 
 
-class JamfTenant:
+class Tenant:
     """Jamf parent object"""
     initiated_tenants = []
 
     def __init__(
-            self,
-            tenant: str,
-            auth_method: str,
-            logger_config: dict = None,
-            classic: ClassicAPI = None,
-            pro: ProAPI = None
+      self,
+      jp_fqdn: str,
+      auth_method: str,
+      client_id: str = None,
+      client_secret: str = None,
+      username: str = None,
+      password: str = None,
+      custom_session: Session = None,
+      custom_logger: Logger = None,
+      token_exp_threshold_mins: int = 5,
+      mode: str = None,
+      safe_mode: bool = True
     ):
+        self.jp_fqdn = jp_fqdn
+        self.token_exp_threshold_mins = token_exp_threshold_mins
 
-        self.tenant = tenant
-        self._auth_method = auth_method
-
-        self._logger = get_logger(
-            name=f"{self.tenant}-tnt-0",
-            config=logger_config
+        auth = self._init_validate_auth(
+            self,
+            auth_method,
+            client_id,
+            client_secret,
+            username,
+            password,
         )
 
-        if classic:
-            self.classic: ClassicAPI = classic
-            self.initiated_tenants.append(self.classic)
 
-        if pro:
-            self.pro: ProAPI = pro
-            self.initiated_tenants.append(self.pro)
 
-        if not classic and not pro:
-            raise jamfpyConfigError("No APIs Provided for Jamf Object")
+    def _init_validate_auth(
+            self,
+            auth_method,
+            client_id,
+            client_secret,
+            username,
+            password
+    ):
+        """
+        Method to validate the supplied configuration of auth credentials
+        and instantialise an Auth object with them if valid
+
+        Returns Auth or errors
+        """
+
+        if auth_method not in VALID_AUTH_METHODS:
+            raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
+
+        self.auth_method = auth_method
+
+        match auth_method:
+
+            case "oauth2":
+                if not client_id or not client_secret:
+                    raise jamfpyConfigError("invalid credential combination supplied for auth method")
+
+                return OAuth(
+                    tenant=self.jp_fqdn,
+                    libconfig=libconfig,
+                    logger_cfg=logger_config,
+                    token_exp_thold_mins=self.token_exp_threshold_mins,
+                    oauth_cid=client_id,
+                    oauth_cs=client_secret
+                )
+
+            case "basic":
+
+                if not username or not password:
+                   raise jamfpyConfigError("invalid credential combination supplied for auth method")
+
+                return BearerAuth(
+                    tenant=self.jp_fqdn,
+                    libconfig=libconfig,
+                    logger_cfg=logger_config,
+                    token_exp_thold_mins=self.token_exp_threshold_mins,
+                    username=username,
+                    password=password
+                )
+
+            case _:
+                raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
 
     # Methods
     def __str__(self) -> str:
         return f"Jamf API Client for Tenant: {self.tenant} using {self._auth_method}"
 
+
     def close(self) -> None:
         """Closes all initied apis"""
 
         self._logger.warning("Closing APIs")
-        for api in self.initiated_tenants:
-            api.close()
+
+        if self.pro: 
+            self.pro.close()
+        
+        if self.classic:
+            self.classic.close()
