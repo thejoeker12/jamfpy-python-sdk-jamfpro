@@ -2,19 +2,13 @@
 Jamf API Client Main
 """
 
-# // TODO Proper class, function and module docstrings!
-
-# Libraries
 from typing import Any
 from requests import Session, Request, Response, HTTPError
 
-# This lib
 from .auth import OAuth, BearerAuth
 from .exceptions import jamfpyConfigError
 from .logger import get_logger
 
-# Endpoints
-# Classic
 from ..endpoints.classic.clc_computers import ClassicComputers
 from ..endpoints.classic.clc_computer_groups import ComputerGroups
 from ..endpoints.classic.clc_policies import Policies
@@ -23,7 +17,6 @@ from ..endpoints.classic.clc_computer_extension_attributes import ExtensionAttri
 from ..endpoints.classic.clc_categories import Categories
 from ..endpoints.classic.clc_dock_items import DockItems
 
-# Pro
 from ..endpoints.pro.pro_api_management import (
     APIRolePrivileges,
     APIIntegrations,
@@ -33,7 +26,6 @@ from ..endpoints.pro.pro_scripts import Scripts
 from ..endpoints.pro.pro_sso_certificate import SsoCertificates
 from ..endpoints.pro.pro_icon import Icons
 from ..endpoints.pro.pro_computers_inventory import ComputersInventory
-
 
 
 class API:
@@ -107,13 +99,12 @@ class API:
         self._headers = self._libconfig.headers[self._version]
 
 
-
     # Private Methods - Normal
 
     def _refresh_session_headers(self) -> None:
         """Clears all session headers and replaces with new Auth header"""
 
-        self._check_if_closed()
+        self._check_closed()
 
         self.logger.debug("Refreshing session headers (Clear + Re-set)")
 
@@ -125,7 +116,7 @@ class API:
         self.logger.debug("Session headers refreshed successfully")
 
 
-    def _check_if_closed(self) -> None:
+    def _check_closed(self) -> None:
         """Checks if object has been closed and therefore is unusable"""
 
 
@@ -154,7 +145,7 @@ class API:
         Universal interface across API versions
         """
 
-        self._check_if_closed()
+        self._check_closed()
         if self._version == "classic":
             return self.base_url
 
@@ -166,7 +157,7 @@ class API:
 
     def header(self, key: str) -> str:
         """Returns given set of headers from config"""
-        self._check_if_closed()
+        self._check_closed()
         try:
             return self._headers[key]
 
@@ -176,7 +167,7 @@ class API:
 
     def do(self, request: Request, timeout=10, error_on_fail: bool = True) -> Response:
         """Takes request, preps and sends"""
-        self._check_if_closed()
+        self._check_closed()
         self._refresh_session_headers()
 
         do_debug_string = "%s: Method: %s at: %s with headers: %s"
@@ -205,6 +196,7 @@ class API:
                 raise HTTPError("Bad response:", response.status_code)
 
             self.logger.debug("Request failed. Response: %s, error: %s", response, error_text)
+
         else:
             self.logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
@@ -337,6 +329,7 @@ class JamfTenant:
 
     def close(self) -> None:
         """Closes all initied apis"""
+
         self._logger.warning("Closing APIs")
         for api in self.initiated_tenants:
             api.close()

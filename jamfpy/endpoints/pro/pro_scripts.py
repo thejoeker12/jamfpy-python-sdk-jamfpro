@@ -1,4 +1,4 @@
-# // TODO docstring
+
 from requests import Request
 from ...client.exceptions import JamfAPIError
 from ..endpoint_parent import Endpoint
@@ -9,7 +9,7 @@ class Scripts(Endpoint):
     _uri = "/scripts"
 
     def get_all(self):
-        # // TODO docstring
+        
         page_size = 200
         page_number = 0
         suffix_template = f"/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
@@ -53,7 +53,7 @@ class Scripts(Endpoint):
 
 
     def get_by_id(self, target_id: int):
-        # // TODO docstring
+        
         url = self._api.url("1") + f"{self._uri}/{target_id}"
         headers = self._api.header("basic")
         req = Request("GET", url=url, headers=headers)
@@ -65,7 +65,7 @@ class Scripts(Endpoint):
 
     
     def delete_by_id(self, target_id: int):
-        # // TODO docstring
+        
         url = self._api.url("1") + f"{self._uri}/{target_id}"
         headers = self._api.header("basic")
         req = Request("DELETE", url=url, headers=headers)

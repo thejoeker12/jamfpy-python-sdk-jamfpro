@@ -9,7 +9,7 @@ class ConfigurationProfiles(Endpoint):
     _uri = "/osxconfigurationprofiles"
 
     def get_all(self, accept_format: str = "xml"):
-        # // TODO docstring
+        
         if accept_format.lower() not in ["json", "xml"]:
             raise ValueError(f"Invalid accept format provided (allowed: 'xml', 'json'): {accept_format}")
 
@@ -20,7 +20,7 @@ class ConfigurationProfiles(Endpoint):
         return resp
 
     def get_by_id(self, target_id: int, accept_format: str = "xml"):
-        # // TODO docstring
+        
         if accept_format.lower() not in ["json", "xml"]:
             raise ValueError(f"Invalid accept format provided (allowed: 'xml', 'json'): {accept_format}")
 
@@ -32,7 +32,7 @@ class ConfigurationProfiles(Endpoint):
 
 
     def update_by_id(self, target_id: int, updated_configuration: str):
-        # // TODO docstring
+        
         url = self._api.url() + self._uri + f"/id/{target_id}"
         headers = self._api.header("put")
         req = Request("PUT", url=url, headers=headers, data=updated_configuration)
@@ -41,7 +41,7 @@ class ConfigurationProfiles(Endpoint):
 
 
     def create(self, config_profile: str, accept_format: str = "xml"):
-        # // TODO docstring
+        
         url = self._api.url() + self._uri + "/id/0"
         headers = self._api.header(f"basic-{accept_format}")
         req = Request("POST", url=url, headers=headers, data=config_profile)
@@ -50,7 +50,7 @@ class ConfigurationProfiles(Endpoint):
 
 
     def delete_by_id(self, target_id: int):
-        # // TODO docstring
+        
         url = self._api.url() + self._uri + f"/id/{target_id}"
         headers = self._api.header("basic-json")
         req = Request("DELETE", url, headers=headers)

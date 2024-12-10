@@ -14,5 +14,4 @@ class ComputersInventory(Endpoint):
         headers = self._api.header("basic")
         payload = create_single_file_payload(filepath, filepath.name, filepath.suffix)
         req = Request("POST", url=url, headers=headers, files=payload)
-        resp = self._api.do(req)
-        return resp
+        return self._api.do(req)

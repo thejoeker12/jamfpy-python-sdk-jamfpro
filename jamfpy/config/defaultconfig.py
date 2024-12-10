@@ -16,13 +16,16 @@ defaultconfig = {
             "classic": "/JSSResource",
             "pro": "/api/v{jamfapiversion}"
         }
-        },
+    },
+
     "headers" : {
+        
         "auth": {
             "oauth": {
                 "Content-Type": "application/x-www-form-urlencoded"
             }
         },
+
         "classic": {
             "basic-json": {
                 "accept": "application/json"
@@ -46,6 +49,7 @@ defaultconfig = {
                 "content-type": "application/xml"
             }
         },
+        
         "pro": {
             "basic": {
                 "accept": "application/json"
@@ -58,6 +62,7 @@ defaultconfig = {
                 "accept": "image/*"
             }
         },
+
         "universal": {
             "bearer_with_auth": {
                 "accept": "application/json",
