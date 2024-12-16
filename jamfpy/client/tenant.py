@@ -14,7 +14,7 @@ from .logger import get_logger
 from .auth import OAuth, BearerAuth
 from .utility import import_json
 from ..config.defaultconfig import defaultconfig, MasterConfig
-from .exceptions import JamfpyInitError, JamfpyConfigError
+from .exceptions import JamfpyInitError, jamfpyConfigError
 
 
 
@@ -138,7 +138,7 @@ VALID_AUTH_METHODS = ["oauth2", "basic"]
 #             pro = AuthManagerProAPI(api_config)
 
 #         case _:
-#             raise JamfpyConfigError("Invalid API Mode")
+#             raise jamfpyConfigError("Invalid API Mode")
 
 #     logger.info("%s Init Complete", tenant_name)
 
@@ -199,7 +199,7 @@ class Tenant:
         """
 
         if auth_method not in VALID_AUTH_METHODS:
-            raise JamfpyConfigError("invalid auth method supplied: %s", auth_method)
+            raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
 
         self.auth_method = auth_method
 
@@ -207,7 +207,7 @@ class Tenant:
 
             case "oauth2":
                 if not client_id or not client_secret:
-                    raise JamfpyConfigError("invalid credential combination supplied for auth method")
+                    raise jamfpyConfigError("invalid credential combination supplied for auth method")
 
                 return OAuth(
                     tenant=self.jp_fqdn,
@@ -221,7 +221,7 @@ class Tenant:
             case "basic":
 
                 if not username or not password:
-                   raise JamfpyConfigError("invalid credential combination supplied for auth method")
+                   raise jamfpyConfigError("invalid credential combination supplied for auth method")
 
                 return BearerAuth(
                     tenant=self.jp_fqdn,
@@ -233,7 +233,7 @@ class Tenant:
                 )
 
             case _:
-                raise JamfpyConfigError("invalid auth method supplied: %s", auth_method)
+                raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
 
     # Methods
     def __str__(self) -> str:

@@ -7,9 +7,10 @@ from requests import Session, Request, Response, HTTPError
 from logging import Logger
 
 from .auth import OAuth, BearerAuth
-from .exceptions import JamfpyConfigError
+from .exceptions import jamfpyConfigError
 from .logger import get_logger
 from .http_config import HTTPConfig
+from .utility import extract_cloud_tenant_name_from_url
 
 from ..endpoints.classic.clc_computers import ClassicComputers
 from ..endpoints.classic.clc_computer_groups import ComputerGroups
@@ -74,7 +75,7 @@ class API:
 
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        shortname = self.fqdn.split("//")[1].split(".")[0]
+        shortname = extract_cloud_tenant_name_from_url()
 
         return logger or get_logger(
             name=f"{shortname}-{self._short_name}",
@@ -143,6 +144,7 @@ class API:
 
         self._logger.info("%s closed", str(self))
 
+
     @_check_closed
     def url(self, target=None) -> str:
         """
@@ -155,7 +157,8 @@ class API:
         if self._version == "pro":
             return self.base_url.format(jamfapiversion=target)
 
-        raise JamfpyConfigError("Invalid API version")
+        raise jamfpyConfigError("Invalid API version")
+
 
     @_check_closed
     def header(self, key: str) -> str:
@@ -163,8 +166,9 @@ class API:
         try:
             return self._headers[key]
 
-        except KeyError as ve:
-            raise KeyError("Invalid header key provided") from ve
+        except KeyError as e:
+            raise KeyError("Invalid header key provided") from e
+
 
     @_check_closed
     def do(self, request: Request, timeout=10, error_on_fail: bool = True) -> Response:
@@ -178,6 +182,7 @@ class API:
             request_header_log = request.headers if not self._safe_mode else "[redacted]"
 
         self._logger.debug(do_debug_string, "prepping", request.method, request.url, request_header_log)
+
         prepped = self._session.prepare_request(request)
 
         prepped_header_log = "no headers supplied"
@@ -186,6 +191,7 @@ class API:
             prepped_header_log = {"thing": "cheese", "other thing": "cake"}[self._safe_mode]
 
         self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
+
         response = self._session.send(prepped, timeout=timeout)
 
         # Logging

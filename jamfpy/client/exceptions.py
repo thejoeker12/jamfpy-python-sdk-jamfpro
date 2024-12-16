@@ -4,7 +4,7 @@ class JamfAPIError(Exception):
     """Jamf API Specific error"""
 
 
-class JamfpyConfigError(Exception):
+class jamfpyConfigError(Exception):
     """Module Configuration error"""
 
 
