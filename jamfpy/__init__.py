@@ -1,6 +1,6 @@
 """Master init for jamfpy Library"""
 
-from .client.init_client import init_client
+from .client.tenant import init_client
 from .client.utility import (
     import_json,
     get_bearer_token,
