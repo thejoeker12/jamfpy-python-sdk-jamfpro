@@ -23,9 +23,14 @@ from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
 from .utility import fix_jamf_time_to_iso, extract_cloud_tenant_name_from_url
 
+from .constants import (
+    DEFAULT_LOG_LEVEL,
+    AUTH_REQUEST_TIMEOUT,
+    TIME_ROUNDING_AMOUNT,
+    DEFAULT_TOKEN_BUFFER
+)
+
 # Seconds
-AUTH_REQUEST_TIMEOUT = 20 
-TIME_ROUNDING_AMOUNT = 3 
 
 class Auth:
     _token_str: str
@@ -39,10 +44,10 @@ class Auth:
     def __init__(
             self,
             fqdn: str,
-            http_config: HTTPConfig,
-            logger: Logger,
-            token_exp_thold_mins: int,
-            log_level = None
+            http_config: HTTPConfig = HTTPConfig(),
+            logger: Logger = None,
+            token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
+            log_level = DEFAULT_LOG_LEVEL
     ):
         self._fqdn = fqdn
         self._http_config = http_config
