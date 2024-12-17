@@ -51,8 +51,8 @@ class Auth:
     ):
         self._fqdn = fqdn
         self._http_config = http_config
-        self._auth_url = self._init_urls()
         self._logger = self._init_logging(logger, log_level)
+        self._auth_url = self._init_urls()
 
         self.token_exp_thold_mins = token_exp_thold_mins
 
