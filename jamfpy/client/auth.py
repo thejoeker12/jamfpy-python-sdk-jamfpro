@@ -44,10 +44,10 @@ class Auth:
     def __init__(
             self,
             fqdn: str,
-            http_config: HTTPConfig = HTTPConfig(),
-            logger: Logger = None,
-            token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
-            log_level = DEFAULT_LOG_LEVEL
+            http_config,
+            logger,
+            token_exp_thold_mins,
+            log_level
     ):
         self._fqdn = fqdn
         self._http_config = http_config
@@ -57,7 +57,7 @@ class Auth:
         self.token_exp_thold_mins = token_exp_thold_mins
 
 
-    def _init_logging(self, logger, log_level) -> None:
+    def _init_logging(self, logger, log_level) -> Logger:
         """Inits loggers for API Object"""
 
         # Everything after the slashes, before the first dot of an fqdn
@@ -200,10 +200,10 @@ class OAuth(Auth):
             fqdn,
             client_id,
             client_secret,
-            http_config = None,
+            http_config = HTTPConfig(),
             logger = None,
-            log_level = None,
-            token_exp_thold_mins = None,
+            log_level = DEFAULT_LOG_LEVEL,
+            token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
 
     ) -> None:
 
