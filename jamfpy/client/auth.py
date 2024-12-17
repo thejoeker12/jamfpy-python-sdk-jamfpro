@@ -60,14 +60,18 @@ class Auth:
     def _init_logging(self, logger, log_level) -> Logger:
         """Inits loggers for API Object"""
 
+        if logger:
+            return logger
+
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
-
-        return logger or get_logger(
+        
+        return get_logger(
             name=f"{shortname}-{shortname}",
             level=log_level
         )
+        
 
 
     def _init_urls(self) -> None:
