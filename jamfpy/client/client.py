@@ -75,7 +75,7 @@ class API:
 
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        shortname = extract_cloud_tenant_name_from_url()
+        shortname = extract_cloud_tenant_name_from_url(self.fqdn)
 
         return logger or get_logger(
             name=f"{shortname}-{self._short_name}",
