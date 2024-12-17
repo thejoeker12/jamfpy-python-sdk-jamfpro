@@ -48,37 +48,39 @@ class API:
             auth: OAuth | BearerAuth,
             safe_mode: bool = True,
             session: Session = None,
-            logger: Logger = None
+            logger: Logger = None,
+            log_level = None
 
     ) -> None:
 
 
-        self.fqdn = fqdn
+        self._fqdn = fqdn
         self.auth = auth
         self._http_config: HTTPConfig = http_config
 
         self._session = session or Session()
         self._safe_mode = safe_mode
 
-        self._logger = self._init_logging(logger)
+        self._logger = self._init_logging(logger, log_level)
 
         self._init_baseurl()
         self._init_headers()
 
-        self._logger.debug("%s API for %s init complete", self._version, self.fqdn)
+        self._logger.debug("%s API for %s init complete", self._version, self._fqdn)
 
 
     # Private Methods - Init
 
-    def _init_logging(self, logger) -> None:
+    def _init_logging(self, logger, log_level) -> None:
         """Inits loggers for API Object"""
 
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        shortname = extract_cloud_tenant_name_from_url(self.fqdn)
+        shortname = extract_cloud_tenant_name_from_url(self._fqdn)
 
         return logger or get_logger(
-            name=f"{shortname}-{self._short_name}",
+            name=f"{shortname}-{shortname}",
+            level=log_level
         )
 
 
@@ -95,7 +97,7 @@ class API:
         self._logger.debug("FUNCTION: _init_baseurl")
 
         api_suffix: str = self._http_config.urls["api"][self._version]
-        self.base_url = self.fqdn + api_suffix
+        self.base_url = self._fqdn + api_suffix
 
 
     def _init_headers(self) -> None:
@@ -232,7 +234,7 @@ class ClassicAPI(API):
 
     # Magic Methods
     def __str__(self) -> str:
-        return f"Jamf {self._version} API Client for {self.fqdn}"
+        return f"Jamf {self._version} API Client for {self._fqdn}"
 
 
 class ProAPI(API):
@@ -254,7 +256,7 @@ class ProAPI(API):
 
     # Magic Methods
     def __str__(self) -> str:
-        return f"Jamf {self._version} API Client for {self.fqdn}"
+        return f"Jamf {self._version} API Client for {self._fqdn}"
 
 
 class CustomAPI(API):
@@ -276,5 +278,5 @@ class CustomAPI(API):
             setattr(self, ep.__name__, ep(self))
 
     def __str__(self) -> str:
-        return f"Jamf {self._version} Custom Endpoint for {self.fqdn}"
+        return f"Jamf {self._version} Custom Endpoint for {self._fqdn}"
 

@@ -15,89 +15,67 @@ import datetime
 from typing import Callable, Optional
 from base64 import b64encode
 from requests import request
+from logging import Logger
 
 # This module
 from .logger import get_logger
-from logging import Logger
+from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
-from .utility import fix_jamf_time_to_iso
+from .utility import fix_jamf_time_to_iso, extract_cloud_tenant_name_from_url
 
 # Seconds
 AUTH_REQUEST_TIMEOUT = 20 
 TIME_ROUNDING_AMOUNT = 3 
 
 class Auth:
-    """
-    Base authentication class for Jamf API interactions.
-
-    This class handles common authentication tasks such as token checking,
-    expiration monitoring, and URL initialization. It serves as a parent class
-    for specific authentication methods like OAuth and Bearer Token.
-
-    Attributes:
-        _token_str (str, optional): The current authentication token.
-        token_expiry (datetime.time): Token expiration time.
-        _method (str): The authentication method used ('oauth' or 'bearer').
-        _keep_alive_token (Callable): Method reference to keep the token alive.
-        set_new_token (Callable): Method reference to set a new token.
-
-    """
-
-    _token_str: Optional[str]
-    token_expiry: datetime.time
+    _token_str: str
     _method: str
     _keep_alive_token: Callable
-    set_new_token: Callable
     _logger: Logger
+
+    token_expiry: datetime.time
+    set_new_token: Callable
 
     def __init__(
             self,
             fqdn: str,
-            libconfig: dict,
-            logger_cfg: dict,
-            token_exp_thold_mins: int
+            http_config: HTTPConfig,
+            logger: Logger,
+            token_exp_thold_mins: int,
+            log_level = None
     ):
-        """
-        """
-
         self._fqdn = fqdn
-        self._libconfig = libconfig
-        self._logger_cfg = logger_cfg
-        self.token_exp_thold_mins = token_exp_thold_mins or 2
+        self._http_config = http_config
+        self._auth_url = self._init_urls()
+        self._logger = self._init_logging(logger, log_level)
 
-        self._init_logger()
-        self._init_urls()
+        self.token_exp_thold_mins = token_exp_thold_mins
 
 
-    def _init_logger(self) -> None:
-        """Initializes the logger using provided or default configuration."""
+    def _init_logging(self, logger, log_level) -> None:
+        """Inits loggers for API Object"""
 
-        self.logger = self._logger_cfg["custom_logger"] or get_logger (
-            name=f"{self._fqdn}-auth-{self._method}",
-            config=self._logger_cfg
+        # Everything after the slashes, before the first dot of an fqdn
+        # This is where the unique identifier of a Jamf Pro Cloud instance is found.
+        shortname = extract_cloud_tenant_name_from_url(self._fqdn)
+
+        return logger or get_logger(
+            name=f"{shortname}-{shortname}",
+            level=log_level
         )
-        self._logger.debug("Logger initialised")
 
 
     def _init_urls(self) -> None:
-        """
-        Sets object vars for urls for readability.
-        
-        E.g
-        self._base_url = https://your_server.jamfcloud.com
-        self._auth_url = https://your_server.jamfcloud.com/api/oauth/token
-        """
-
         self._logger.debug("FUNCTION: _init_urls")
 
-        self._base_url = self._libconfig.urls["base"].format(tenant=self._fqdn)
-        self._logger.debug("Base URL set %s", self._base_url)
+        auth_endpoint = self._http_config.urls["auth"][self._method]
 
-        endpoint = self._libconfig.urls["auth"][self._method]
-        self._auth_url = self._base_url + endpoint
-        self._logger.debug("Auth URL set: %s", self._auth_url)
+        auth_url = self._fqdn + auth_endpoint
+        self._logger.debug("Auth URL set: %s", auth_url)
 
+        return auth_url
 
+        
     def check_token_in_buffer(self) -> bool:
         """
         Checks if token is within the buffer period.
@@ -114,7 +92,8 @@ class Auth:
 
         self._logger.debug("Expiry time: %s", self.token_expiry)
 
-        now = round(datetime.datetime.utcnow().timestamp(), TIME_ROUNDING_AMOUNT)
+        now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
+
         self._logger.debug("Now: %s", now)
 
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
@@ -190,7 +169,7 @@ class Auth:
         """
         invalidates token
         """
-        url = self._libconfig.urls["auth"]["invalidate-token"]
+        url = self._http_config.urls["auth"]["invalidate-token"]
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
@@ -209,40 +188,30 @@ class Auth:
 
 
 class OAuth(Auth):
-    """
-    """
-
     _method = "oauth"
 
     def __init__(
             self,
-            tenant,
-            libconfig,
-            logger_cfg,
-            token_exp_thold_mins,
-            oauth_cid,
-            oauth_cs
-    ) -> None:
-        """Initializes the OAuth object with necessary configuration and credentials.
+            fqdn,
+            client_id,
+            client_secret,
+            http_config = None,
+            logger = None,
+            log_level = None,
+            token_exp_thold_mins = None,
 
-        Args:
-        tenant (str): The name of the tenant.
-        libconfig (dict): Library configuration parameters.
-        logger_cfg (dict): Logger configuration.
-        token_exp_thold_mins (int): Threshold in minutes for token expiration.
-        oauth_cid (str): OAuth client ID.
-        oauth_cs (str): OAuth client secret.
-        """
+    ) -> None:
 
         super().__init__(
-            tenant,
-            libconfig,
-            logger_cfg,
+            fqdn,
+            http_config,
+            logger,
+            log_level,
             token_exp_thold_mins
         )
 
-        self._oauth_cid = oauth_cid
-        self._oauth_cs = oauth_cs
+        self._oauth_cid = client_id
+        self._oauth_cs = client_secret
 
     # Magic
 
@@ -256,9 +225,8 @@ class OAuth(Auth):
         """Requests and sets a new OAuth token."""
         self._logger.debug("FUNCTION: set_new_token")
 
-        endpoint = self._libconfig.urls["auth"]["oauth"]
-        url = self._base_url + endpoint
-        headers = self._libconfig.headers["auth"]["oauth"]
+        url = self._fqdn + self._auth_url
+        headers = self._http_config.headers["auth"]["oauth"]
         data = {
             "client_id": self._oauth_cid,
             "client_secret": self._oauth_cs,
@@ -273,16 +241,17 @@ class OAuth(Auth):
             timeout=AUTH_REQUEST_TIMEOUT
         )
 
-        if call.ok:
-            call_json = call.json()
-            self._token_str = call_json["access_token"]
-            now = datetime.datetime.now(datetime.timezone.utc)
-            self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
-            self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
-            self._logger.debug("Token set successfully")
-
-        else:
+        if not call.ok:
             raise JamfAuthError("Error getting token.", call, call.text)
+
+        call_json = call.json()
+        self._token_str = call_json["access_token"]
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
+        self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
+
+        self._logger.debug("Token set successfully")
+
 
 
     def _keep_alive_token(self) -> None:
@@ -358,7 +327,7 @@ class BearerAuth(Auth):
         """Keeps the current Bearer token alive and updates its expiration time."""
         self._logger.debug("_keep_alive_token starting")
 
-        url = self._base_url + self._libconfig.urls["auth"]["keep-alive"]
+        url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
@@ -384,7 +353,7 @@ class BearerAuth(Auth):
     def set_new_token(self) -> None:
         """Requests and sets a new Bearer token using stored credentials."""
         self._logger.debug("FUNCTION: set_new_token")
-        url = self._base_url + self._libconfig.urls["auth"]["bearer"]
+        url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 
         headers = {
             "accept": "application/json",
