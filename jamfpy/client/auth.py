@@ -212,11 +212,11 @@ class OAuth(Auth):
     ) -> None:
 
         super().__init__(
-            fqdn,
-            http_config,
-            logger,
-            log_level,
-            token_exp_thold_mins
+            fqdn=fqdn,
+            http_config=http_config,
+            log_level=log_level,
+            token_exp_thold_mins=token_exp_thold_mins,
+            logger=logger
         )
 
         self._oauth_cid = client_id
