@@ -267,7 +267,7 @@ class OAuth(Auth):
         raise JamfAuthError("Action not available with OAuth interface.")
 
 
-class BearerAuth(Auth):
+class BasicAuth(Auth):
     """
     Subclass for handling Bearer Token authentication with Jamf API.
 
@@ -286,23 +286,22 @@ class BearerAuth(Auth):
 
     def __init__(
             self,
-            tenant,
-            libconfig,
-            logger_cfg,
+            fqdn,
             token_exp_thold_mins,
+            http_config: HTTPConfig = HTTPConfig(),
             username: Optional[str] = None,
             password: Optional[str] = None,
             basic_auth_token: Optional[str] = None,
+            log_level: int = DEFAULT_LOG_LEVEL,
+            logger: Logger = None
     ) -> None:
 
-        """
-        """
-
         super().__init__(
-            tenant=tenant,
-            libconfig=libconfig,
-            logger_cfg=logger_cfg,
-            token_exp_thold_mins=token_exp_thold_mins
+            fqdn=fqdn,
+            http_config=http_config,
+            token_exp_thold_mins=token_exp_thold_mins,
+            logger=logger,
+            log_level=log_level
         )
 
         self.username = username
@@ -327,8 +326,6 @@ class BearerAuth(Auth):
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
             self.basic_auth_token = b64encode(bytes(credstring, encoding="UTF-8")).decode()
-        elif self.basic_auth_token:
-            pass
 
 
     def _keep_alive_token(self) -> None:
@@ -336,30 +333,33 @@ class BearerAuth(Auth):
         self._logger.debug("_keep_alive_token starting")
 
         url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
+
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
         }
+
         call = request(
             method="POST",
             url=url,
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT
         )
-        if call.ok:
-            call_json = call.json()
-            self._token_str = call_json["token"]
-            expiry_str = call_json["expires"]
-            self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
-            self._logger.debug("_keep_alive_token complete")
 
-        else:
+        if not call.ok:
             raise JamfAuthError("Error keeping token alive")
+
+        call_json = call.json()
+        self._token_str = call_json["token"]
+        expiry_str = call_json["expires"]
+        self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
+        self._logger.debug("_keep_alive_token complete")
 
 
     # Public
     def set_new_token(self) -> None:
         """Requests and sets a new Bearer token using stored credentials."""
+
         self._logger.debug("FUNCTION: set_new_token")
         url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 
