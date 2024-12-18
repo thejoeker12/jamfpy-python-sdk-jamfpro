@@ -10,7 +10,7 @@ class APIRoles(Endpoint):
 
     def get_all(self):
         url = self._api.url("1") + self._uri
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = requests.Request("GET", url=url, headers=headers)
         return self._api.do(req)
 
@@ -20,7 +20,7 @@ class APIRolePrivileges(Endpoint):
 
     def get_all(self):
         url = self._api.url("1") + self._uri
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = requests.Request("GET", url=url, headers=headers)
         return self._api.do(req)
 
@@ -30,6 +30,6 @@ class APIIntegrations(Endpoint):
 
     def get_all(self):
         url = self._api.url("1") + self._uri
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = requests.Request("GET", url=url, headers=headers)
         return self._api.do(req)

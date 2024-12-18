@@ -10,7 +10,7 @@ class ExtensionAttributes(Endpoint):
 
         suffix = self._uri
         url = self._api.url() + suffix
-        headers = self._api.header("basic-xml")
+        headers = self._api.header("create-update")["xml"]
         req = requests.Request("POST", url=url, headers=headers, data=xml)
         call = self._api.do(req)
         return call

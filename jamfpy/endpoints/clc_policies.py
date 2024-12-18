@@ -10,29 +10,29 @@ class Policies(Endpoint):
 
     def get_all(self):
         url = self._api.url() + self._uri
-        headers = self._api.header("basic-json")
+        headers = self._api.header("read")["xml"]
         req = Request("GET", url, headers=headers)
         resp = self._api.do(req)
         return resp
 
-    def get_by_id(self, target_id: int, resp_type: str) -> Response:
+    def get_by_id(self, target_id: int) -> Response:
         
         url = self._api.url() + self._uri + f"/id/{target_id}"
-        headers = self._api.header(f"basic-{resp_type}")
+        headers = self._api.header("read")["xml"]
         req = Request("GET", url, headers=headers)
         resp = self._api.do(req, error_on_fail=False)
         return resp
 
     def create(self, policy_xml: str):
         url = self._api.url() + self._uri + "/id/0"
-        headers = self._api.header("basic-xml")
+        headers = self._api.header("create-update")["xml"]
         req = Request("POST", url=url, headers=headers, data=policy_xml)
         resp = self._api.do(req, error_on_fail=False)
         return resp
     
     def delete_by_id(self, target_id) -> Response:
         url = self._api.url() + self._uri + f"/id/{target_id}"
-        headers = self._api.header("basic-xml")
+        headers = self._api.header("delete")["xml"]
         req = Request("DELETE", url=url, headers=headers)
         resp = self._api.do(req, error_on_fail=False)
         return resp

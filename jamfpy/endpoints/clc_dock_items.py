@@ -10,7 +10,7 @@ class DockItems(Endpoint):
     def create(self, payload: str):
         suffix = self._uri
         url = self._api.url() + suffix
-        headers = self._api.header("basic-xml")
+        headers = self._api.header("create-update")["xml"]
         req = Request("POST", url=url, headers=headers, data=payload)
         resp = self._api.do(req)
         return resp

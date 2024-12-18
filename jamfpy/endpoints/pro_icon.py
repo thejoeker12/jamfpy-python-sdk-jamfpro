@@ -13,21 +13,21 @@ class Icons(Endpoint):
 
     def get_by_id(self, target_id: int) -> Response:
         url = self._api.url(1) + self._uri + f"/{target_id}"
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = Request("GET", url=url, headers=headers)
         return self._api.do(req)
 
 
     def download_by_id(self, target_id: int) -> Response:
         url = self._api.url(1) + self._uri + f"/download/{target_id}"
-        headers = self._api.header("image")
+        headers = self._api.header("read")["image"]
         req = Request("GET", url=url, headers=headers)
         return self._api.do(req)
 
 
     def download_by_id_from_link(self, target_id: int) -> Response:
         url = self._api.url(1) + self._uri + f"/{target_id}"
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = Request("GET", url=url, headers=headers)
         resp = self._api.do(req)
         resp_json = resp.json()
@@ -44,7 +44,7 @@ class Icons(Endpoint):
 
     def upload(self, image_filepath: Path) -> Response:
         url = self._api.url(1) + self._uri
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         payload = create_single_file_payload(image_filepath, image_filepath.name, "png")
         req = Request("POST", url=url, headers=headers, files=payload)
         return self._api.do(req)
