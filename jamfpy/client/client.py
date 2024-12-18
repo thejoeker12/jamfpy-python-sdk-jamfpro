@@ -13,23 +13,23 @@ from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL
 from .utility import extract_cloud_tenant_name_from_url
 
-from ..endpoints.classic.clc_computers import ClassicComputers
-from ..endpoints.classic.clc_computer_groups import ComputerGroups
-from ..endpoints.classic.clc_policies import Policies
-from ..endpoints.classic.clc_osxconfiguration_profiles import ConfigurationProfiles
-from ..endpoints.classic.clc_computer_extension_attributes import ExtensionAttributes
-from ..endpoints.classic.clc_categories import Categories
-from ..endpoints.classic.clc_dock_items import DockItems
+from ..endpoints.clc_computers import ClassicComputers
+from ..endpoints.clc_computer_groups import ComputerGroups
+from ..endpoints.clc_policies import Policies
+from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
+from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
+from ..endpoints.clc_categories import Categories
+from ..endpoints.clc_dock_items import DockItems
 
-from ..endpoints.pro.pro_api_management import (
+from ..endpoints.pro_api_management import (
     APIRolePrivileges,
     APIIntegrations,
     APIRoles
 )
-from ..endpoints.pro.pro_scripts import Scripts
-from ..endpoints.pro.pro_sso_certificate import SsoCertificates
-from ..endpoints.pro.pro_icon import Icons
-from ..endpoints.pro.pro_computers_inventory import ComputersInventory
+from ..endpoints.pro_scripts import Scripts
+from ..endpoints.pro_sso_certificate import SsoCertificates
+from ..endpoints.pro_icon import Icons
+from ..endpoints.pro_computers_inventory import ComputersInventory
 
 
 class API:
