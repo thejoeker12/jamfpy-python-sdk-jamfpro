@@ -107,6 +107,7 @@ class Auth:
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
         expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_AMOUNT)
 
+        self._logger.debug("Token buffer: %s", self.token_exp_thold_mins)
         self._logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
 
         if expiry_delta_mins < self.token_exp_thold_mins:
