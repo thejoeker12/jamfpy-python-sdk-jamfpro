@@ -113,10 +113,13 @@ class API:
     def _check_closed(self, func) -> None:
         """Checks if object has been closed and therefore is unusable"""
 
-        if self._is_closed:
-            raise RuntimeError(str(self) + " is closed")
+        def wrapper(*args, **kwargs):
+            if self._is_closed:
+                raise RuntimeError(str(self) + " is closed")
+            
+            return func(*args, *kwargs)
 
-        return func()
+        return wrapper
 
 
     @_check_closed
