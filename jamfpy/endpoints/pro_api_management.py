@@ -2,7 +2,7 @@
 
 import requests
 from ...client.exceptions import JamfAPIError
-from ..endpoint_parent import Endpoint
+from .endpoint_parent import Endpoint
 
 
 class APIRoles(Endpoint):  

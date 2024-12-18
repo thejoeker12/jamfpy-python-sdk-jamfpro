@@ -1,7 +1,7 @@
 """Jamf Classic API Endpoint functions for Dock Items"""
 
 from requests import Request
-from ..endpoint_parent import Endpoint
+from .endpoint_parent import Endpoint
 
 class DockItems(Endpoint):
 

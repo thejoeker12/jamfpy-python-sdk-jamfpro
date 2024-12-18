@@ -3,7 +3,7 @@
 
 from pathlib import Path
 from requests import Request, Response, request
-from ..endpoint_parent import Endpoint
+from .endpoint_parent import Endpoint
 from ...client.utility import create_single_file_payload
 
 
