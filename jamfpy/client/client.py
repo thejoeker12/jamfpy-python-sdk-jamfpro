@@ -45,11 +45,11 @@ class API:
             self,
             fqdn: str,
             auth: OAuth | BasicAuth,
+            log_level,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
-            log_level = None
 
     ) -> None:
 
