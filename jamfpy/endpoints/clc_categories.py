@@ -12,7 +12,7 @@ class Categories(Endpoint):
             Request(
                 method = "GET",
                 url = self._api.url() + self._uri,
-                headers = self._api.header("basic-json")
+                headers = self._api.header("read")["xml"]
             )
         )
 
