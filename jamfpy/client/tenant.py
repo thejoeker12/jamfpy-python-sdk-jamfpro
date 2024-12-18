@@ -44,7 +44,6 @@ class Tenant:
         self.token_exp_threshold_mins = token_exp_threshold_mins
 
         auth = self._init_validate_auth(
-            self,
             auth_method,
             client_id,
             client_secret,
