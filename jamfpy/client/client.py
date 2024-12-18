@@ -106,7 +106,7 @@ class API:
         Loads headers into object
         """
         self._logger.debug("FUNCTION: _init_headers")
-        self._headers = self._http_config.headers[self._version]
+        self._headers = self._http_config.headers["crud"]
 
 
     # Private Methods - Normal
