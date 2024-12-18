@@ -6,14 +6,13 @@ from typing import Any
 from requests import Session, Request, Response, HTTPError
 from logging import Logger
 
-from .auth import OAuth, BasicAuth
+from .auth import Auth
 from .exceptions import jamfpyConfigError
 from .logger import get_logger
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL
 from .utility import extract_cloud_tenant_name_from_url
 
-from ..endpoints.clc_computers import ClassicComputers
 from ..endpoints.clc_computer_groups import ComputerGroups
 from ..endpoints.clc_policies import Policies
 from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
@@ -45,7 +44,7 @@ class API:
     def __init__(
             self,
             fqdn: str,
-            auth: OAuth | BasicAuth,
+            auth: Auth,
             log_level,
             http_config: HTTPConfig,
             safe_mode: bool,
@@ -229,7 +228,7 @@ class ClassicAPI(API):
     def __init__(
             self,
             fqdn: str,
-            auth: OAuth | BasicAuth,
+            auth: Auth,
             log_level = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
@@ -249,7 +248,6 @@ class ClassicAPI(API):
         )
 
         # Endpoints
-        self.computers = ClassicComputers(self)
         self.computergroups = ComputerGroups(self)
         self.policies = Policies(self)
         self.configuration_profiles = ConfigurationProfiles(self)
@@ -272,7 +270,7 @@ class ProAPI(API):
     def __init__(
             self,
             fqdn: str,
-            auth: OAuth | BasicAuth,
+            auth: Auth,
             log_level = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,

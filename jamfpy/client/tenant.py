@@ -50,6 +50,16 @@ class Tenant:
             client_secret,
             username,
             password,
+            log_level,
+            http_config
+        )
+
+        self._init_apis(
+            fqdn,
+            auth,
+            log_level,
+            http_config,
+            safe_mode
         )
 
 
@@ -60,7 +70,9 @@ class Tenant:
             client_id,
             client_secret,
             username,
-            password
+            password,
+            log_level,
+            http_config,
     ):
         """
         Method to validate the supplied configuration of auth credentials
@@ -71,8 +83,6 @@ class Tenant:
 
         if auth_method not in VALID_AUTH_METHODS:
             raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
-
-        self.auth_method = auth_method
 
         match auth_method:
 
@@ -85,8 +95,8 @@ class Tenant:
                     client_id=client_id,
                     client_secret=client_secret,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
-                    log_level=
-
+                    log_level=log_level,
+                    http_config=http_config
                 )
 
             case "basic":
@@ -96,24 +106,42 @@ class Tenant:
 
                 return BasicAuth(
                     fqdn=self.fqdn,
+                    username=username,
+                    password=password,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
-                    http_config=se
+                    log_level=log_level,
+                    http_config=http_config
                 )
+            
             case _:
                 raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
 
-    # Methods
-    def __str__(self) -> str:
-        return f"Jamf API Client for Tenant: {self.tenant} using {self._auth_method}"
 
+    def _init_apis(
+            self,
+            fqdn,
+            auth,
+            log_level,
+            http_config,
+            safe_mode,
+    ):
+        self.pro = ProAPI(
+            fqdn,
+            auth,
+            log_level,
+            http_config,
+            safe_mode,
+            None,
+            None,
+        )
 
-    def close(self) -> None:
-        """Closes all initied apis"""
+        self.classic = ClassicAPI(
+            fqdn,
+            auth,
+            log_level,
+            http_config,
+            safe_mode,
+            None,
+            None,
+        )
 
-        self._logger.warning("Closing APIs")
-
-        if self.pro: 
-            self.pro.close()
-        
-        if self.classic:
-            self.classic.close()
