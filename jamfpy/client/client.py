@@ -198,7 +198,6 @@ class API:
         prepped_header_log = "no headers supplied"
         if prepped.headers:
             prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
-            prepped_header_log = {"thing": "cheese", "other thing": "cake"}[self._safe_mode]
 
         self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
 
