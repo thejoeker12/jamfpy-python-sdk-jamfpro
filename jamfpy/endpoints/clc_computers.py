@@ -8,7 +8,7 @@ class ClassicComputers(Endpoint):
 
     _uri = "/computers"
 
-    def get_all(self) -> (requests.Response, list):
+    def get_all(self):
         """Gets all computers from parent API obj"""
 
         suffix = f"{self._uri}/subset/basic"

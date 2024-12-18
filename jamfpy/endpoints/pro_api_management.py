@@ -1,7 +1,7 @@
 """Endpint module for Jamf Pro API - API Management"""
 
 import requests
-from ...client.exceptions import JamfAPIError
+from ..client.exceptions import JamfAPIError
 from .endpoint_parent import Endpoint
 
 

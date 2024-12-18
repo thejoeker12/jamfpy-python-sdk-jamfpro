@@ -1,6 +1,6 @@
 
 from requests import Request
-from ...client.exceptions import JamfAPIError
+from ..client.exceptions import JamfAPIError
 from .endpoint_parent import Endpoint
 
 
