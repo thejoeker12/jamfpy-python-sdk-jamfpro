@@ -375,12 +375,13 @@ class BasicAuth(Auth):
             timeout=AUTH_REQUEST_TIMEOUT
         )
 
-        if call.ok:
-            call_json = call.json()
-            self._token_str = call_json["token"]
-            expiry_str = call_json["expires"]
-            fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
-            self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
-        else:
+        if not call.ok:
+            raise JamfAuthError("Error getting new token", call.status_code, call)
+        
 
-            raise JamfAuthError("Error getting new token")
+        call_json = call.json()
+        self._token_str = call_json["token"]
+        expiry_str = call_json["expires"]
+        fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
+        self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
+
