@@ -1,3 +1,4 @@
 """Master init for jamfpy Library"""
 
 from .client.auth import OAuth, BasicAuth
+from .client.client import API, ProAPI, ClassicAPI

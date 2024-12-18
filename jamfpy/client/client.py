@@ -6,7 +6,7 @@ from typing import Any
 from requests import Session, Request, Response, HTTPError
 from logging import Logger
 
-from .auth import OAuth, BearerAuth
+from .auth import OAuth, BasicAuth
 from .exceptions import jamfpyConfigError
 from .logger import get_logger
 from .http_config import HTTPConfig
@@ -45,7 +45,7 @@ class API:
             self,
             fqdn: str,
             http_config: HTTPConfig,
-            auth: OAuth | BearerAuth,
+            auth: OAuth | BasicAuth,
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
