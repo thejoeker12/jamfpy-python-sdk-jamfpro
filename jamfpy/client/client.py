@@ -107,6 +107,8 @@ class API:
         """
         self._logger.debug("FUNCTION: _init_headers")
         self._headers = self._http_config.headers["crud"]
+        if self._version == "pro":
+            del self._headers["read"]["xml"]
 
 
     # Private Methods - Normal
