@@ -10,6 +10,7 @@ from .auth import OAuth, BasicAuth
 from .exceptions import jamfpyConfigError
 from .logger import get_logger
 from .http_config import HTTPConfig
+from .constants import DEFAULT_LOG_LEVEL
 from .utility import extract_cloud_tenant_name_from_url
 
 from ..endpoints.classic.clc_computers import ClassicComputers
@@ -46,10 +47,10 @@ class API:
             fqdn: str,
             auth: OAuth | BasicAuth,
             log_level,
-            http_config: HTTPConfig = HTTPConfig(),
-            safe_mode: bool = True,
-            session: Session = None,
-            logger: Logger = None,
+            http_config: HTTPConfig,
+            safe_mode: bool,
+            session: Session,
+            logger: Logger,
 
     ) -> None:
 
@@ -246,8 +247,28 @@ class ProAPI(API):
     _version = "pro"
     _short_name = "pro"
 
-    def __init__(self, config):
-        super().__init__(config, self._version)
+    def __init__(
+            self,
+            fqdn: str,
+            auth: OAuth | BasicAuth,
+            log_level = DEFAULT_LOG_LEVEL,
+            http_config: HTTPConfig = HTTPConfig(),
+            safe_mode: bool = True,
+            session: Session = None,
+            logger: Logger = None,
+    ):
+
+        # no dynamic args here to preserve the hints.
+        super().__init__(
+            fqdn=fqdn,
+            auth=auth,
+            log_level=log_level,
+            http_config=http_config,
+            safe_mode=safe_mode,
+            session=session,
+            logger=logger
+        )
+
         self.apiintegrations = APIIntegrations(self)
         self.apiroleprivileges = APIRolePrivileges(self)
         self.apiroles = APIRoles(self)
