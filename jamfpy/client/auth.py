@@ -68,11 +68,10 @@ class Auth:
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
         
         return get_logger(
-            name=f"{shortname}-{shortname}",
+            name=f"{shortname}-auth",
             level=log_level
         )
         
-
 
     def _init_urls(self) -> None:
         self._logger.debug("FUNCTION: _init_urls")
