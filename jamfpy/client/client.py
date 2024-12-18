@@ -110,14 +110,14 @@ class API:
 
     # Private Methods - Normal
 
-    def _check_closed(self, func) -> None:
+    def _check_closed(self, func):
         """Checks if object has been closed and therefore is unusable"""
 
         def wrapper(*args, **kwargs):
             if self._is_closed:
                 raise RuntimeError(str(self) + " is closed")
             
-            return func(*args, *kwargs)
+            return func(*args, **kwargs)
 
         return wrapper
 
