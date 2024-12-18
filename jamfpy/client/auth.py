@@ -44,10 +44,10 @@ class Auth:
     def __init__(
             self,
             fqdn: str,
-            http_config,
-            logger,
-            token_exp_thold_mins,
-            log_level
+            http_config: HTTPConfig,
+            logger: Logger,
+            token_exp_thold_mins: int,
+            log_level: int
     ):
         self._fqdn = fqdn
         self._http_config = http_config
@@ -107,7 +107,7 @@ class Auth:
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
         expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_AMOUNT)
 
-        self._logger.debug("Token buffer: %s", self.token_exp_thold_mins)
+        self._logger.debug("Token buffer: %s min(s)", self.token_exp_thold_mins)
         self._logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
 
         if expiry_delta_mins < self.token_exp_thold_mins:
@@ -201,11 +201,11 @@ class OAuth(Auth):
 
     def __init__(
             self,
-            fqdn,
-            client_id,
-            client_secret,
-            log_level,
-            token_exp_thold_mins,
+            fqdn: str,
+            client_id: str,
+            client_secret: str,
+            log_level = DEFAULT_LOG_LEVEL,
+            token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
             http_config = HTTPConfig(),
             logger = None,
 
@@ -214,9 +214,9 @@ class OAuth(Auth):
         super().__init__(
             fqdn=fqdn,
             http_config=http_config,
-            log_level=log_level,
+            logger=logger,
             token_exp_thold_mins=token_exp_thold_mins,
-            logger=logger
+            log_level=log_level
         )
 
         self._oauth_cid = client_id
