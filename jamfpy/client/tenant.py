@@ -53,6 +53,8 @@ class Tenant:
             http_config
         )
 
+        auth.set_new_token()
+
         self._init_apis(
             fqdn,
             auth,

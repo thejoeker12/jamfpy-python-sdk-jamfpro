@@ -56,7 +56,7 @@ class Auth:
 
         self.token_exp_thold_mins = token_exp_thold_mins
 
-        self.set_new_token()
+        
 
 
     def _init_logging(self, logger, log_level) -> Logger:
