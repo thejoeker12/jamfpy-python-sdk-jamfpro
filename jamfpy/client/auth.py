@@ -203,10 +203,10 @@ class OAuth(Auth):
             fqdn,
             client_id,
             client_secret,
+            log_level,
+            token_exp_thold_mins,
             http_config = HTTPConfig(),
             logger = None,
-            log_level = DEFAULT_LOG_LEVEL,
-            token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
 
     ) -> None:
 
