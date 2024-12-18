@@ -110,19 +110,19 @@ class API:
 
     # Private Methods - Normal
 
-    def _check_closed(self, func):
-        """Checks if object has been closed and therefore is unusable"""
+    # def _check_closed(self, func):
+    #     """Checks if object has been closed and therefore is unusable"""
 
-        def wrapper(*args, **kwargs):
-            if self._is_closed:
-                raise RuntimeError(str(self) + " is closed")
+    #     def wrapper(*args, **kwargs):
+    #         if self._is_closed:
+    #             raise RuntimeError(str(self) + " is closed")
             
-            return func(*args, **kwargs)
+    #         return func(*args, **kwargs)
 
-        return wrapper
+    #     return wrapper
 
 
-    @_check_closed
+    # @_check_closed
     def _refresh_session_headers(self) -> None:
         """Clears all session headers and replaces with new Auth header"""
 
@@ -150,7 +150,7 @@ class API:
         self._logger.info("%s closed", str(self))
 
 
-    @_check_closed
+    # @_check_closed
     def url(self, target=None) -> str:
         """
         Allows access to base url from endpoint
@@ -165,7 +165,7 @@ class API:
         raise jamfpyConfigError("Invalid API version")
 
 
-    @_check_closed
+    # @_check_closed
     def header(self, key: str) -> str:
         """Returns given set of headers from config"""
         try:
@@ -175,7 +175,7 @@ class API:
             raise KeyError("Invalid header key provided") from e
 
 
-    @_check_closed
+    # @_check_closed
     def do(self, request: Request, timeout=10, error_on_fail: bool = True) -> Response:
         """Takes request, preps and sends"""
         self._refresh_session_headers()
