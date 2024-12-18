@@ -44,8 +44,8 @@ class API:
     def __init__(
             self,
             fqdn: str,
-            http_config: HTTPConfig,
             auth: OAuth | BasicAuth,
+            http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
