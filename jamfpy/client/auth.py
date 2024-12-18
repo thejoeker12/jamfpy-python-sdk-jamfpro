@@ -233,7 +233,6 @@ class OAuth(Auth):
         """Requests and sets a new OAuth token."""
         self._logger.debug("FUNCTION: set_new_token")
 
-        url = self._fqdn + self._auth_url
         headers = self._http_config.headers["auth"]["oauth"]
         data = {
             "client_id": self._oauth_cid,
@@ -243,7 +242,7 @@ class OAuth(Auth):
 
         call = request(
             method="POST",
-            url=url,
+            url=self._auth_url,
             headers=headers,
             data=data,
             timeout=AUTH_REQUEST_TIMEOUT
