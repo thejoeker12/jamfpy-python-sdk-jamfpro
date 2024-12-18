@@ -5,7 +5,7 @@ Default logging module for this library
 import logging
 import sys
 
-DEFAULT_LEVEL = logging.DEBUG
+DEFAULT_LEVEL = logging.INFO
 DEFAULT_FORMAT = '%(asctime)s [%(levelname)s] (%(name)s): %(message)s'
 
 def get_logger(
