@@ -8,10 +8,11 @@ class Categories(Endpoint):
     _uri = "/categories"
 
     def get_all(self):
+        suffix = self._uri
         return self._api.do(
             Request(
                 method = "GET",
-                url = self._api.url() + self._uri,
+                url = self._api.url() + suffix,
                 headers = self._api.header("read")["xml"]
             )
         )
@@ -22,7 +23,7 @@ class Categories(Endpoint):
         return self._api.do(
             Request(
                 method = "GET",
-                url=self._api.url() + self._uri + suffix,
+                url=self._api.url() + suffix,
                 headers = self._api.header("read")["xml"]
             )
         )
@@ -32,7 +33,7 @@ class Categories(Endpoint):
         return self._api.do(
             Request(
                 method = "POST",
-                url=self._api.url() + self._uri + suffix,
+                url=self._api.url() + suffix,
                 headers = self._api.header("create-update")["xml"],
                 data=payload_xml
             )
@@ -43,7 +44,7 @@ class Categories(Endpoint):
         return self._api.do(
             Request(
                 method = "PUT",
-                url=self._api.url() + self._uri + suffix,
+                url=self._api.url() + suffix,
                 headers = self._api.header("create-update")["xml"],
                 data=payload_xml
             )
@@ -54,7 +55,7 @@ class Categories(Endpoint):
         return self._api.do(
             Request(
                 method = "DELETE",
-                url=self._api.url() + self._uri + suffix,
+                url=self._api.url()+ suffix,
                 headers = self._api.header("delete")["xml"]
             )
         )
