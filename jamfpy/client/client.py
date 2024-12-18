@@ -306,24 +306,24 @@ class ProAPI(API):
         return f"Jamf {self._version} API Client for {self._fqdn}"
 
 
-class CustomAPI(API):
-    """Custom API Endpoint for dynamic endpoint assignment"""
+# class CustomAPI(API):
+#     """Custom API Endpoint for dynamic endpoint assignment"""
 
-    _version = "custom"
-    _short_name = "ctm"
+#     _version = "custom"
+#     _short_name = "ctm"
 
-    def __init__(
-            self,
-            config: dict ,
-            version: str,
-            endpoints: list
-    ):
-        super().__init__(config, version)
-        self._version = version
+#     def __init__(
+#             self,
+#             config: dict ,
+#             version: str,
+#             endpoints: list
+#     ):
+#         super().__init__(config, version)
+#         self._version = version
 
-        for ep in endpoints:
-            setattr(self, ep.__name__, ep(self))
+#         for ep in endpoints:
+#             setattr(self, ep.__name__, ep(self))
 
-    def __str__(self) -> str:
-        return f"Jamf {self._version} Custom Endpoint for {self._fqdn}"
+#     def __str__(self) -> str:
+#         return f"Jamf {self._version} Custom Endpoint for {self._fqdn}"
 
