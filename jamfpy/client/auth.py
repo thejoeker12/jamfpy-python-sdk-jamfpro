@@ -126,7 +126,7 @@ class Auth:
         """
         self._logger.debug("FUNCTION: check_token_is_expired")
 
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         match now > self.token_expiry:
 
