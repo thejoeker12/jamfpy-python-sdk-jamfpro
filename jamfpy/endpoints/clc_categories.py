@@ -2,8 +2,12 @@
 
 from requests import Request
 from .endpoint_parent import Endpoint
+from __future__ import annotations
+from ..client.client import API
 
 class Categories(Endpoint):
+    # Temp. Makes it circular :(
+    _api: API
 
     _uri = "/categories"
 

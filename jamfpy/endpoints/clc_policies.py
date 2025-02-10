@@ -8,31 +8,46 @@ class Policies(Endpoint):
     
     _uri = "/policies"
 
-    def get_all(self):
-        url = self._api.url() + self._uri
-        headers = self._api.header("read")["xml"]
-        req = Request("GET", url, headers=headers)
-        resp = self._api.do(req)
-        return resp
+    def get_all(self) -> Response:
+        suffix = self._uri
+        return self._api.do(
+            Request(
+                method="GET",
+                url=self._api.url() + suffix,
+                headers=self._api.header("read")["xml"]
+            )
+        )
 
     def get_by_id(self, target_id: int) -> Response:
-        
-        url = self._api.url() + self._uri + f"/id/{target_id}"
-        headers = self._api.header("read")["xml"]
-        req = Request("GET", url, headers=headers)
-        resp = self._api.do(req, error_on_fail=False)
-        return resp
+        suffix = self._uri + f"/id/{target_id}"
+        return self._api.do(
+            Request(
+                method="GET",
+                url=self._api.url() + suffix,
+                headers=self._api.header("read")["xml"]
+            ),
+            error_on_fail=False
+        )
 
-    def create(self, policy_xml: str):
-        url = self._api.url() + self._uri + "/id/0"
-        headers = self._api.header("create-update")["xml"]
-        req = Request("POST", url=url, headers=headers, data=policy_xml)
-        resp = self._api.do(req, error_on_fail=False)
-        return resp
-    
+    def create(self, policy_xml: str) -> Response:
+        suffix = self._uri + "/id/0"
+        return self._api.do(
+            Request(
+                method="POST",
+                url=self._api.url() + suffix,
+                headers=self._api.header("create-update")["xml"],
+                data=policy_xml
+            ),
+            error_on_fail=False
+        )
+
     def delete_by_id(self, target_id) -> Response:
-        url = self._api.url() + self._uri + f"/id/{target_id}"
-        headers = self._api.header("delete")["xml"]
-        req = Request("DELETE", url=url, headers=headers)
-        resp = self._api.do(req, error_on_fail=False)
-        return resp
+        suffix = self._uri + f"/id/{target_id}"
+        return self._api.do(
+            Request(
+                method="DELETE",
+                url=self._api.url() + suffix,
+                headers=self._api.header("delete")["xml"]
+            ),
+            error_on_fail=False
+        )

@@ -1,16 +1,20 @@
 """Jamf Classic API Endpoint functions for Dock Items"""
 
-from requests import Request
+from requests import Request, Response
 from .endpoint_parent import Endpoint
 
 class DockItems(Endpoint):
 
     _uri = "/dockitems"
 
-    def create(self, payload: str):
-        suffix = self._uri
-        url = self._api.url() + suffix
-        headers = self._api.header("create-update")["xml"]
-        req = Request("POST", url=url, headers=headers, data=payload)
-        resp = self._api.do(req)
-        return resp
+def create(self, payload: str) -> Response:
+    suffix = self._uri
+    return self._api.do(
+        Request(
+            method="POST",
+            url=self._api.url() + suffix,
+            headers=self._api.header("create-update")["xml"],
+            data=payload
+        )
+    )
+
