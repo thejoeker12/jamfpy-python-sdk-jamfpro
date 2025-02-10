@@ -177,7 +177,7 @@ class API:
 
 
     # @_check_closed
-    def do(self, request: Request, timeout=10, error_on_fail: bool = True) -> Response:
+    def do(self, request: Request, timeout: int = 10) -> Response:
         """Takes request, preps and sends"""
         self._refresh_session_headers()
 
@@ -199,19 +199,9 @@ class API:
 
         response = self._session.send(prepped, timeout=timeout)
 
-        # Logging
+        response.raise_for_status()
 
-        if not response.ok:
-            error_text = response.text or "no error supplied"
-
-            if error_on_fail:
-                self._logger.critical("Request failed. Response: %s, error: %s", response, error_text)
-                raise HTTPError("Bad response:", response.status_code)
-
-            self._logger.debug("Request failed. Response: %s, error: %s", response, error_text)
-
-        else:
-            self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
+        self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
         return response
 
