@@ -53,7 +53,6 @@ class API:
 
     ) -> None:
 
-
         self._fqdn = fqdn
         self.auth = auth
         self._http_config: HTTPConfig = http_config
@@ -288,26 +287,3 @@ class ProAPI(API):
     # Magic Methods
     def __str__(self) -> str:
         return f"Jamf {self._version} API Client for {self._fqdn}"
-
-
-# class CustomAPI(API):
-#     """Custom API Endpoint for dynamic endpoint assignment"""
-
-#     _version = "custom"
-#     _short_name = "ctm"
-
-#     def __init__(
-#             self,
-#             config: dict ,
-#             version: str,
-#             endpoints: list
-#     ):
-#         super().__init__(config, version)
-#         self._version = version
-
-#         for ep in endpoints:
-#             setattr(self, ep.__name__, ep(self))
-
-#     def __str__(self) -> str:
-#         return f"Jamf {self._version} Custom Endpoint for {self._fqdn}"
-

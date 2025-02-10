@@ -14,18 +14,14 @@ from .logger import get_logger
 from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER
-from .exceptions import JamfpyInitError, jamfpyConfigError
-
+from .exceptions import jamfpyConfigError
 
 
 VALID_AUTH_METHODS = ["oauth2", "basic"]
 
 
-
-
 class Tenant:
     """Jamf parent object"""
-    initiated_tenants = []
 
     def __init__(
       self,
@@ -113,7 +109,7 @@ class Tenant:
                     log_level=log_level,
                     http_config=http_config
                 )
-            
+
             case _:
                 raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
 
