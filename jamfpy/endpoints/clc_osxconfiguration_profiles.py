@@ -1,7 +1,7 @@
 """Endpoints for configuration profiles"""
 
 from requests import Request, Response
-from .endpoint_parent import Endpoint
+from ._parent import Endpoint
 
 
 class ConfigurationProfiles(Endpoint):

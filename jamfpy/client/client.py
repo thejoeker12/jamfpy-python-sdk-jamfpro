@@ -18,17 +18,17 @@ from ..endpoints.clc_policies import Policies
 from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
 from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.clc_categories import Categories
-from ..endpoints.clc_dock_items import DockItems
+from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
-from ..endpoints.pro_api_management import (
+from ..endpoints.refactor_queue.pro_api_management import (
     APIRolePrivileges,
     APIIntegrations,
     APIRoles
 )
 from ..endpoints.pro_scripts import Scripts
-from ..endpoints.pro_sso_certificate import SsoCertificates
-from ..endpoints.pro_icon import Icons
-from ..endpoints.pro_computers_inventory import ComputersInventory
+from ..endpoints.refactor_queue.pro_sso_certificate import SsoCertificates
+from ..endpoints.refactor_queue.pro_icon import Icons
+from ..endpoints.refactor_queue.pro_computers_inventory import ComputersInventory
 
 
 class API:

@@ -1,14 +1,11 @@
 """Jamf Classic API Endpoint Code for Computer Groups"""
 
 from requests import Request
-from .endpoint_parent import Endpoint
+from ._parent import Endpoint
 from __future__ import annotations
 from ..client.client import API
 
 class Categories(Endpoint):
-    # Temp. Makes it circular :(
-    _api: API
-
     _uri = "/categories"
 
     def get_all(self):
@@ -32,6 +29,7 @@ class Categories(Endpoint):
             )
         )
 
+
     def create(self, payload_xml):
         suffix = self._uri + "/id/0"
         return self._api.do(
@@ -43,6 +41,7 @@ class Categories(Endpoint):
             )
         )
 
+
     def update_by_id(self, target_id, payload_xml):
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
@@ -53,6 +52,7 @@ class Categories(Endpoint):
                 data=payload_xml
             )
         )
+
 
     def delete_by_id(self, target_id):
         suffix = self._uri + f"/id/{target_id}"

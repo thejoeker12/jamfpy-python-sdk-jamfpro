@@ -1,7 +1,7 @@
 """Jamf Classic API Endpoint Code for Computer Groups"""
 
 from requests import Request, Response
-from .endpoint_parent import Endpoint
+from ._parent import Endpoint
 
 class ComputerGroups(Endpoint):
 

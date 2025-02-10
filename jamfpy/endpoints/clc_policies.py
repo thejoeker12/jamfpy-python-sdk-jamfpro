@@ -1,7 +1,7 @@
 """Endpoint code for Jamf Classic API Policies"""
 
 from requests import Request, Response
-from .endpoint_parent import Endpoint
+from ._parent import Endpoint
 
 
 class Policies(Endpoint):

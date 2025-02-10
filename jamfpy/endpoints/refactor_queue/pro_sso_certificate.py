@@ -1,5 +1,5 @@
 from requests import Request
-from .endpoint_parent import Endpoint
+from .._parent import Endpoint
 
 class SsoCertificates(Endpoint):
     
