@@ -13,7 +13,7 @@ class Scripts(Endpoint):
         page_number = 0
         suffix_template = f"/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
         base_url = self._api.url("1")
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
 
         url = base_url + suffix_template.format(page_number=page_number, page_size=page_size)
         req = Request("GET", url=url, headers=headers)
@@ -54,7 +54,7 @@ class Scripts(Endpoint):
     def get_by_id(self, target_id: int):
         
         url = self._api.url("1") + f"{self._uri}/{target_id}"
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = Request("GET", url=url, headers=headers)
         resp = self._api.do(req)
         if resp.ok:
@@ -66,7 +66,7 @@ class Scripts(Endpoint):
     def delete_by_id(self, target_id: int):
         
         url = self._api.url("1") + f"{self._uri}/{target_id}"
-        headers = self._api.header("basic")
+        headers = self._api.header("read")["json"]
         req = Request("DELETE", url=url, headers=headers)
         resp = self._api.do(req)
         if resp.ok:
