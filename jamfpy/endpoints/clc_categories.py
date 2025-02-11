@@ -1,6 +1,6 @@
-"""Jamf Classic API Endpoint Code for Computer Groups"""
+"""Jamf Classic API Endpoint Code for X"""
 
-from requests import Request
+from requests import Request, Response
 from ._parent import Endpoint
 from __future__ import annotations
 from ..client.client import API
@@ -8,7 +8,7 @@ from ..client.client import API
 class Categories(Endpoint):
     _uri = "/categories"
 
-    def get_all(self):
+    def get_all(self) -> Response:
         suffix = self._uri
         return self._api.do(
             Request(
