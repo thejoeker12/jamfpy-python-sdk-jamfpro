@@ -14,7 +14,7 @@ class Policies(Endpoint):
             Request(
                 method="GET",
                 url=self._api.url() + suffix,
-                headers=self._api.header("read")["xml"]
+                headers=self._api.header("read")["json"]
             )
         )
 
@@ -24,7 +24,7 @@ class Policies(Endpoint):
             Request(
                 method="GET",
                 url=self._api.url() + suffix,
-                headers=self._api.header("read")["xml"]
+                headers=self._api.header("read")["json"]
             ),
             error_on_fail=False
         )
