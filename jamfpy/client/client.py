@@ -18,6 +18,7 @@ from ..endpoints.clc_policies import Policies
 from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
 from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.clc_categories import Categories
+from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
 # from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
 # from ..endpoints.refactor_queue.pro_api_management import (
@@ -239,6 +240,7 @@ class ClassicAPI(API):
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
         self.categories = Categories(self)
+        self.computer_searches = AdvancedComputerSearches(self)
         # self.dockitems = DockItems(self)
 
 
