@@ -66,13 +66,8 @@ class Scripts(Endpoint):
     def delete_by_id(self, target_id: int):
         
         url = self._api.url("1") + f"{self._uri}/{target_id}"
-        headers = self._api.header("read")["json"]
-        req = Request("DELETE", url=url, headers=headers)
-        resp = self._api.do(req)
-        if resp.ok:
-            return (resp, None)
-
-        return resp
+        req = Request("DELETE", url=url)
+        return self._api.do(req)
 
 
     # def create(

@@ -33,9 +33,7 @@ class ComputerGroups(Endpoint):
             Request(
                 method="DELETE",
                 url=self._api.url() + suffix,
-                headers=self._api.header("delete")["xml"]
             ),
-            error_on_fail=False
         )
 
     def create(self, xml) -> Response:
@@ -47,7 +45,6 @@ class ComputerGroups(Endpoint):
                 headers=self._api.header("create-update")["xml"],
                 data=xml
             ),
-            error_on_fail=False
         )
 
         

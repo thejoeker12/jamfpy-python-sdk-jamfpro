@@ -47,7 +47,5 @@ class Policies(Endpoint):
             Request(
                 method="DELETE",
                 url=self._api.url() + suffix,
-                headers=self._api.header("delete")["xml"]
             ),
-            error_on_fail=False
         )

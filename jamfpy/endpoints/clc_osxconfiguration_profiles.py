@@ -56,7 +56,6 @@ class ConfigurationProfiles(Endpoint):
             Request(
                 method="DELETE",
                 url=self._api.url() + suffix,
-                headers=self._api.header("delete")["xml"]
             )
         )
 
