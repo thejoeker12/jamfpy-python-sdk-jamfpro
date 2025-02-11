@@ -27,6 +27,13 @@ class ExtensionAttributes(Endpoint):
                 data=payload_xml
             )
         )
+    
 
-
-
+    def delete(self, target_id) -> Response:
+        suffix = self._uri + f"/id/{target_id}"
+        return self._api.do(
+            Request(
+                "DELETE",
+                url = self._api.url() + suffix
+            )
+        )
