@@ -2,7 +2,6 @@
 
 from requests import Request, Response
 from ._parent import Endpoint
-from ..client.client import API
 
 class AdvancedComputerSearches(Endpoint):
     _uri = "/advancedcomputersearches"
