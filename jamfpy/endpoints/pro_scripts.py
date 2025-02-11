@@ -9,7 +9,6 @@ class Scripts(Endpoint):
     _uri = "/scripts"
 
     def get_all(self):
-        
         page_size = 200
         page_number = 0
         suffix_template = f"/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
