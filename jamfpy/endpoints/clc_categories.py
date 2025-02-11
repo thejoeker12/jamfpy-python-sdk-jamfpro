@@ -1,7 +1,6 @@
 """Jamf Classic API Endpoint Code for X"""
 from requests import Request, Response
 from ._parent import Endpoint
-from ..client.client import API
 
 class Categories(Endpoint):
     _uri = "/categories"
