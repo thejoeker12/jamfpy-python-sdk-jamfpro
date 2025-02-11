@@ -15,3 +15,12 @@ class AdvancedComputerSearches(Endpoint):
                 headers = self._api.header("read")["json"]
             )
         )
+    
+    def delete_by_id(self, target_id: int | str):
+        suffix = f"/id/{target_id}"
+        return self._api.do(
+            Request(
+                "DELETE",
+                url = self._uri + suffix
+            )
+        )
