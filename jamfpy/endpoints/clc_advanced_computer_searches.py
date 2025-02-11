@@ -17,10 +17,10 @@ class AdvancedComputerSearches(Endpoint):
         )
     
     def delete_by_id(self, target_id: int | str):
-        suffix = f"/id/{target_id}"
+        suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
                 "DELETE",
-                url = self._uri + suffix
+                url = self._api.url() + suffix
             )
         )
