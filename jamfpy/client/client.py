@@ -18,17 +18,17 @@ from ..endpoints.clc_policies import Policies
 from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
 from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.clc_categories import Categories
-from ..endpoints.refactor_queue.clc_dock_items import DockItems
+# from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
-from ..endpoints.refactor_queue.pro_api_management import (
-    APIRolePrivileges,
-    APIIntegrations,
-    APIRoles
-)
+# from ..endpoints.refactor_queue.pro_api_management import (
+#     APIRolePrivileges,
+#     APIIntegrations,
+#     APIRoles
+# )
 from ..endpoints.pro_scripts import Scripts
-from ..endpoints.refactor_queue.pro_sso_certificate import SsoCertificates
-from ..endpoints.refactor_queue.pro_icon import Icons
-from ..endpoints.refactor_queue.pro_computers_inventory import ComputersInventory
+# from ..endpoints.refactor_queue.pro_sso_certificate import SsoCertificates
+# from ..endpoints.refactor_queue.pro_icon import Icons
+# from ..endpoints.refactor_queue.pro_computers_inventory import ComputersInventory
 
 
 class API:
@@ -239,7 +239,7 @@ class ClassicAPI(API):
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
         self.categories = Categories(self)
-        self.dockitems = DockItems(self)
+        # self.dockitems = DockItems(self)
 
 
     # Magic Methods
@@ -275,13 +275,13 @@ class ProAPI(API):
             logger=logger
         )
 
-        self.apiintegrations = APIIntegrations(self)
-        self.apiroleprivileges = APIRolePrivileges(self)
-        self.apiroles = APIRoles(self)
+        # self.apiintegrations = APIIntegrations(self)
+        # self.apiroleprivileges = APIRolePrivileges(self)
+        # self.apiroles = APIRoles(self)
         self.scripts = Scripts(self)
-        self.sso = SsoCertificates(self)
-        self.icons = Icons(self)
-        self.computers_inventory = ComputersInventory(self)
+        # self.sso = SsoCertificates(self)
+        # self.icons = Icons(self)
+        # self.computers_inventory = ComputersInventory(self)
 
 
     # Magic Methods
