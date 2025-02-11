@@ -11,7 +11,7 @@ class ExtensionAttributes(Endpoint):
         return self._api.do(
             Request(
                 "GET",
-                url = self.api.url() + suffix,
+                url = self._api.url() + suffix,
                 headers=self._api.header("read")["json"]
             )
         )
