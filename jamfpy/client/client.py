@@ -242,6 +242,7 @@ class ClassicAPI(API):
         self.computer_extension_attributes = ExtensionAttributes(self)
         self.categories = Categories(self)
         self.computer_searches = AdvancedComputerSearches(self)
+        self.scripts = Scripts(self)
         # self.dockitems = DockItems(self)
 
 
@@ -281,7 +282,7 @@ class ProAPI(API):
         # self.apiintegrations = APIIntegrations(self)
         # self.apiroleprivileges = APIRolePrivileges(self)
         # self.apiroles = APIRoles(self)
-        self.scripts = Scripts(self)
+        # self.scripts = Scripts(self)
         # self.sso = SsoCertificates(self)
         # self.icons = Icons(self)
         # self.computers_inventory = ComputersInventory(self)
