@@ -19,6 +19,7 @@ from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
 from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.clc_categories import Categories
 from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
+from ..endpoints.clc_scripts import Scripts
 # from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
 # from ..endpoints.refactor_queue.pro_api_management import (
@@ -26,7 +27,7 @@ from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
 #     APIIntegrations,
 #     APIRoles
 # )
-from ..endpoints.pro_scripts import Scripts
+# from ..endpoints.pro_scripts import Scripts
 # from ..endpoints.refactor_queue.pro_sso_certificate import SsoCertificates
 # from ..endpoints.refactor_queue.pro_icon import Icons
 # from ..endpoints.refactor_queue.pro_computers_inventory import ComputersInventory
