@@ -16,7 +16,7 @@ class Categories(Endpoint):
         )
 
 
-    def get_by_id(self, target_id: int):
+    def get_by_id(self, target_id: int) -> Response:
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
@@ -26,7 +26,7 @@ class Categories(Endpoint):
             )
         )
     
-    def get_by_name(self, target_name: str):
+    def get_by_name(self, target_name: str) -> Response:
         suffix = self._uri + f"/name/{target_name}"
         return self._api.do(
             Request(
@@ -37,7 +37,7 @@ class Categories(Endpoint):
         )
 
 
-    def create(self, payload_xml):
+    def create(self, payload_xml) -> Response:
         suffix = self._uri + "/id/0"
         return self._api.do(
             Request(
@@ -49,7 +49,7 @@ class Categories(Endpoint):
         )
 
 
-    def update_by_id(self, target_id, payload_xml):
+    def update_by_id(self, target_id, payload_xml) -> Response:
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
@@ -61,7 +61,7 @@ class Categories(Endpoint):
         )
 
 
-    def delete_by_id(self, target_id):
+    def delete_by_id(self, target_id) -> Response:
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
