@@ -11,7 +11,7 @@ class Buildings(Endpoint):
         return self._api.do(
             Request(
                 method = "GET",
-                url = self._api().url() + suffix,
+                url = self._api.url() + suffix,
                 headers = self._api.header("read")["json"]
             )
         )
