@@ -20,6 +20,7 @@ from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
 from ..endpoints.clc_categories import Categories
 from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
 from ..endpoints.clc_scripts import Scripts
+from ..endpoints.clc_buildings import Buildings
 # from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
 # from ..endpoints.refactor_queue.pro_api_management import (
@@ -243,6 +244,7 @@ class ClassicAPI(API):
         self.categories = Categories(self)
         self.computer_searches = AdvancedComputerSearches(self)
         self.scripts = Scripts(self)
+        self.buildings = Buildings(self)
         # self.dockitems = DockItems(self)
 
 
