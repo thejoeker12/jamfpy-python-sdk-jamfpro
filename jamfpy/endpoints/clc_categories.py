@@ -25,6 +25,16 @@ class Categories(Endpoint):
                 headers = self._api.header("read")["json"]
             )
         )
+    
+    def get_by_name(self, target_name: str):
+        suffix = self._uri + f"/name/{target_name}"
+        return self._api.do(
+            Request(
+                method = "GET",
+                url=self._api.url() + suffix,
+                headers = self._api.header("read")["json"]
+            )
+        )
 
 
     def create(self, payload_xml):
