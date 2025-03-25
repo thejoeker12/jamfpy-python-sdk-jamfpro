@@ -25,6 +25,16 @@ class Scripts(Endpoint):
                 headers = self._api.header("read")["json"]
             )
         )
+    
+    def get_by_id(self, target_name: int):
+        suffix = self._uri + f"/name/{target_id}"
+        return self._api.do(
+            Request(
+                method = "GET",
+                url=self._api.url() + suffix,
+                headers = self._api.header("read")["json"]
+            )
+        )
 
 
     def create(self, payload_xml):
