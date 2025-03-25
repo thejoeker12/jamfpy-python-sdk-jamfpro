@@ -26,7 +26,7 @@ class Scripts(Endpoint):
             )
         )
     
-    def get_by_id(self, target_name: int):
+    def get_by_name(self, target_name: int):
         suffix = self._uri + f"/name/{target_name}"
         return self._api.do(
             Request(
