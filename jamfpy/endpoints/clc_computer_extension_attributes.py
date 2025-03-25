@@ -29,7 +29,7 @@ class ExtensionAttributes(Endpoint):
         )
     
 
-    def delete(self, target_id) -> Response:
+    def delete_by_id(self, target_id) -> Response:
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
