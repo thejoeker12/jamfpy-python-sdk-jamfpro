@@ -15,3 +15,5 @@ class RestrictedSoftware(Endpoint):
                 headers = self._api.header("read")["json"]
             )
         )
+    
+    # def delete_by_id(self, target_id):
