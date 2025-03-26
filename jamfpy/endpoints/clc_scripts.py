@@ -4,6 +4,7 @@ from ._parent import Endpoint
 
 class Scripts(Endpoint):
     _uri = "/scripts"
+    _name = "scripts"
 
     def get_all(self) -> Response:
         suffix = self._uri

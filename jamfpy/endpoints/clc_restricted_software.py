@@ -5,6 +5,7 @@ from ..client.client import API
 
 class RestrictedSoftware(Endpoint):
     _uri = "/restrictedsoftware"
+    _name = "restricted_software"
 
     def get_all(self):
         suffix = self._uri

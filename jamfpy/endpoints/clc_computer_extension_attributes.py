@@ -5,6 +5,7 @@ from ._parent import Endpoint
 
 class ExtensionAttributes(Endpoint):
     _uri = "/computerextensionattributes"
+    _name = "computer_extension_attributes"
 
     def get_all(self) -> Response:
         suffix = self._uri
