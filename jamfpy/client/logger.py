@@ -5,40 +5,34 @@ Default logging module for this library
 import logging
 import sys
 
-DEFAULT_LEVEL = 20
-DEFAULT_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+DEFAULT_LEVEL = logging.INFO
+DEFAULT_FORMAT = '%(asctime)s [%(levelname)s] (%(name)s): %(message)s'
 
 def get_logger(
         name,
-        level: int = None,
-        log_format: str = None,
-        config: str = None
+        format: str = DEFAULT_FORMAT,
+        level: int = DEFAULT_LEVEL,
     ) -> logging.Logger:
     """
-    Returns default logger configuration for JamfAPI Client
-    Prioritises Config over individual values
-    Defaults to default values in either context
+    Compartmentalised logger init
     """
 
-    # // TODO Probably move these values to default config
-
-
-    if config:
-        level = config["logging_level"] or DEFAULT_LEVEL
-        log_format = config["logging_format"] or DEFAULT_FORMAT
-    elif not config:
-        level = level or DEFAULT_LEVEL
-        log_format = log_format or DEFAULT_FORMAT
-
     logger = logging.getLogger(name)
-    if not logger.handlers:
-        logger.setLevel(level)
 
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(level)
+    logger.setLevel(level)
 
-        formatter = logging.Formatter(log_format)
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(level)
+
+    formatter = logging.Formatter(format)
+    ch.setFormatter(formatter)
+
+    logger.addHandler(ch)
+
+    # This standardises the name length so the terminal output is aligned.
+    # There is definitely a more elegant algorithm for appending spaces.
+    if len(logger.name) < 6:
+        for _ in range(6 - len(logger.name)):
+            logger.name = logger.name + " "
 
     return logger

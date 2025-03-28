@@ -8,7 +8,7 @@ class jamfpyConfigError(Exception):
     """Module Configuration error"""
 
 
-class jamfpyInitError(Exception):
+class JamfpyInitError(Exception):
     """Module initiation error"""
 
 

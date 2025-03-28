@@ -1,11 +1,14 @@
 # Types
 *.egg
 *.pyx
-*.json
+
 
 # Python stuff
-jamfapi.egg-info
+*.egg-info
+
 __pycache__
 
 # Macos
 .DS_Store
+
+.venv

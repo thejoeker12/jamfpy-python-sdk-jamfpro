@@ -6,4 +6,5 @@ class Endpoint:
     """Endpoint parent class"""
     def __init__(self, api):
         from ..client.client import API
-        self._api: API = api
+        api: API
+        self._api = api
