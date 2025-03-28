@@ -6,6 +6,8 @@ from ._parent import Endpoint
 class ComputerGroups(Endpoint):
 
     _uri = "/computergroups"
+    _name = "computer_groups"
+
 
     def get_all(self) -> Response:
         suffix = self._uri

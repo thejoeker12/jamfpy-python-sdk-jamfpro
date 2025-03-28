@@ -7,6 +7,7 @@ from ._parent import Endpoint
 class Policies(Endpoint):
     
     _uri = "/policies"
+    _name = "policies"
 
     def get_all(self) -> Response:
         suffix = self._uri

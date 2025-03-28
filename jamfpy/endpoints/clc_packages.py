@@ -4,6 +4,7 @@ from ._parent import Endpoint
 
 class Packages(Endpoint):
     _uri = "/packages"
+    _name = "packages"
 
     # def get_all(self) -> Response:
     #     suffix = self._uri

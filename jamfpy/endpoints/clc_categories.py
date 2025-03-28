@@ -4,6 +4,7 @@ from ._parent import Endpoint
 
 class Categories(Endpoint):
     _uri = "/categories"
+    _name = "categories"
 
     def get_all(self) -> Response:
         suffix = self._uri

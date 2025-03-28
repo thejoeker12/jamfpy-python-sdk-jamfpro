@@ -7,6 +7,7 @@ from ._parent import Endpoint
 
 class Scripts(Endpoint):
     _uri = "/scripts"
+    _name = "scripts"
 
     def get_all(self):
         page_size = 200

@@ -5,6 +5,7 @@ from ._parent import Endpoint
 
 class Buildings(Endpoint):
     _uri = "/buildings"
+    _name = "buildings"
 
     def get_all(self) -> Response:
         suffix = self._uri
