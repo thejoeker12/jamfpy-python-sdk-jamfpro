@@ -22,6 +22,9 @@ from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
 from ..endpoints.clc_scripts import Scripts
 from ..endpoints.clc_buildings import Buildings
 from ..endpoints.clc_packages import Packages
+from ..endpoints.clc_computers import Computers
+from ..endpoints.clc_sites import Sites
+
 # from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
 # from ..endpoints.refactor_queue.pro_api_management import (
@@ -247,6 +250,8 @@ class ClassicAPI(API):
         self.scripts = Scripts(self)
         self.buildings = Buildings(self)
         self.packages = Packages(self)
+        self.computers = Computers(self)
+        self.sites = Sites(self)
         # self.dockitems = DockItems(self)
 
 
