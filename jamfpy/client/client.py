@@ -24,6 +24,7 @@ from ..endpoints.clc_buildings import Buildings
 from ..endpoints.clc_packages import Packages
 from ..endpoints.clc_computers import Computers
 from ..endpoints.clc_sites import Sites
+from ..endpoints.clc_departments import Departments
 
 # from ..endpoints.refactor_queue.clc_dock_items import DockItems
 
