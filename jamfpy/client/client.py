@@ -253,6 +253,7 @@ class ClassicAPI(API):
         self.packages = Packages(self)
         self.computers = Computers(self)
         self.sites = Sites(self)
+        self.departments = Departments(self)
         # self.dockitems = DockItems(self)
 
 
