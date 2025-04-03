@@ -242,7 +242,7 @@ class ClassicAPI(API):
         )
 
         # Endpoints
-        self.computergroups = ComputerGroups(self)
+        self.computer_groups = ComputerGroups(self)
         self.policies = Policies(self)
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
