@@ -1,6 +1,5 @@
 """Endpoints for sites"""
 
-from requests import Request, Response
 from ._parent import Endpoint
 
 
