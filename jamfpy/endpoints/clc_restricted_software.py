@@ -1,4 +1,4 @@
-"""Jamf Classic API Endpoint Code for Computer Groups"""
+"""Jamf Classic API Endpoint Code for Restricted Software"""
 
 from ..client.client import API
 
