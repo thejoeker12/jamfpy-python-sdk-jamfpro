@@ -26,19 +26,16 @@ class ComputerGroups(Endpoint):
 
 
 class Computers(Endpoint):
-    """Computers object"""
     _uri = "/computers"
     _name = "computers"
 
 
 class Departments(Endpoint):
-    """Departments object"""
     _uri = "/departments"
     _name = "departments"
 
 
 class ConfigurationProfiles(Endpoint):
-    """Configuration profiles object"""
     _uri = "/osxconfigurationprofiles"
     _name = "osx_configuration_profiles"
 
@@ -64,7 +61,6 @@ class Scripts(Endpoint):
 
 
 class Sites(Endpoint):
-    """Sites object"""
     _uri = "/sites"
     _name = "sites"
 
