@@ -64,3 +64,7 @@ class Sites(Endpoint):
     _uri = "/sites"
     _name = "sites"
 
+
+class Policies(Endpoint):
+    _uri = "/policies"
+    _name = "policies"

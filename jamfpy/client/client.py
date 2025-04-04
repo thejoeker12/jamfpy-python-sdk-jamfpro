@@ -3,6 +3,7 @@ Jamf API Client Main
 """
 
 from typing import Any
+import warnings
 from requests import Session, Request, Response, HTTPError
 from logging import Logger
 
@@ -25,7 +26,8 @@ from ..endpoints.clc_endpoints import (
     Packages, 
     Computers, 
     Sites, 
-    Departments
+    Departments,
+    Policies
     )
 
 class API:
@@ -229,8 +231,19 @@ class ClassicAPI(API):
         self.computers = Computers(self)
         self.sites = Sites(self)
         self.departments = Departments(self)
+        self.policies = Policies(self)
         # self.dockitems = DockItems(self)
 
+    # Deprecated property
+    @property
+    def computergroups(self):
+        warnings.warn(
+            "The 'computergroups' property is deprecated and will be removed in a future version. "
+            "Use 'computer_groups' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.computer_groups
 
     # Magic Methods
     def __str__(self) -> str:
