@@ -13,6 +13,7 @@ class Endpoint:
         self._api = api
 
     def get_all(self) -> Response:
+        print("RUN GET ALL")
         suffix = self._uri
         return self._api.do(
             Request(
@@ -55,6 +56,7 @@ class Endpoint:
         )
 
     def delete_by_id(self, target_id: int) -> Response:
+        print("RUN DELETE BY ID")
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
             Request(
