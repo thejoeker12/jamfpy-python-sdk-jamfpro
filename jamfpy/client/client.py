@@ -235,7 +235,6 @@ class ClassicAPI(API):
         # self.dockitems = DockItems(self)
 
     # Deprecated property
-    @property
     def computergroups(self):
         warnings.warn(
             "The 'computergroups' property is deprecated and will be removed in a future version. "
