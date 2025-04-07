@@ -3,6 +3,7 @@ Jamf API Client Main
 """
 
 from typing import Any
+import warnings
 from requests import Session, Request, Response, HTTPError
 from logging import Logger
 
@@ -13,27 +14,21 @@ from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL
 from .utility import extract_cloud_tenant_name_from_url
 
-from ..endpoints.clc_computer_groups import ComputerGroups
-from ..endpoints.clc_policies import Policies
-from ..endpoints.clc_osxconfiguration_profiles import ConfigurationProfiles
-from ..endpoints.clc_computer_extension_attributes import ExtensionAttributes
-from ..endpoints.clc_categories import Categories
-from ..endpoints.clc_advanced_computer_searches import AdvancedComputerSearches
-from ..endpoints.clc_scripts import Scripts
-from ..endpoints.clc_buildings import Buildings
-from ..endpoints.clc_packages import Packages
-# from ..endpoints.refactor_queue.clc_dock_items import DockItems
-
-# from ..endpoints.refactor_queue.pro_api_management import (
-#     APIRolePrivileges,
-#     APIIntegrations,
-#     APIRoles
-# )
-# from ..endpoints.pro_scripts import Scripts
-# from ..endpoints.refactor_queue.pro_sso_certificate import SsoCertificates
-# from ..endpoints.refactor_queue.pro_icon import Icons
-# from ..endpoints.refactor_queue.pro_computers_inventory import ComputersInventory
-
+from ..endpoints.clc_endpoints import (
+    ComputerGroups, 
+    Policies, 
+    ConfigurationProfiles, 
+    ExtensionAttributes, 
+    Categories, 
+    AdvancedComputerSearches, 
+    Scripts, 
+    Buildings, 
+    Packages, 
+    Computers, 
+    Sites, 
+    Departments,
+    Policies
+    )
 
 class API:
     """Parent class for Jamf API"""
@@ -110,20 +105,6 @@ class API:
         self._logger.debug("FUNCTION: _init_headers")
         self._headers = self._http_config.headers["crud"]
 
-
-
-    # Private Methods - Normal
-
-    # def _check_closed(self, func):
-    #     """Checks if object has been closed and therefore is unusable"""
-
-    #     def wrapper(*args, **kwargs):
-    #         if self._is_closed:
-    #             raise RuntimeError(str(self) + " is closed")
-            
-    #         return func(*args, **kwargs)
-
-    #     return wrapper
 
 
     # @_check_closed
@@ -238,7 +219,7 @@ class ClassicAPI(API):
         )
 
         # Endpoints
-        self.computergroups = ComputerGroups(self)
+        self.computer_groups = ComputerGroups(self)
         self.policies = Policies(self)
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
@@ -247,8 +228,22 @@ class ClassicAPI(API):
         self.scripts = Scripts(self)
         self.buildings = Buildings(self)
         self.packages = Packages(self)
+        self.computers = Computers(self)
+        self.sites = Sites(self)
+        self.departments = Departments(self)
+        self.policies = Policies(self)
         # self.dockitems = DockItems(self)
 
+    # Deprecated property
+    @property
+    def computergroups(self):
+        warnings.warn(
+            "The 'computergroups' property is deprecated and will be removed in a future version. "
+            "Use 'computer_groups' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.computer_groups
 
     # Magic Methods
     def __str__(self) -> str:
