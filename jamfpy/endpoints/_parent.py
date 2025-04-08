@@ -64,3 +64,7 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
             )
         )
+
+class ProEndpoint(Endpoint):
+    def __init__(self):
+        pass
