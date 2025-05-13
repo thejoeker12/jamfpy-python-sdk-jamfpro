@@ -1,70 +1,73 @@
-from ._parent import Endpoint
+from ._parent import ClassicEndpoint
 
-class AdvancedComputerSearches(Endpoint):
+class AdvancedComputerSearches(ClassicEndpoint):
     _uri = "/advancedcomputersearches"
     _name = "advanced_computer_searches"
 
 
-class Buildings(Endpoint):
+
+class Buildings(ClassicEndpoint):
     _uri = "/buildings"
     _name = "buildings"
 
 
-class Categories(Endpoint):
+
+class Categories(ClassicEndpoint):
     _uri = "/categories"
     _name = "categories"
 
 
-class ExtensionAttributes(Endpoint):
+
+class ExtensionAttributes(ClassicEndpoint):
     _uri = "/computerextensionattributes"
     _name = "computer_extension_attributes"
 
 
-class ComputerGroups(Endpoint):
+class ComputerGroups(ClassicEndpoint):
     _uri = "/computergroups"
     _name = "computer_groups"
 
 
-class Computers(Endpoint):
+class Computers(ClassicEndpoint):
     _uri = "/computers"
     _name = "computers"
 
 
-class Departments(Endpoint):
+class Departments(ClassicEndpoint):
     _uri = "/departments"
     _name = "departments"
 
 
-class ConfigurationProfiles(Endpoint):
+class ConfigurationProfiles(ClassicEndpoint):
     _uri = "/osxconfigurationprofiles"
     _name = "osx_configuration_profiles"
 
 
-class Packages(Endpoint):
+class Packages(ClassicEndpoint):
     _uri = "/packages"
     _name = "packages"
 
 
-class Policies(Endpoint):
+class Policies(ClassicEndpoint):
     _uri = "/policies"
     _name = "policies"
 
 
-class RestrictedSoftware(Endpoint):
+class RestrictedSoftware(ClassicEndpoint):
     _uri = "/restrictedsoftware"
     _name = "restricted_software"
 
 
-class Scripts(Endpoint):
+class Scripts(ClassicEndpoint):
     _uri = "/scripts"
     _name = "scripts"
 
 
-class Sites(Endpoint):
+class Sites(ClassicEndpoint):
     _uri = "/sites"
     _name = "sites"
 
 
-class Policies(Endpoint):
+class Policies(ClassicEndpoint):
     _uri = "/policies"
     _name = "policies"

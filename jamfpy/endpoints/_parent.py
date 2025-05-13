@@ -12,6 +12,8 @@ class Endpoint:
         api: API
         self._api = api
 
+
+class ClassicEndpoint(Endpoint):
     def get_all(self) -> Response:
         suffix = self._uri
         return self._api.do(
@@ -63,4 +65,8 @@ class Endpoint:
             )
         )
 
+
+class ProEndpoint(Endpoint):
+    def __init__(self):
+        pass
 

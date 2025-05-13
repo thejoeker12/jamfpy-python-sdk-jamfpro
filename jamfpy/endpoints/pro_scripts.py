@@ -1,11 +1,11 @@
 
 from requests import Request
 from ..client.exceptions import JamfAPIError
-from ._parent import Endpoint
+from ._parent import ProEndpoint
 
 
 
-class Scripts(Endpoint):
+class Scripts(ProEndpoint):
     _uri = "/scripts"
     _name = "scripts"
 
