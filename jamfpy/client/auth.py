@@ -44,16 +44,13 @@ class Auth:
         self._http_config = http_config
         self._logger = self._init_logging(log_level)
         self._auth_url = self._init_urls()
-
         self.token_exp_thold_mins = token_exp_thold_mins
 
     @classmethod
     def _init_logging(cls, log_level) -> Logger:
         """Initialize logger for API authentication."""
-        shortname = extract_cloud_tenant_name_from_url(cls._fqdn)
-
         return get_logger(
-            name=f"{shortname}-auth",
+            name=f"{extract_cloud_tenant_name_from_url(cls._fqdn)}-auth",
             level=log_level
         )
 
@@ -62,9 +59,7 @@ class Auth:
         """Initialize authentication URLs based on method."""
         self._logger.debug("function: _init_urls")
 
-        auth_endpoint = self._http_config.urls["auth"][self._method]
-
-        auth_url = self._fqdn + auth_endpoint
+        auth_url = self._fqdn + self._http_config.urls["auth"][self._method]
         self._logger.debug("Auth URL initialized: %s", auth_url)
 
         return auth_url
@@ -73,17 +68,14 @@ class Auth:
     def check_token_in_buffer(self) -> bool:
         """Check if token is within the expiration buffer period."""
         self._logger.debug("function: check_token_in_buffer")
-
         self._logger.debug("Token expires at: %s", self.token_expiry)
 
         now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
-
         self._logger.debug("Current time: %s", now)
 
-        expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
-        expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_AMOUNT)
-
-        self._logger.debug("Buffer threshold: %s mins | Time until expiry: %s mins", self.token_exp_thold_mins, expiry_delta_mins)
+        expiry_delta_mins = round((self.token_expiry - now) / 60, TIME_ROUNDING_AMOUNT)
+        self._logger.debug("Buffer threshold: %s mins | Time until expiry: %s mins", 
+                          self.token_exp_thold_mins, expiry_delta_mins)
 
         if expiry_delta_mins < self.token_exp_thold_mins:
             self._logger.warning("Token expiring soon - within buffer period")
@@ -99,19 +91,12 @@ class Auth:
 
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
-        match now > self.token_expiry:
+        if now > self.token_expiry:
+            self._logger.warning("Token has expired")
+            return True
 
-            case True:
-                self._logger.warning("Token has expired")
-                return True
-
-            case False:
-                self._logger.debug("Token still valid")
-                return False
-
-            case _:
-                raise RuntimeError("Unexpected error checking token expiration")
-
+        self._logger.debug("Token still valid")
+        return False
 
     def check_token(self) -> None:
         """Check token validity and refresh if needed."""
@@ -124,7 +109,7 @@ class Auth:
                 raise JamfAuthError("Token buffer exceeds token lifetime")
 
         elif self.check_token_in_buffer():
-            if self. _method == "bearer":
+            if self._method == "bearer":
                 self._keep_alive_token()
 
             elif self._method == "oauth":
@@ -143,22 +128,18 @@ class Auth:
 
     def invalidate(self) -> bool:
         """Invalidate the current token."""
-        url = self._http_config.urls["auth"]["invalidate-token"]
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
         }
         call = request(
             method="POST",
-            url=url,
+            url=self._http_config.urls["auth"]["invalidate-token"],
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT
         )
 
-        if call.ok:
-            return True
-
-        return False
+        return call.ok
 
 
 class OAuth(Auth):
@@ -176,7 +157,6 @@ class OAuth(Auth):
             token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
             http_config = HTTPConfig(),
             logger = None,
-
     ) -> None:
         """Initialize OAuth instance with client credentials."""
 
@@ -203,7 +183,6 @@ class OAuth(Auth):
         """Request and set a new OAuth token."""
         self._logger.debug("function: set_new_token")
 
-        headers = self._http_config.headers["auth"]["oauth"]
         data = {
             "client_id": self._oauth_cid,
             "client_secret": self._oauth_cs,
@@ -213,7 +192,7 @@ class OAuth(Auth):
         call = request(
             method="POST",
             url=self._auth_url,
-            headers=headers,
+            headers=self._http_config.headers["auth"]["oauth"],
             data=data,
             timeout=AUTH_REQUEST_TIMEOUT
         )
@@ -223,10 +202,11 @@ class OAuth(Auth):
 
         call_json = call.json()
         self._token_str = call_json["access_token"]
-        now = datetime.datetime.now(datetime.timezone.utc)
-        self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
-        self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
-
+        self.token_expiry = round(
+            (datetime.datetime.now(datetime.timezone.utc) + 
+             datetime.timedelta(seconds=call_json["expires_in"])).timestamp(),
+            TIME_ROUNDING_AMOUNT
+        )
         self._logger.debug("New OAuth token obtained successfully")
 
 
@@ -268,16 +248,10 @@ class BasicAuth(Auth):
         self.basic_auth_token = basic_auth_token
         self._init_auth()
 
-
-    # Magic
     def __str__(self) -> str:
         """Return string representation of BearerAuth object."""
         return f"Bearer Token Object for {self._fqdn}"
 
-
-    # Methods
-
-    # Private
     def _init_auth(self) -> None:
         """Initialize authentication by setting basic auth token."""
         self._logger.debug("function: _init_auth")
@@ -290,8 +264,6 @@ class BasicAuth(Auth):
         """Keep current Bearer token alive and update expiration time."""
         self._logger.debug("function: _keep_alive_token")
 
-        url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
-
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
@@ -299,7 +271,7 @@ class BasicAuth(Auth):
 
         call = request(
             method="POST",
-            url=url,
+            url=f"{self._fqdn}{self._http_config.urls['auth']['keep-alive']}",
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT
         )
@@ -313,12 +285,9 @@ class BasicAuth(Auth):
         self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
         self._logger.debug("Bearer token refreshed successfully")
 
-
-    # Public
     def set_new_token(self) -> None:
         """Request and set new Bearer token using stored credentials."""
         self._logger.debug("function: set_new_token")
-        url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 
         headers = {
             "accept": "application/json",
@@ -327,7 +296,7 @@ class BasicAuth(Auth):
 
         call = request(
             method="POST",
-            url=url,
+            url=f"{self._fqdn}{self._http_config.urls['auth']['bearer']}",
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT
         )
