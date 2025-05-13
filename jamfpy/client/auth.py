@@ -60,69 +60,68 @@ class Auth:
 
     def _init_urls(self) -> None:
         """Initialize authentication URLs based on method."""
-        self._logger.debug("FUNCTION: _init_urls")
+        self._logger.debug("function: _init_urls")
 
         auth_endpoint = self._http_config.urls["auth"][self._method]
 
         auth_url = self._fqdn + auth_endpoint
-        self._logger.debug("Auth URL set: %s", auth_url)
+        self._logger.debug("Auth URL initialized: %s", auth_url)
 
         return auth_url
 
 
     def check_token_in_buffer(self) -> bool:
         """Check if token is within the expiration buffer period."""
-        self._logger.debug("FUNCTION: check_token_in_buffer")
+        self._logger.debug("function: check_token_in_buffer")
 
-        self._logger.debug("Expiry time: %s", self.token_expiry)
+        self._logger.debug("Token expires at: %s", self.token_expiry)
 
         now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
 
-        self._logger.debug("Now: %s", now)
+        self._logger.debug("Current time: %s", now)
 
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
         expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_AMOUNT)
 
-        self._logger.debug("Token buffer: %s min(s)", self.token_exp_thold_mins)
-        self._logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
+        self._logger.debug("Buffer threshold: %s mins | Time until expiry: %s mins", self.token_exp_thold_mins, expiry_delta_mins)
 
         if expiry_delta_mins < self.token_exp_thold_mins:
-            self._logger.warning("Token in buffer")
+            self._logger.warning("Token expiring soon - within buffer period")
             return True
 
-        self._logger.debug("Token not in buffer")
+        self._logger.debug("Token outside buffer period")
         return False
 
 
     def check_token_is_expired(self) -> bool:
         """Check if the current token has expired."""
-        self._logger.debug("FUNCTION: check_token_is_expired")
+        self._logger.debug("function: check_token_is_expired")
 
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         match now > self.token_expiry:
 
             case True:
-                self._logger.warning("Token expired")
+                self._logger.warning("Token has expired")
                 return True
 
             case False:
-                self._logger.debug("Token not expired")
+                self._logger.debug("Token still valid")
                 return False
 
             case _:
-                raise RuntimeError("an error occured")
+                raise RuntimeError("Unexpected error checking token expiration")
 
 
     def check_token(self) -> None:
         """Check token validity and refresh if needed."""
-        self._logger.debug("FUNCTION: check_token")
+        self._logger.debug("function: check_token")
 
         if self.check_token_is_expired():
             self.set_new_token()
 
             if self.check_token_in_buffer():
-                raise JamfAuthError("Buffer longer than token lifetime")
+                raise JamfAuthError("Token buffer exceeds token lifetime")
 
         elif self.check_token_in_buffer():
             if self. _method == "bearer":
@@ -132,12 +131,12 @@ class Auth:
                 self.set_new_token()
 
             if self.check_token_in_buffer():
-                raise JamfAuthError("Buffer longer than token lifetime")
+                raise JamfAuthError("Token buffer exceeds token lifetime")
 
 
     def token(self) -> str:
         """Check token validity and return token string if valid."""
-        self._logger.debug("FUNCTION: token")
+        self._logger.debug("function: token")
         self.check_token()
         return self._token_str
 
@@ -202,7 +201,7 @@ class OAuth(Auth):
 
     def set_new_token(self) -> None:
         """Request and set a new OAuth token."""
-        self._logger.debug("FUNCTION: set_new_token")
+        self._logger.debug("function: set_new_token")
 
         headers = self._http_config.headers["auth"]["oauth"]
         data = {
@@ -220,7 +219,7 @@ class OAuth(Auth):
         )
 
         if not call.ok:
-            raise JamfAuthError("Error getting token.", call, call.text)
+            raise JamfAuthError("Failed to obtain OAuth token", call, call.text)
 
         call_json = call.json()
         self._token_str = call_json["access_token"]
@@ -228,7 +227,7 @@ class OAuth(Auth):
         self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
         self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
 
-        self._logger.debug("Token set successfully")
+        self._logger.debug("New OAuth token obtained successfully")
 
 
 
@@ -281,7 +280,7 @@ class BasicAuth(Auth):
     # Private
     def _init_auth(self) -> None:
         """Initialize authentication by setting basic auth token."""
-        self._logger.debug("FUNCTION: _init_auth")
+        self._logger.debug("function: _init_auth")
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
             self.basic_auth_token = b64encode(bytes(credstring, encoding="UTF-8")).decode()
@@ -289,7 +288,7 @@ class BasicAuth(Auth):
 
     def _keep_alive_token(self) -> None:
         """Keep current Bearer token alive and update expiration time."""
-        self._logger.debug("_keep_alive_token starting")
+        self._logger.debug("function: _keep_alive_token")
 
         url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
 
@@ -306,19 +305,19 @@ class BasicAuth(Auth):
         )
 
         if not call.ok:
-            raise JamfAuthError("Error keeping token alive")
+            raise JamfAuthError("Failed to refresh bearer token")
 
         call_json = call.json()
         self._token_str = call_json["token"]
         expiry_str = call_json["expires"]
         self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
-        self._logger.debug("_keep_alive_token complete")
+        self._logger.debug("Bearer token refreshed successfully")
 
 
     # Public
     def set_new_token(self) -> None:
         """Request and set new Bearer token using stored credentials."""
-        self._logger.debug("FUNCTION: set_new_token")
+        self._logger.debug("function: set_new_token")
         url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 
         headers = {
@@ -334,7 +333,7 @@ class BasicAuth(Auth):
         )
 
         if not call.ok:
-            raise JamfAuthError("Error getting new token", call.status_code, call)
+            raise JamfAuthError("Failed to obtain bearer token", call.status_code, call)
 
 
         call_json = call.json()
