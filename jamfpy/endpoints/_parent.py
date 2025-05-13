@@ -65,6 +65,8 @@ class ClassicEndpoint(Endpoint):
             )
         )
 
+
 class ProEndpoint(Endpoint):
     def __init__(self):
         pass
+

@@ -5,14 +5,17 @@ class AdvancedComputerSearches(ClassicEndpoint):
     _name = "advanced_computer_searches"
 
 
+
 class Buildings(ClassicEndpoint):
     _uri = "/buildings"
     _name = "buildings"
 
 
+
 class Categories(ClassicEndpoint):
     _uri = "/categories"
     _name = "categories"
+
 
 
 class ExtensionAttributes(ClassicEndpoint):
