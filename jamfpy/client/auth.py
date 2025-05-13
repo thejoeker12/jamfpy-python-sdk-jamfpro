@@ -1,23 +1,11 @@
 """Authentication module for Jamf Pro API, providing OAuth and Basic Authentication functionality for secure API access."""
 
-"""Python Jamf OAuth Handler
-
-This module provides a handler for managing OAuth authentication with the Jamf API. 
-It supports both OAuth and Bearer token methods, handling token generation, renewal, 
-and invalidation to ensure seamless interaction with Jamf API endpoints.
-
-Classes:
-    Auth: Base class for handling common authentication tasks.
-    OAuth: Subclass for handling OAuth specific authentication.
-    BearerAuth: Subclass for handling Bearer Token specific authentication.
-"""
-
 # Libs
-import datetime
-from typing import Callable, Optional
 from base64 import b64encode
-from requests import request
+import datetime
 from logging import Logger
+from requests import request
+from typing import Callable, Optional
 
 # This module
 from .logger import get_logger
@@ -35,6 +23,8 @@ from .constants import (
 # Seconds
 
 class Auth:
+    """Base authentication class providing token management and validation for Jamf Pro API."""
+
     _token_str: str
     _method: str
     _keep_alive_token: Callable
@@ -67,12 +57,12 @@ class Auth:
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
-        
+
         return get_logger(
             name=f"{shortname}-auth",
             level=log_level
         )
-        
+
 
     def _init_urls(self) -> None:
         self._logger.debug("FUNCTION: _init_urls")
@@ -84,7 +74,7 @@ class Auth:
 
         return auth_url
 
-        
+
     def check_token_in_buffer(self) -> bool:
         """
         Checks if token is within the buffer period.
@@ -198,6 +188,8 @@ class Auth:
 
 
 class OAuth(Auth):
+    """OAuth2 authentication implementation for Jamf Pro API using client credentials."""
+
     _method = "oauth"
 
     def __init__(
@@ -269,20 +261,8 @@ class OAuth(Auth):
 
 
 class BasicAuth(Auth):
-    """
-    Subclass for handling Bearer Token authentication with Jamf API.
+    """Basic authentication implementation for Jamf Pro API using username and password credentials."""
 
-    This class extends the Auth class, providing specific implementations for Bearer Token authentication, 
-    including token generation, renewal, and keep-alive functionality.
-
-    Attributes:
-        [Inherited attributes remain unchanged]
-        username (str, optional): The username for basic authentication.
-        password (str, optional): The password for basic authentication.
-        basic_auth_token (str, optional): The basic auth token if provided.
-
-    Methods:
-    """
     _method = "bearer"
 
     def __init__(
@@ -378,11 +358,10 @@ class BasicAuth(Auth):
 
         if not call.ok:
             raise JamfAuthError("Error getting new token", call.status_code, call)
-        
+
 
         call_json = call.json()
         self._token_str = call_json["token"]
         expiry_str = call_json["expires"]
         fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
         self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
-

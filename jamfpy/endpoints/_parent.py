@@ -4,7 +4,7 @@
 from requests import Request, Response
 
 class Endpoint:
-    """Endpoint parent class"""
+    """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""
     _uri = None
     _name = None
     def __init__(self, api):
@@ -14,6 +14,7 @@ class Endpoint:
 
 
 class ClassicEndpoint(Endpoint):
+    """Base class for Classic Jamf Pro API endpoints, implementing standard CRUD operations."""
     def get_all(self) -> Response:
         suffix = self._uri
         return self._api.do(
@@ -67,6 +68,7 @@ class ClassicEndpoint(Endpoint):
 
 
 class ProEndpoint(Endpoint):
+    """Base class for modern Jamf Pro API endpoints, implementing v1+ API functionality."""
     def __init__(self):
         pass
 

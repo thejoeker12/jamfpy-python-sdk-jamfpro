@@ -14,7 +14,7 @@ VALID_AUTH_METHODS = ["oauth2", "basic"]
 
 
 class Tenant:
-    """Jamf parent object"""
+    """Main entry point for Jamf Pro API interactions, managing authentication and API endpoints."""
 
     def __init__(
       self,

@@ -28,7 +28,7 @@ from ..endpoints.clc_endpoints import (
 )
 
 class API:
-    """Parent class for Jamf API"""
+    """Base class providing core functionality for interacting with Jamf Pro APIs."""
 
     _headers_dict = {}
     _is_closed = False
@@ -188,7 +188,7 @@ class API:
 
 
 class ClassicAPI(API):
-    """Classic API child object"""
+    """Implementation of the Classic Jamf Pro API (JSS) endpoints and functionality."""
 
     _version = "classic"
     _short_name = "clc"
@@ -248,7 +248,7 @@ class ClassicAPI(API):
 
 
 class ProAPI(API):
-    """Pro API child object"""
+    """Implementation of the modern Jamf Pro API (v1+) endpoints and functionality."""
 
     _version = "pro"
     _short_name = "pro"

@@ -1,6 +1,7 @@
 """HTTP configuration module for managing API request settings and configurations."""
 
 class HTTPConfig:
+    """Configuration class for managing HTTP request settings, URLs, and headers for Jamf Pro API interactions."""
     urls = {
         "base_cloud": "https://{tenant}.jamfcloud.com",
         "auth": {

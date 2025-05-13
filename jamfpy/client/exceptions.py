@@ -1,16 +1,16 @@
 """Custom exception classes for handling Jamf Pro API-specific errors and edge cases."""
 
 class JamfAPIError(Exception):
-    """Jamf API Specific error"""
+    """Base exception for errors returned by the Jamf Pro API."""
 
 
 class jamfpyConfigError(Exception):
-    """Module Configuration error"""
+    """Exception raised when there are configuration-related issues with the jamfpy module."""
 
 
 class JamfpyInitError(Exception):
-    """Module initiation error"""
+    """Exception raised when there are initialization issues with the jamfpy module."""
 
 
 class JamfAuthError(Exception):
-    """Module Auth error"""
+    """Exception raised when there are authentication-related issues with the Jamf Pro API."""
