@@ -20,8 +20,6 @@ from .constants import (
     DEFAULT_TOKEN_BUFFER
 )
 
-# Seconds
-
 class Auth:
     """Base authentication class providing token management and validation for Jamf Pro API."""
 
@@ -38,26 +36,21 @@ class Auth:
             *,
             fqdn: str,
             http_config: HTTPConfig,
-            logger: Logger,
             token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
             log_level: int = DEFAULT_LOG_LEVEL
     ):
+        """Initialize Auth instance with FQDN and configuration settings."""
         self._fqdn = fqdn
         self._http_config = http_config
-        self._logger = self._init_logging(logger, log_level)
+        self._logger = self._init_logging(log_level)
         self._auth_url = self._init_urls()
 
         self.token_exp_thold_mins = token_exp_thold_mins
 
-    def _init_logging(self, logger, log_level) -> Logger:
-        """Inits loggers for API Object"""
-
-        if logger:
-            return logger
-
-        # Everything after the slashes, before the first dot of an fqdn
-        # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        shortname = extract_cloud_tenant_name_from_url(self._fqdn)
+    @classmethod
+    def _init_logging(cls, log_level) -> Logger:
+        """Initialize logger for API authentication."""
+        shortname = extract_cloud_tenant_name_from_url(cls._fqdn)
 
         return get_logger(
             name=f"{shortname}-auth",
@@ -66,6 +59,7 @@ class Auth:
 
 
     def _init_urls(self) -> None:
+        """Initialize authentication URLs based on method."""
         self._logger.debug("FUNCTION: _init_urls")
 
         auth_endpoint = self._http_config.urls["auth"][self._method]
@@ -77,17 +71,7 @@ class Auth:
 
 
     def check_token_in_buffer(self) -> bool:
-        """
-        Checks if token is within the buffer period.
-
-        example:
-        self.token_exp_thold_mins = 2
-        now = 10:30am
-        self.token_expiry = 10:31
-        
-        Returns:
-            bool: True if token is within the buffer period, False otherwise.
-        """
+        """Check if token is within the expiration buffer period."""
         self._logger.debug("FUNCTION: check_token_in_buffer")
 
         self._logger.debug("Expiry time: %s", self.token_expiry)
@@ -111,12 +95,7 @@ class Auth:
 
 
     def check_token_is_expired(self) -> bool:
-        """
-        Checks if the current token has expired.
-
-        Returns:
-            bool: True if the token has expired, False otherwise.
-        """
+        """Check if the current token has expired."""
         self._logger.debug("FUNCTION: check_token_is_expired")
 
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
@@ -136,10 +115,7 @@ class Auth:
 
 
     def check_token(self) -> None:
-        """
-        Proccess of checking and refreshing token
-        Occurs before every request to ensure no usage of old tokens
-        """
+        """Check token validity and refresh if needed."""
         self._logger.debug("FUNCTION: check_token")
 
         if self.check_token_is_expired():
@@ -160,16 +136,14 @@ class Auth:
 
 
     def token(self) -> str:
-        """Checks token validity and returns token string if valid"""
+        """Check token validity and return token string if valid."""
         self._logger.debug("FUNCTION: token")
         self.check_token()
         return self._token_str
 
 
     def invalidate(self) -> bool:
-        """
-        invalidates token
-        """
+        """Invalidate the current token."""
         url = self._http_config.urls["auth"]["invalidate-token"]
         headers = {
             "accept": "application/json",
@@ -205,6 +179,7 @@ class OAuth(Auth):
             logger = None,
 
     ) -> None:
+        """Initialize OAuth instance with client credentials."""
 
         super().__init__(
             fqdn=fqdn,
@@ -220,13 +195,13 @@ class OAuth(Auth):
     # Magic
 
     def __str__(self) -> str:
-        """Returns a string representation of the OAuth object."""
+        """Return string representation of OAuth object."""
         return f"OAuth Object for {self._fqdn}"
 
     # methods
 
     def set_new_token(self) -> None:
-        """Requests and sets a new OAuth token."""
+        """Request and set a new OAuth token."""
         self._logger.debug("FUNCTION: set_new_token")
 
         headers = self._http_config.headers["auth"]["oauth"]
@@ -258,7 +233,7 @@ class OAuth(Auth):
 
 
     def _keep_alive_token(self) -> None:
-        """Placeholder method for OAuth, raises an error as it's not applicable."""
+        """Placeholder method for OAuth - not applicable."""
         raise JamfAuthError("Action not available with OAuth interface.")
 
 
@@ -279,6 +254,7 @@ class BasicAuth(Auth):
             log_level: int = DEFAULT_LOG_LEVEL,
             logger: Logger = None
     ) -> None:
+        """Initialize BasicAuth instance with credentials."""
 
         super().__init__(
             fqdn=fqdn,
@@ -296,8 +272,7 @@ class BasicAuth(Auth):
 
     # Magic
     def __str__(self) -> str:
-        """Returns a string representation of the BearerAuth object."""
-
+        """Return string representation of BearerAuth object."""
         return f"Bearer Token Object for {self._fqdn}"
 
 
@@ -305,7 +280,7 @@ class BasicAuth(Auth):
 
     # Private
     def _init_auth(self) -> None:
-        """Initializes the authentication by setting the basic auth token."""
+        """Initialize authentication by setting basic auth token."""
         self._logger.debug("FUNCTION: _init_auth")
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
@@ -313,7 +288,7 @@ class BasicAuth(Auth):
 
 
     def _keep_alive_token(self) -> None:
-        """Keeps the current Bearer token alive and updates its expiration time."""
+        """Keep current Bearer token alive and update expiration time."""
         self._logger.debug("_keep_alive_token starting")
 
         url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
@@ -342,8 +317,7 @@ class BasicAuth(Auth):
 
     # Public
     def set_new_token(self) -> None:
-        """Requests and sets a new Bearer token using stored credentials."""
-
+        """Request and set new Bearer token using stored credentials."""
         self._logger.debug("FUNCTION: set_new_token")
         url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 

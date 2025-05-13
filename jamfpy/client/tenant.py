@@ -8,6 +8,7 @@ from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER
 from .exceptions import JamfpyConfigError
+from .enums import AuthMethod
 
 
 VALID_AUTH_METHODS = ["oauth2", "basic"]
@@ -54,7 +55,6 @@ class Tenant:
         )
 
 
-
     def _init_validate_auth(
             self,
             *,
@@ -73,12 +73,12 @@ class Tenant:
         Returns Auth or errors
         """
 
-        if auth_method not in VALID_AUTH_METHODS:
+        if auth_method not in [AuthMethod.BASIC.value, AuthMethod.OAUTH2.value]:
             raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
 
         match auth_method:
 
-            case "oauth2":
+            case AuthMethod.OAUTH2.value:
                 if not client_id or not client_secret:
                     raise JamfpyConfigError("invalid credential combination supplied for auth method")
 
@@ -91,7 +91,7 @@ class Tenant:
                     http_config=http_config
                 )
 
-            case "basic":
+            case AuthMethod.BASIC.value:
 
                 if not username or not password:
                     raise JamfpyConfigError("invalid credential combination supplied for auth method")
