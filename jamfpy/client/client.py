@@ -1,10 +1,7 @@
-"""
-Jamf API Client Main
-"""
+"""Core client module for Jamf Pro API interactions, providing base API client functionality and specific implementations for Pro and Classic APIs."""
 
-from typing import Any
 import warnings
-from requests import Session, Request, Response, HTTPError
+from requests import Session, Request, Response
 from logging import Logger
 
 from .auth import Auth

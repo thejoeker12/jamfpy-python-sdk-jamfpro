@@ -1,6 +1,4 @@
-"""configuration object"""
-from requests import Session
-from logging import Logger
+"""HTTP configuration module for managing API request settings and configurations."""
 
 class HTTPConfig:
     urls = {

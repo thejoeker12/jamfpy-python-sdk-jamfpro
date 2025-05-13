@@ -1,12 +1,9 @@
-"""Util"""
+"""Utility functions and helper methods for the Jamf Pro API client."""
 # // TODO tidy this whole file up
-import json
 from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import requests
-
 
 
 def extract_cloud_tenant_name_from_url(fqdn: str):

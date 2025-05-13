@@ -1,6 +1,4 @@
-"""
-Default logging module for this library
-"""
+"""Logging configuration and utilities for the Jamf Pro API client."""
 
 import logging
 import sys

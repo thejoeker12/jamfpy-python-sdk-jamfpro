@@ -1,3 +1,5 @@
+"""Constants and configuration values used throughout the Jamf Pro API client."""
+
 from logging import INFO
 
 DEFAULT_LOG_LEVEL = INFO

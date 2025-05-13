@@ -1,3 +1,5 @@
+"""Endpoint module for managing Jamf Pro scripts, providing functionality to create, read, update, and delete scripts."""
+
 from requests import Request
 from ..client.exceptions import JamfAPIError
 from ._parent import ProEndpoint

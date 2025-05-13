@@ -1,4 +1,4 @@
-"""Custom exceptions"""
+"""Custom exception classes for handling Jamf Pro API-specific errors and edge cases."""
 
 class JamfAPIError(Exception):
     """Jamf API Specific error"""

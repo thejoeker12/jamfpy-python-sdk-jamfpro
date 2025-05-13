@@ -1,16 +1,9 @@
-"""
-Init function for API Objects
-"""
+"""Tenant management module for handling Jamf Pro tenant configurations and operations."""
 
 # pylint: disable=broad-exception-raised, unused-argument
 
-# Libs
-from logging import Logger
-from requests import Session
-
 # This Lib
 from .client import ProAPI, ClassicAPI
-from .logger import get_logger
 from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER

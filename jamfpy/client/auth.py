@@ -1,3 +1,5 @@
+"""Authentication module for Jamf Pro API, providing OAuth and Basic Authentication functionality for secure API access."""
+
 """Python Jamf OAuth Handler
 
 This module provides a handler for managing OAuth authentication with the Jamf API. 

@@ -1,3 +1,5 @@
+"""Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
+
 from ._parent import ClassicEndpoint
 
 class AdvancedComputerSearches(ClassicEndpoint):
