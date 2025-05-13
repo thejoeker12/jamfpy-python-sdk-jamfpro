@@ -1,11 +1,12 @@
 """Core client module for Jamf Pro API interactions, providing base API client functionality and specific implementations for Pro and Classic APIs."""
 
 import warnings
-from requests import Session, Request, Response
 from logging import Logger
+from requests import Session, Request, Response
+
 
 from .auth import Auth
-from .exceptions import jamfpyConfigError
+from .exceptions import JamfpyConfigError
 from .logger import get_logger
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL
@@ -24,7 +25,6 @@ from ..endpoints.clc_endpoints import (
     Computers,
     Sites,
     Departments,
-    Policies
 )
 
 class API:
@@ -39,6 +39,7 @@ class API:
 
     def __init__(
             self,
+            *,
             fqdn: str,
             auth: Auth,
             log_level,
@@ -144,7 +145,7 @@ class API:
         if self._version == "pro":
             return self.base_url.format(jamfapiversion=target)
 
-        raise jamfpyConfigError("Invalid API version")
+        raise JamfpyConfigError("Invalid API version")
 
 
     # @_check_closed
@@ -195,6 +196,7 @@ class ClassicAPI(API):
 
     def __init__(
             self,
+            *,
             fqdn: str,
             auth: Auth,
             log_level = DEFAULT_LOG_LEVEL,
@@ -234,6 +236,7 @@ class ClassicAPI(API):
     # Deprecated property
     @property
     def computergroups(self):
+        """Deprecated: Use computer_groups property instead."""
         warnings.warn(
             "The 'computergroups' property is deprecated and will be removed in a future version. "
             "Use 'computer_groups' instead.",
@@ -255,6 +258,7 @@ class ProAPI(API):
 
     def __init__(
             self,
+            *,
             fqdn: str,
             auth: Auth,
             log_level = DEFAULT_LOG_LEVEL,

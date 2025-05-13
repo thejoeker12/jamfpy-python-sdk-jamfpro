@@ -4,7 +4,7 @@ class JamfAPIError(Exception):
     """Base exception for errors returned by the Jamf Pro API."""
 
 
-class jamfpyConfigError(Exception):
+class JamfpyConfigError(Exception):
     """Exception raised when there are configuration-related issues with the jamfpy module."""
 
 

@@ -15,7 +15,7 @@ class HTTPConfig:
             "pro": "/api/v{jamfapiversion}"
         }
     }
-    
+
     headers = {
         "auth": {
             "oauth": {

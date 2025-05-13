@@ -8,7 +8,7 @@ DEFAULT_FORMAT = '%(asctime)s [%(levelname)s] (%(name)s): %(message)s'
 
 def get_logger(
         name,
-        format: str = DEFAULT_FORMAT,
+        output_format: str = DEFAULT_FORMAT,
         level: int = DEFAULT_LEVEL,
     ) -> logging.Logger:
     """
@@ -22,7 +22,7 @@ def get_logger(
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(level)
 
-    formatter = logging.Formatter(format)
+    formatter = logging.Formatter(output_format)
     ch.setFormatter(formatter)
 
     logger.addHandler(ch)

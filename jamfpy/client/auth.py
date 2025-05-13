@@ -4,8 +4,8 @@
 from base64 import b64encode
 import datetime
 from logging import Logger
-from requests import request
 from typing import Callable, Optional
+from requests import request
 
 # This module
 from .logger import get_logger
@@ -35,11 +35,12 @@ class Auth:
 
     def __init__(
             self,
+            *,
             fqdn: str,
             http_config: HTTPConfig,
             logger: Logger,
-            token_exp_thold_mins: int,
-            log_level: int
+            token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
+            log_level: int = DEFAULT_LOG_LEVEL
     ):
         self._fqdn = fqdn
         self._http_config = http_config
@@ -194,6 +195,7 @@ class OAuth(Auth):
 
     def __init__(
             self,
+            *,
             fqdn: str,
             client_id: str,
             client_secret: str,
@@ -267,6 +269,7 @@ class BasicAuth(Auth):
 
     def __init__(
             self,
+            *,
             fqdn,
             token_exp_thold_mins,
             http_config: HTTPConfig = HTTPConfig(),

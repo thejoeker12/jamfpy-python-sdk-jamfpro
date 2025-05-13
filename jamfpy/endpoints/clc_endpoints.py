@@ -81,8 +81,3 @@ class Sites(ClassicEndpoint):
     """Endpoint for managing sites in Jamf Pro."""
     _uri = "/sites"
     _name = "sites"
-
-
-class Policies(ClassicEndpoint):
-    _uri = "/policies"
-    _name = "policies"

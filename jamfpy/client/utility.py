@@ -7,6 +7,7 @@ from xml.dom import minidom
 
 
 def extract_cloud_tenant_name_from_url(fqdn: str):
+    """Extracts the tenant name from a Jamf Cloud URL (e.g. 'tenant' from 'https://tenant.jamfcloud.com')."""
     return fqdn.split("//")[1].split(".")[0]
 
 

@@ -7,7 +7,7 @@ from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER
-from .exceptions import jamfpyConfigError
+from .exceptions import JamfpyConfigError
 
 
 VALID_AUTH_METHODS = ["oauth2", "basic"]
@@ -18,6 +18,7 @@ class Tenant:
 
     def __init__(
       self,
+      *,
       fqdn: str,
       auth_method: str,
       client_id: str = None,
@@ -33,36 +34,37 @@ class Tenant:
         self.token_exp_threshold_mins = token_exp_threshold_mins
 
         auth = self._init_validate_auth(
-            auth_method,
-            client_id,
-            client_secret,
-            username,
-            password,
-            log_level,
-            http_config
+            auth_method=auth_method,
+            client_id=client_id,
+            client_secret=client_secret,
+            username=username,
+            password=password,
+            log_level=log_level,
+            http_config=http_config
         )
 
         auth.set_new_token()
 
         self._init_apis(
-            fqdn,
-            auth,
-            log_level,
-            http_config,
-            safe_mode
+            fqdn=fqdn,
+            auth=auth,
+            log_level=log_level,
+            http_config=http_config,
+            safe_mode=safe_mode
         )
 
 
 
     def _init_validate_auth(
             self,
-            auth_method,
-            client_id,
-            client_secret,
-            username,
-            password,
-            log_level,
-            http_config,
+            *,
+            auth_method: str,
+            client_id: str,
+            client_secret: str,
+            username: str,
+            password: str,
+            log_level: int,
+            http_config: HTTPConfig,
     ):
         """
         Method to validate the supplied configuration of auth credentials
@@ -72,13 +74,13 @@ class Tenant:
         """
 
         if auth_method not in VALID_AUTH_METHODS:
-            raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
+            raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
 
         match auth_method:
 
             case "oauth2":
                 if not client_id or not client_secret:
-                    raise jamfpyConfigError("invalid credential combination supplied for auth method")
+                    raise JamfpyConfigError("invalid credential combination supplied for auth method")
 
                 return OAuth(
                     fqdn=self.fqdn,
@@ -92,7 +94,7 @@ class Tenant:
             case "basic":
 
                 if not username or not password:
-                   raise jamfpyConfigError("invalid credential combination supplied for auth method")
+                    raise JamfpyConfigError("invalid credential combination supplied for auth method")
 
                 return BasicAuth(
                     fqdn=self.fqdn,
@@ -104,34 +106,30 @@ class Tenant:
                 )
 
             case _:
-                raise jamfpyConfigError("invalid auth method supplied: %s", auth_method)
+                raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
 
 
     def _init_apis(
             self,
-            fqdn,
-            auth,
-            log_level,
-            http_config,
-            safe_mode,
+            *,
+            fqdn: str,
+            auth: OAuth | BasicAuth,
+            log_level: int,
+            http_config: HTTPConfig,
+            safe_mode: bool,
     ):
         self.pro = ProAPI(
-            fqdn,
-            auth,
-            log_level,
-            http_config,
-            safe_mode,
-            None,
-            None,
+            fqdn=fqdn,
+            auth=auth,
+            log_level=log_level,
+            http_config=http_config,
+            safe_mode=safe_mode,
         )
 
         self.classic = ClassicAPI(
-            fqdn,
-            auth,
-            log_level,
-            http_config,
-            safe_mode,
-            None,
-            None,
+            fqdn=fqdn,
+            auth=auth,
+            log_level=log_level,
+            http_config=http_config,
+            safe_mode=safe_mode,
         )
-

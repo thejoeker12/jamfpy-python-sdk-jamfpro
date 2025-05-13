@@ -1,4 +1,4 @@
-"""Endpoint module for managing Jamf Pro scripts, providing functionality to create, read, update, and delete scripts."""
+"""Endpoint module for managing Jamf Pro scripts."""
 
 from requests import Request
 from ..client.exceptions import JamfAPIError
@@ -12,6 +12,7 @@ class Scripts(ProEndpoint):
     _name = "scripts"
 
     def get_all(self):
+        """Get all scripts from the Jamf Pro API."""
         page_size = 200
         page_number = 0
         suffix_template = f"/scripts?page={page_number}&page-size={page_size}&sort=name%3Aasc"
@@ -55,7 +56,7 @@ class Scripts(ProEndpoint):
 
 
     def get_by_id(self, target_id: int):
-        
+        """Get a script by its ID."""
         url = self._api.url("1") + f"{self._uri}/{target_id}"
         headers = self._api.header("read")["json"]
         req = Request("GET", url=url, headers=headers)
@@ -65,9 +66,9 @@ class Scripts(ProEndpoint):
 
         return resp, None
 
-    
+
     def delete_by_id(self, target_id: int):
-        
+        """Delete a script by its ID."""
         url = self._api.url("1") + f"{self._uri}/{target_id}"
         req = Request("DELETE", url=url)
         return self._api.do(req)
@@ -79,4 +80,4 @@ class Scripts(ProEndpoint):
     #         notes: str = None,
     #         priority: str = None
     # ):
-    #     pass
+    #     pass</edit>
