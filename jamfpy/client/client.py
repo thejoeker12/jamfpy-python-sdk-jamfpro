@@ -15,20 +15,20 @@ from .constants import DEFAULT_LOG_LEVEL
 from .utility import extract_cloud_tenant_name_from_url
 
 from ..endpoints.clc_endpoints import (
-    ComputerGroups, 
-    Policies, 
-    ConfigurationProfiles, 
-    ExtensionAttributes, 
-    Categories, 
-    AdvancedComputerSearches, 
-    Scripts, 
-    Buildings, 
-    Packages, 
-    Computers, 
-    Sites, 
+    ComputerGroups,
+    Policies,
+    ConfigurationProfiles,
+    ExtensionAttributes,
+    Categories,
+    AdvancedComputerSearches,
+    Scripts,
+    Buildings,
+    Packages,
+    Computers,
+    Sites,
     Departments,
     Policies
-    )
+)
 
 class API:
     """Parent class for Jamf API"""

@@ -56,9 +56,6 @@ class Auth:
 
         self.token_exp_thold_mins = token_exp_thold_mins
 
-        
-
-
     def _init_logging(self, logger, log_level) -> Logger:
         """Inits loggers for API Object"""
 
