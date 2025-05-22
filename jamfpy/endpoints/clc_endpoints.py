@@ -81,3 +81,8 @@ class Sites(ClassicEndpoint):
     """Endpoint for managing sites in Jamf Pro."""
     _uri = "/sites"
     _name = "sites"
+
+class Accounts(ClassicEndpoint):
+    """Endpoing for managing accounts in Jamf Pro"""
+    _uri = "/accounts"
+    _name = "accounts"
