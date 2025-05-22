@@ -2,7 +2,7 @@
 
 from requests import Request
 from ..client.exceptions import JamfAPIError
-from ._parent import ProEndpoint
+from .models import ProEndpoint
 
 
 
@@ -80,4 +80,4 @@ class Scripts(ProEndpoint):
     #         notes: str = None,
     #         priority: str = None
     # ):
-    #     pass</edit>
+    #     pass

@@ -1,6 +1,6 @@
 """Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
+from .models import ClassicEndpoint
 
-from ._parent import ClassicEndpoint
 
 class AdvancedComputerSearches(ClassicEndpoint):
     """Endpoint for managing advanced computer search configurations in Jamf Pro."""
@@ -81,3 +81,8 @@ class Sites(ClassicEndpoint):
     """Endpoint for managing sites in Jamf Pro."""
     _uri = "/sites"
     _name = "sites"
+
+class Accounts(ClassicEndpoint):
+    """Endpoing for managing accounts in Jamf Pro"""
+    _uri = "/accounts"
+    _name = "accounts"
