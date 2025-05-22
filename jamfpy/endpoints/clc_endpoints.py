@@ -1,4 +1,4 @@
-from ._parent import ClassicEndpoint
+from .models import ClassicEndpoint
 
 class AdvancedComputerSearches(ClassicEndpoint):
     _uri = "/advancedcomputersearches"

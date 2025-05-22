@@ -1,7 +1,7 @@
 
 from requests import Request
 from ..client.exceptions import JamfAPIError
-from ._parent import ProEndpoint
+from .models import ProEndpoint
 
 
 
