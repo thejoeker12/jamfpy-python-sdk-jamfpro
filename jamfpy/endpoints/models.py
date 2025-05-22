@@ -1,5 +1,4 @@
 """Base endpoint class providing common functionality and structure for all Jamf Pro API endpoints."""
-# debug
 # pylint: disable=import-outside-toplevel
 from requests import Request, Response
 
