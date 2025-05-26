@@ -1,6 +1,7 @@
 """Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
 
 from requests import Request, Response
+import json
 from .models import ClassicEndpoint, Endpoint
 
 
@@ -95,12 +96,34 @@ class AccountUsers(ClassicEndpoint):
     def __init__(self, api_client):
         self._api = api_client
 
-    def get_all(self):
-        """ Returns all group objects under /accounts """
-        all_objects = super().get_all()
-        all_objects_json  = all_objects.json()
-        users = all_objects_json['accounts']['users']
-        return users
+    def get_all(self) -> Response:
+        """Returns a Response object with its JSON content modified to only include users."""
+        original_response: Response = super().get_all()
+        original_response.raise_for_status()
+
+        try:
+            original_json = original_response.json()
+        except json.JSONDecodeError:
+            raise
+
+        users_data = original_json.get('accounts', {}).get('users', [])
+
+        new_response = Response()
+
+        new_response.status_code = original_response.status_code
+        new_response.headers = original_response.headers.copy()
+        new_response.encoding = original_response.encoding
+        new_response.url = original_response.url
+        new_response.request = original_response.request
+
+        modified_json_string = json.dumps(users_data)
+        
+        response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
+        new_response._content = modified_json_string.encode(response_encoding)
+
+        new_response.headers['Content-Length'] = str(len(new_response._content))
+        
+        return new_response
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
