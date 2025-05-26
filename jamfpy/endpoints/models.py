@@ -12,10 +12,15 @@ class Endpoint:
         api: API
         self._api = api
 
-
 class ClassicEndpoint(Endpoint):
     """Base class for Classic Jamf Pro API endpoints, implementing standard CRUD operations."""
+
     def get_all(self) -> Response:
+        """Get all records for this endpoint."""
+        suffix = self._uri
+        return self.get_all(suffix)
+
+    def get_all(self, suffix) -> Response:
         """Get all records for this endpoint."""
         suffix = self._uri
         return self._api.do(

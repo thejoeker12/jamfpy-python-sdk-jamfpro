@@ -1,5 +1,7 @@
 """Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
-from .models import ClassicEndpoint
+
+from requests import Request, Response
+from .models import ClassicEndpoint, Endpoint
 
 
 class AdvancedComputerSearches(ClassicEndpoint):
@@ -82,7 +84,128 @@ class Sites(ClassicEndpoint):
     _uri = "/sites"
     _name = "sites"
 
-class Accounts(ClassicEndpoint):
-    """Endpoing for managing accounts in Jamf Pro"""
+class AccountUsers(ClassicEndpoint):
+    """Endpoing for managing users under the account endpoint in Jamf Pro"""
+    _name = "users"
+
+    _uri = "/accounts"
+    _by_id_uri = _uri + "/userid"
+    _by_name_uri = _uri + "/username"
+
+    def get_all(self):
+        """ Returns all group objects under /accounts """
+        all_objects = super().get_all()
+        groups = all_objects["users"]
+        return groups
+
+    def get_by_id(self, target_id: int) -> Response:
+        """Get a single record by ID."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="GET",
+                url=self._api.url() + suffix,
+                headers=self._api.header("read")["json"]
+            )
+        )
+    def update_by_id(self, target_id: int, updated_configuration: str) -> Response:
+        """Update a record by ID with new configuration."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="PUT",
+                url=self._api.url() + suffix,
+                headers=self._api.header("create-update")["xml"],
+                data=updated_configuration
+            )
+        )
+
+    def create(self, config_profile: str) -> Response:
+        """Create a new record."""
+        suffix = self._by_id_uri + f"/0"
+        return self._api.do(
+            Request(
+                method="POST",
+                url=self._api.url() + suffix,
+                headers=self._api.header("create-update")["xml"],
+                data=config_profile
+            )
+        )
+
+    def delete_by_id(self, target_id: int) -> Response:
+        """Delete a record by ID."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="DELETE",
+                url=self._api.url() + suffix,
+            )
+        )
+
+class AccountGroups(ClassicEndpoint):
+    _name = "groups"
+
+    _uri = "/accounts"
+    _by_id_uri = _uri + "/groupid"
+    _by_name_uri = _uri + "/groupname"
+
+    def get_all(self):
+        """ Returns all group objects under /accounts """
+        all_objects = super().get_all()
+        groups = all_objects["groups"]
+        return groups
+
+    def get_by_id(self, target_id: int) -> Response:
+        """Get a single record by ID."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="GET",
+                url=self._api.url() + suffix,
+                headers=self._api.header("read")["json"]
+            )
+        )
+    def update_by_id(self, target_id: int, updated_configuration: str) -> Response:
+        """Update a record by ID with new configuration."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="PUT",
+                url=self._api.url() + suffix,
+                headers=self._api.header("create-update")["xml"],
+                data=updated_configuration
+            )
+        )
+
+    def create(self, config_profile: str) -> Response:
+        """Create a new record."""
+        suffix = self._by_id_uri + f"/0"
+        return self._api.do(
+            Request(
+                method="POST",
+                url=self._api.url() + suffix,
+                headers=self._api.header("create-update")["xml"],
+                data=config_profile
+            )
+        )
+
+    def delete_by_id(self, target_id: int) -> Response:
+        """Delete a record by ID."""
+        suffix = self._by_id_uri + f"/{target_id}"
+        return self._api.do(
+            Request(
+                method="DELETE",
+                url=self._api.url() + suffix,
+            )
+        )
+
+class Accounts(Endpoint):
     _uri = "/accounts"
     _name = "accounts"
+    
+    def get_all(self):
+        classic_endpoint = ClassicEndpoint()
+        return classic_endpoint.get_all()
+
+    users = AccountUsers()
+    groups = AccountGroups()
