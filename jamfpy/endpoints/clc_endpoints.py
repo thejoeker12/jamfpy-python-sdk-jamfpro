@@ -98,9 +98,9 @@ class AccountUsers(ClassicEndpoint):
     def get_all(self):
         """ Returns all group objects under /accounts """
         all_objects = super().get_all()
-        # print(all_objects)
-        # groups = all_objects['users']
-        return all_objects
+        all_objects_json  = all_objects.json()
+        users = all_objects_json['users']
+        return users
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
