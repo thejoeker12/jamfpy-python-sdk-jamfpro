@@ -99,7 +99,7 @@ class AccountUsers(ClassicEndpoint):
         """ Returns all group objects under /accounts """
         all_objects = super().get_all()
         all_objects_json  = all_objects.json()
-        users = all_objects_json['users']
+        users = all_objects_json['accounts']['users']
         return users
 
     def get_by_id(self, target_id: int) -> Response:
