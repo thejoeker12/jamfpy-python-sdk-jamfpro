@@ -98,7 +98,8 @@ class AccountUsers(ClassicEndpoint):
     def get_all(self):
         """ Returns all group objects under /accounts """
         all_objects = super().get_all()
-        groups = all_objects["users"]
+        print(all_objects)
+        groups = all_objects['users']
         return groups
 
     def get_by_id(self, target_id: int) -> Response:
