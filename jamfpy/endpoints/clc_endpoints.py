@@ -93,14 +93,7 @@ class AccountUsers(ClassicEndpoint):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
-    def __init__(self, api_client):
-        self._api = api_client
-
-    def get_all(self) -> Response:
-        """Returns a Response object with its JSON content modified to only include users."""
-        original_response: Response = super().get_all()
-        original_response.raise_for_status()
-
+    def pass_response(self, original_response: Response, new_data) -> Response:
         try:
             original_json = original_response.json()
         except json.JSONDecodeError:
@@ -124,6 +117,18 @@ class AccountUsers(ClassicEndpoint):
         new_response.headers['Content-Length'] = str(len(new_response._content))
         
         return new_response
+    
+    def __init__(self, api_client):
+        self._api = api_client
+
+    def get_all(self) -> Response:
+        """Returns a Response object with its JSON content modified to only include users."""
+        original_response: Response = super().get_all()
+        original_response.raise_for_status()
+
+        return self.pass_response(original_response)
+
+        
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
