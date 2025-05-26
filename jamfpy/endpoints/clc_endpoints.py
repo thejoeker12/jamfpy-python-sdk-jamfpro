@@ -92,6 +92,9 @@ class AccountUsers(ClassicEndpoint):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
+    def __init__(self):
+        self._api = super()._api
+        
     def get_all(self):
         """ Returns all group objects under /accounts """
         all_objects = super().get_all()
@@ -149,6 +152,9 @@ class AccountGroups(ClassicEndpoint):
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
+    def __init__(self):
+        self._api = super()._api
+
     def get_all(self):
         """ Returns all group objects under /accounts """
         all_objects = super().get_all()
@@ -203,9 +209,10 @@ class Accounts(Endpoint):
     _uri = "/accounts"
     _name = "accounts"
     
+    def __init__(self): 
+        self.users = AccountUsers(self._api)
+        self.groups = AccountGroups(self._api) 
+
     def get_all(self):
         classic_endpoint = ClassicEndpoint(self._api)
         return classic_endpoint.get_all(self._uri)
-
-    users = AccountUsers()
-    groups = AccountGroups()
