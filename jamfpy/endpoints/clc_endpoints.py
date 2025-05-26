@@ -204,7 +204,7 @@ class Accounts(Endpoint):
     _name = "accounts"
     
     def get_all(self):
-        classic_endpoint = ClassicEndpoint()
+        classic_endpoint = ClassicEndpoint(self._api)
         return classic_endpoint.get_all()
 
     # users = AccountUsers()
