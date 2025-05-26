@@ -85,12 +85,30 @@ class Sites(ClassicEndpoint):
     _uri = "/sites"
     _name = "sites"
 
-class AccountChildEndpoint(ClassicEndpoint):
+class AccountChild(ClassicEndpoint):
     """Base class for account-related sub-endpoints; users and groups."""
 
     def __init__(self, api_client):
         self._api = api_client
 
+    def pass_response(self, original_response: Response, new_data) -> Response:
+        """Packages new_data into a Response object based on original_response."""
+        new_response = Response()
+
+        new_response.status_code = original_response.status_code
+        new_response.headers = original_response.headers.copy()
+        new_response.encoding = original_response.encoding
+        new_response.url = original_response.url
+        new_response.request = original_response.request
+
+        modified_json_string = json.dumps(new_data)
+        
+        response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
+        new_response._content = modified_json_string.encode(response_encoding)
+
+        new_response.headers['Content-Length'] = str(len(new_response._content))
+        
+        return new_response
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
@@ -137,35 +155,13 @@ class AccountChildEndpoint(ClassicEndpoint):
             )
         )
 
-class AccountUsers(AccountChildEndpoint):
+class AccountUsers(AccountChild):
     """Endpoing for managing users under the account endpoint in Jamf Pro"""
     _name = "users"
 
     _uri = "/accounts"
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
-
-    def pass_response(self, original_response: Response, new_data) -> Response:
-
-        new_response = Response()
-
-        new_response.status_code = original_response.status_code
-        new_response.headers = original_response.headers.copy()
-        new_response.encoding = original_response.encoding
-        new_response.url = original_response.url
-        new_response.request = original_response.request
-
-        modified_json_string = json.dumps(new_data)
-        
-        response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
-        new_response._content = modified_json_string.encode(response_encoding)
-
-        new_response.headers['Content-Length'] = str(len(new_response._content))
-        
-        return new_response
-    
-    def __init__(self, api_client):
-        self._api = api_client
 
     def get_all(self) -> Response:
         """Returns a Response object with its JSON content modified to only include users."""
@@ -180,18 +176,15 @@ class AccountUsers(AccountChildEndpoint):
 
         return self.pass_response(original_response, users_data)
 
-class AccountGroups(AccountChildEndpoint):
+class AccountGroups(AccountChild):
     _name = "groups"
 
     _uri = "/accounts"
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
-    def __init__(self, api_client):
-        self._api = api_client
-
-    def get_all(self) -> list:
-        """ Returns all group objects under /accounts """
+    def get_all(self) -> Response:
+        """ Returns all group objects under /accounts, packaged in a Response object. """
         original_response: Response = super().get_all()
         original_response.raise_for_status()
         try:
@@ -200,7 +193,7 @@ class AccountGroups(AccountChildEndpoint):
             raise
 
         groups_data = original_json.get('accounts', {}).get('groups', [])
-        return groups_data
+        return self.pass_response(original_response, groups_data)
 
 class Accounts(Endpoint):
     _uri = "/accounts"
