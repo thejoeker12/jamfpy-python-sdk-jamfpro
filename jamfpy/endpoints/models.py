@@ -15,18 +15,16 @@ class Endpoint:
 class ClassicEndpoint(Endpoint):
     """Base class for Classic Jamf Pro API endpoints, implementing standard CRUD operations."""
 
-    def get_all(self) -> Response:
-        """Get all records for this endpoint."""
-        suffix = self._uri
-        return self.get_all(suffix)
-
-    def get_all(self, suffix) -> Response:
-        """Get all records for this endpoint."""
-        suffix = self._uri
+    def get_all(self, suffix: str | None = None) -> Response:
+        """Get all records for this endpoint.
+        Optionally uses a provided suffix, otherwise defaults to the endpoint's base URI.
+        """
+        effective_suffix = suffix if suffix is not None else self._uri
+        
         return self._api.do(
             Request(
                 method="GET",
-                url=self._api.url() + suffix,
+                url=self._api.url() + effective_suffix,
                 headers=self._api.header("read")["json"]
             )
         )
