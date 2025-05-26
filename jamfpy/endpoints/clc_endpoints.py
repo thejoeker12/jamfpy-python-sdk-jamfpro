@@ -207,5 +207,5 @@ class Accounts(Endpoint):
         classic_endpoint = ClassicEndpoint()
         return classic_endpoint.get_all()
 
-    users = AccountUsers()
-    groups = AccountGroups()
+    # users = AccountUsers()
+    # groups = AccountGroups()
