@@ -94,12 +94,6 @@ class AccountUsers(ClassicEndpoint):
     _by_name_uri = _uri + "/username"
 
     def pass_response(self, original_response: Response, new_data) -> Response:
-        try:
-            original_json = original_response.json()
-        except json.JSONDecodeError:
-            raise
-
-        users_data = original_json.get('accounts', {}).get('users', [])
 
         new_response = Response()
 
@@ -109,7 +103,7 @@ class AccountUsers(ClassicEndpoint):
         new_response.url = original_response.url
         new_response.request = original_response.request
 
-        modified_json_string = json.dumps(users_data)
+        modified_json_string = json.dumps(new_data)
         
         response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
         new_response._content = modified_json_string.encode(response_encoding)
@@ -125,8 +119,14 @@ class AccountUsers(ClassicEndpoint):
         """Returns a Response object with its JSON content modified to only include users."""
         original_response: Response = super().get_all()
         original_response.raise_for_status()
+        try:
+            original_json = original_response.json()
+        except json.JSONDecodeError:
+            raise
 
-        return self.pass_response(original_response)
+        users_data = original_json.get('accounts', {}).get('users', [])
+
+        return self.pass_response(original_response, users_data)
 
         
 
