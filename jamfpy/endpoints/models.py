@@ -20,7 +20,7 @@ class ClassicEndpoint(Endpoint):
         Optionally uses a provided suffix, otherwise defaults to the endpoint's base URI.
         """
         effective_suffix = suffix if suffix is not None else self._uri
-        
+
         return self._api.do(
             Request(
                 method="GET",

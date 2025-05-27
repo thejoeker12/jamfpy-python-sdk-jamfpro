@@ -1,7 +1,6 @@
 """Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
-
-from requests import Request, Response
 import json
+from requests import Request, Response
 from .models import ClassicEndpoint, Endpoint
 
 
@@ -113,7 +112,7 @@ class AccountChild(ClassicEndpoint):
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
-        
+
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
             Request(
@@ -169,16 +168,15 @@ class AccountUsers(AccountChild):
         """Returns a Response object with its JSON content modified to only include users."""
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
-        try:
-            original_json = original_response.json()
-        except json.JSONDecodeError:
-            raise
+        original_json = original_response.json()
 
         users_data = original_json.get('accounts', {}).get('users', [])
 
         return self.pass_response(original_response, users_data)
 
 class AccountGroups(AccountChild):
+    """Endpoing for managing groups under the account endpoint in Jamf Pro"""
+
     _name = "groups"
 
     _uri = "/accounts"
@@ -189,10 +187,7 @@ class AccountGroups(AccountChild):
         """ Returns all group objects under /accounts, packaged in a Response object. """
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
-        try:
-            original_json = original_response.json()
-        except json.JSONDecodeError:
-            raise
+        original_json = original_response.json()
 
         groups_data = original_json.get('accounts', {}).get('groups', [])
         return self.pass_response(original_response, groups_data)
@@ -209,5 +204,6 @@ class Accounts(Endpoint):
         self.groups = AccountGroups(self._api)
 
     def get_all(self):
+        """ Get all made to /accounts which includes groups and users """
         classic_endpoint = ClassicEndpoint(self._api)
         return classic_endpoint.get_all(self._uri)
