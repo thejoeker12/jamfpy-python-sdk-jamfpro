@@ -196,6 +196,7 @@ class AccountGroups(AccountChild):
         return self.pass_response(original_response, groups_data)
 
 class Accounts(Endpoint):
+    """Parent endpoint for accounts, containing Users and Groups as children"""
     _uri = "/accounts"
     _name = "accounts"
     
