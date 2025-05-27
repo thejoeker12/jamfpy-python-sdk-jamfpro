@@ -88,9 +88,6 @@ class Sites(ClassicEndpoint):
 class AccountChild(ClassicEndpoint):
     """Base class for account-related sub-endpoints; users and groups."""
 
-    def __init__(self, api_client):
-        self._api = api_client
-
     def pass_response(self, original_response: Response, new_data) -> Response:
         """Packages new_data into a Response object based on original_response."""
         new_response = Response()
@@ -102,12 +99,12 @@ class AccountChild(ClassicEndpoint):
         new_response.request = original_response.request
 
         modified_json_string = json.dumps(new_data)
-        
+
         response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
         new_response._content = modified_json_string.encode(response_encoding)
 
         new_response.headers['Content-Length'] = str(len(new_response._content))
-        
+
         return new_response
 
     def get_by_id(self, target_id: int) -> Response:
@@ -199,11 +196,11 @@ class Accounts(Endpoint):
     """Parent endpoint for accounts, containing Users and Groups as children"""
     _uri = "/accounts"
     _name = "accounts"
-    
+
     def __init__(self, api_client): 
         self._api = api_client
         self.users = AccountUsers(self._api)
-        self.groups = AccountGroups(self._api) 
+        self.groups = AccountGroups(self._api)
 
     def get_all(self):
         classic_endpoint = ClassicEndpoint(self._api)
