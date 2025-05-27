@@ -164,7 +164,7 @@ class AccountUsers(AccountChild):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
-    def get_all(self) -> Response:
+    def get_all(self, suffix=None) -> Response:
         """Returns a Response object with its JSON content modified to only include users."""
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
@@ -184,7 +184,7 @@ class AccountGroups(AccountChild):
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
-    def get_all(self) -> Response:
+    def get_all(self, suffix=None) -> Response:
         """ Returns all group objects under /accounts, packaged in a Response object. """
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
