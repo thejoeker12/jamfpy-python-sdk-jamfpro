@@ -88,6 +88,9 @@ class Sites(ClassicEndpoint):
 class AccountChild(ClassicEndpoint):
     """Base class for account-related sub-endpoints; users and groups."""
 
+    _by_id_uri: str = None
+    _by_name_uri: str = None
+
     def pass_response(self, original_response: Response, new_data) -> Response:
         """Packages new_data into a Response object based on original_response."""
         new_response = Response()
