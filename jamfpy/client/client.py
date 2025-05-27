@@ -25,7 +25,6 @@ from ..endpoints.clc_endpoints import (
     Computers,
     Sites,
     Departments,
-    Accounts
 )
 
 class API:
@@ -232,7 +231,6 @@ class ClassicAPI(API):
         self.sites = Sites(self)
         self.departments = Departments(self)
         self.policies = Policies(self)
-        self.accounts = Accounts(self)
         # self.dockitems = DockItems(self)
 
     # Deprecated property
