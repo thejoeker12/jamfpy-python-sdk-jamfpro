@@ -113,6 +113,7 @@ class AccountChild(ClassicEndpoint):
 
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
+        
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
             Request(
@@ -202,6 +203,7 @@ class Accounts(Endpoint):
     _name = "accounts"
 
     def __init__(self, api_client):
+        super().__init__(api_client)
         self._api = api_client
         self.users = AccountUsers(self._api)
         self.groups = AccountGroups(self._api)
