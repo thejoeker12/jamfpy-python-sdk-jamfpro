@@ -122,7 +122,7 @@ class AccountChild(ClassicEndpoint):
             )
         )
 
-    def update_by_id(self, target_id: int, updated_configuration: str) -> Response:
+    def update_by_id(self, target_id: int, updated_configuration: str) -> Response:  # pylint: disable=R0801
         """Update a record by ID with new configuration."""
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
@@ -134,9 +134,9 @@ class AccountChild(ClassicEndpoint):
             )
         )
 
-    def create(self, config_profile: str) -> Response:
+    def create(self, config_profile: str) -> Response:  # pylint: disable=R0801
         """Create a new record."""
-        suffix = self._by_id_uri + "/0"
+        suffix = f"{self._by_id_uri}/0"
         return self._api.do(
             Request(
                 method="POST",
@@ -146,7 +146,7 @@ class AccountChild(ClassicEndpoint):
             )
         )
 
-    def delete_by_id(self, target_id: int) -> Response:
+    def delete_by_id(self, target_id: int) -> Response:  # pylint: disable=R0801
         """Delete a record by ID."""
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
