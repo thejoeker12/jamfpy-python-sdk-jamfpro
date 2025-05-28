@@ -170,7 +170,7 @@ class AccountUsers(AccountChild):
         original_response.raise_for_status()
         original_json = original_response.json()
 
-        users_data = original_json.get('accounts', {}).get('users', [])
+        users_data = {self._name : original_json.get('accounts', {}).get('users', [])}
 
         return self.pass_response(original_response, users_data)
 
@@ -189,7 +189,7 @@ class AccountGroups(AccountChild):
         original_response.raise_for_status()
         original_json = original_response.json()
 
-        groups_data = original_json.get('accounts', {}).get('groups', [])
+        groups_data = {self._name : original_json.get('accounts', {}).get('groups', [])}
         return self.pass_response(original_response, groups_data)
 
 class Accounts(Endpoint):
