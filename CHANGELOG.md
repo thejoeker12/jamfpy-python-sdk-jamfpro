@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.0-rc...v2.2.1) (2025-05-28)
+
+
+### Bug Fixes
+
+* add accounts, fix account child outputs, pyproject.toml conversion ([#23](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/23)) ([989429b](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/989429b4e4a886b9b6da3f55d30f7598407abd10))
+
+
+### Miscellaneous Chores
+
+* release 2.2.1 ([#25](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/25)) ([b54c023](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/b54c023e7e1c1e90fe22ded9a75b6df07ddad016))
+
 ## [2.2.0-rc](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.1.0-rc...v2.2.0-rc) (2025-05-27)
 
 
