@@ -116,13 +116,13 @@ class Tenant:
             http_config: HTTPConfig,
             safe_mode: bool,
     ):
-        # self.pro = ProAPI(
-        #     fqdn=fqdn,
-        #     auth=auth,
-        #     log_level=log_level,
-        #     http_config=http_config,
-        #     safe_mode=safe_mode,
-        # )
+        self.pro = ProAPI(
+            fqdn=fqdn,
+            auth=auth,
+            log_level=log_level,
+            http_config=http_config,
+            safe_mode=safe_mode,
+        )
 
         self.classic = ClassicAPI(
             fqdn=fqdn,
