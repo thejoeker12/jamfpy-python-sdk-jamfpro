@@ -1,6 +1,5 @@
 """Core client module for Jamf Pro API interactions, providing base API client functionality and specific implementations for Pro and Classic APIs."""
 
-import warnings
 from logging import Logger
 from requests import Session, Request, Response
 

@@ -1,7 +1,6 @@
 """Base endpoint class providing common functionality and structure for all Jamf Pro API endpoints."""
 # pylint: disable=import-outside-toplevel
 from requests import Request, Response
-from typing import Callable
 
 class Endpoint:
     """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""

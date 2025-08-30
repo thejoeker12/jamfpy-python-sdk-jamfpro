@@ -1,7 +1,5 @@
 """Endpoint module for Jamf Pro Cloud Licensing Center (CLC) operations and management."""
-import json
-from requests import Request, Response
-from .models import ClassicEndpoint, Endpoint
+from .models import ClassicEndpoint
 
 
 class AdvancedComputerSearches(ClassicEndpoint):
