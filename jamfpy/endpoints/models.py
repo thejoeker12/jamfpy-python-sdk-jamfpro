@@ -12,6 +12,7 @@ class Endpoint:
         api: API
         self._api = api
 
+
 class ClassicEndpoint(Endpoint):
     """Base class for Classic Jamf Pro API endpoints, implementing standard CRUD operations."""
 
@@ -29,6 +30,7 @@ class ClassicEndpoint(Endpoint):
             )
         )
 
+
     def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
         suffix = self._uri + f"/id/{target_id}"
@@ -39,6 +41,7 @@ class ClassicEndpoint(Endpoint):
                 headers=self._api.header("read")["json"]
             )
         )
+
 
     def update_by_id(self, target_id: int, updated_configuration: str) -> Response:
         """Update a record by ID with new configuration."""
@@ -52,6 +55,7 @@ class ClassicEndpoint(Endpoint):
             )
         )
 
+
     def create(self, config_profile: str) -> Response:
         """Create a new record."""
         suffix = self._uri + "/id/0"
@@ -63,6 +67,7 @@ class ClassicEndpoint(Endpoint):
                 data=config_profile
             )
         )
+
 
     def delete_by_id(self, target_id: int) -> Response:
         """Delete a record by ID."""
