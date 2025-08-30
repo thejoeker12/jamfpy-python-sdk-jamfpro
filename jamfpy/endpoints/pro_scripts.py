@@ -4,8 +4,6 @@ from requests import Request
 from ..client.exceptions import JamfAPIError
 from .models import ProEndpoint
 
-
-
 class Scripts(ProEndpoint):
     """Endpoint for managing scripts in the modern Jamf Pro API (v1+)."""
     _uri = "/scripts"

@@ -29,6 +29,8 @@ from ..endpoints.clc_endpoints import (
 
 from ..endpoints.clc_endpoints_accounts import Accounts
 
+from ..endpoints.pro_scripts import Scripts
+
 class API:
     """Base class providing core functionality for interacting with Jamf Pro APIs."""
 
@@ -264,6 +266,8 @@ class ProAPI(API):
             session=session,
             logger=logger
         )
+
+        self.scripts = Scripts(self)
 
     # Magic Methods
     def __str__(self) -> str:
