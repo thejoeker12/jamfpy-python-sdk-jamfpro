@@ -25,8 +25,9 @@ from ..endpoints.clc_endpoints import (
     Computers,
     Sites,
     Departments,
-    Accounts
 )
+
+from ..endpoints.clc_endpoints_accounts import Accounts
 
 class API:
     """Base class providing core functionality for interacting with Jamf Pro APIs."""
