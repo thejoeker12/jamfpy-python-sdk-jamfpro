@@ -20,7 +20,6 @@ from .constants import (
     DEFAULT_TOKEN_BUFFER
 )
 
-# Seconds
 
 class Auth:
     """Base authentication class providing token management and validation for Jamf Pro API."""
