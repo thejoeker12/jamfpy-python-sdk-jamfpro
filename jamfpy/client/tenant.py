@@ -6,11 +6,9 @@
 from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
-from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS
 from .exceptions import JamfpyConfigError
 
-
-VALID_AUTH_METHODS = ["oauth2", "basic"]
 
 
 class Tenant:
@@ -80,7 +78,7 @@ class Tenant:
 
             case "oauth2":
                 if not client_id or not client_secret:
-                    raise JamfpyConfigError("invalid credential combination supplied for auth method")
+                    raise JamfpyConfigError("one or more auth strings are empty")
 
                 return OAuth(
                     fqdn=self.fqdn,
@@ -94,7 +92,7 @@ class Tenant:
             case "basic":
 
                 if not username or not password:
-                    raise JamfpyConfigError("invalid credential combination supplied for auth method")
+                    raise JamfpyConfigError("one or more auth methods are empty")
 
                 return BasicAuth(
                     fqdn=self.fqdn,
@@ -118,13 +116,13 @@ class Tenant:
             http_config: HTTPConfig,
             safe_mode: bool,
     ):
-        self.pro = ProAPI(
-            fqdn=fqdn,
-            auth=auth,
-            log_level=log_level,
-            http_config=http_config,
-            safe_mode=safe_mode,
-        )
+        # self.pro = ProAPI(
+        #     fqdn=fqdn,
+        #     auth=auth,
+        #     log_level=log_level,
+        #     http_config=http_config,
+        #     safe_mode=safe_mode,
+        # )
 
         self.classic = ClassicAPI(
             fqdn=fqdn,

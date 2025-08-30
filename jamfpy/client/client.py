@@ -233,23 +233,7 @@ class ClassicAPI(API):
         self.departments = Departments(self)
         self.policies = Policies(self)
         self.accounts = Accounts(self)
-        # self.dockitems = DockItems(self)
 
-    # Deprecated property
-    @property
-    def computergroups(self):
-        """Deprecated: Use computer_groups property instead."""
-        warnings.warn(
-            "The 'computergroups' property is deprecated and will be removed in a future version. "
-            "Use 'computer_groups' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.computer_groups
-
-    # Magic Methods
-    def __str__(self) -> str:
-        return f"Jamf {self._version} API Client for {self._fqdn}"
 
 
 class ProAPI(API):
@@ -270,7 +254,6 @@ class ProAPI(API):
             logger: Logger = None,
     ):
 
-        # no dynamic args here to preserve the hints.
         super().__init__(
             fqdn=fqdn,
             auth=auth,
@@ -280,15 +263,6 @@ class ProAPI(API):
             session=session,
             logger=logger
         )
-
-        # self.apiintegrations = APIIntegrations(self)
-        # self.apiroleprivileges = APIRolePrivileges(self)
-        # self.apiroles = APIRoles(self)
-        # self.scripts = Scripts(self)
-        # self.sso = SsoCertificates(self)
-        # self.icons = Icons(self)
-        # self.computers_inventory = ComputersInventory(self)
-
 
     # Magic Methods
     def __str__(self) -> str:
