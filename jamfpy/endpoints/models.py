@@ -1,6 +1,7 @@
 """Base endpoint class providing common functionality and structure for all Jamf Pro API endpoints."""
 # pylint: disable=import-outside-toplevel
 from requests import Request, Response
+from typing import Callable
 
 class Endpoint:
     """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""
@@ -9,8 +10,7 @@ class Endpoint:
     def __init__(self, api):
         """Initialize endpoint with API client instance."""
         from ..client.client import API
-        api: API
-        self._api = api
+        self._api: API = api
 
 
 class ClassicEndpoint(Endpoint):
@@ -20,7 +20,7 @@ class ClassicEndpoint(Endpoint):
         """Get all records for this endpoint.
         Optionally uses a provided suffix, otherwise defaults to the endpoint's base URI.
         """
-        effective_suffix = suffix if suffix is not None else self._uri
+        effective_suffix = suffix if suffix else self._uri
 
         return self._api.do(
             Request(

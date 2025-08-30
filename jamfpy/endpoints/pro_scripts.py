@@ -72,12 +72,3 @@ class Scripts(ProEndpoint):
         url = self._api.url("1") + f"{self._uri}/{target_id}"
         req = Request("DELETE", url=url)
         return self._api.do(req)
-
-
-    # def create(
-    #         name: str,
-    #         info: str = None,
-    #         notes: str = None,
-    #         priority: str = None
-    # ):
-    #     pass
