@@ -1,6 +1,5 @@
 """Core client module for Jamf Pro API interactions, providing base API client functionality and specific implementations for Pro and Classic APIs."""
 
-import warnings
 from logging import Logger
 from requests import Session, Request, Response
 
@@ -25,8 +24,11 @@ from ..endpoints.clc_endpoints import (
     Computers,
     Sites,
     Departments,
-    Accounts
 )
+
+from ..endpoints.clc_endpoints_accounts import Accounts
+
+from ..endpoints.pro_scripts import Scripts as ProScripts
 
 class API:
     """Base class providing core functionality for interacting with Jamf Pro APIs."""
@@ -73,10 +75,10 @@ class API:
 
         # Everything after the slashes, before the first dot of an fqdn
         # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        shortname = extract_cloud_tenant_name_from_url(self._fqdn)
+        tenant_name = extract_cloud_tenant_name_from_url(self._fqdn)
 
         return logger or get_logger(
-            name=f"{shortname}-{shortname}",
+            name=f"{tenant_name}-{self._short_name}",
             level=log_level
         )
 
@@ -233,23 +235,7 @@ class ClassicAPI(API):
         self.departments = Departments(self)
         self.policies = Policies(self)
         self.accounts = Accounts(self)
-        # self.dockitems = DockItems(self)
 
-    # Deprecated property
-    @property
-    def computergroups(self):
-        """Deprecated: Use computer_groups property instead."""
-        warnings.warn(
-            "The 'computergroups' property is deprecated and will be removed in a future version. "
-            "Use 'computer_groups' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.computer_groups
-
-    # Magic Methods
-    def __str__(self) -> str:
-        return f"Jamf {self._version} API Client for {self._fqdn}"
 
 
 class ProAPI(API):
@@ -270,7 +256,6 @@ class ProAPI(API):
             logger: Logger = None,
     ):
 
-        # no dynamic args here to preserve the hints.
         super().__init__(
             fqdn=fqdn,
             auth=auth,
@@ -281,14 +266,7 @@ class ProAPI(API):
             logger=logger
         )
 
-        # self.apiintegrations = APIIntegrations(self)
-        # self.apiroleprivileges = APIRolePrivileges(self)
-        # self.apiroles = APIRoles(self)
-        # self.scripts = Scripts(self)
-        # self.sso = SsoCertificates(self)
-        # self.icons = Icons(self)
-        # self.computers_inventory = ComputersInventory(self)
-
+        self.scripts = ProScripts(self)
 
     # Magic Methods
     def __str__(self) -> str:
