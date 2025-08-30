@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.1...v2.2.2) (2025-08-30)
+
+
+### Bug Fixes
+
+* multiple bug fixes, mainly the log output ([#26](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/26)) ([fa86be5](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/fa86be5a17a3b848cb26191ea4e6bcdb560ae550))
+
 ## [2.2.1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.0-rc...v2.2.1) (2025-05-28)
 
 
