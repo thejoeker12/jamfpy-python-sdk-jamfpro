@@ -77,6 +77,10 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
             )
         )
+    
+
+    def name(self):
+        return self._name
 
 
 class ProEndpoint(Endpoint):
