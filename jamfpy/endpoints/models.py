@@ -80,6 +80,7 @@ class ClassicEndpoint(Endpoint):
     
 
     def name(self):
+        """returns name for easy response browsing"""
         return self._name
 
 
