@@ -1,6 +1,8 @@
 """Tenant management module for handling Jamf Pro tenant configurations and operations."""
 
 # pylint: disable=broad-exception-raised, unused-argument
+from dataclasses import field
+
 
 # This Lib
 from .client import ProAPI, ClassicAPI
@@ -23,7 +25,7 @@ class Tenant:
       client_secret: str = None,
       username: str = None,
       password: str = None,
-      http_config: HTTPConfig = HTTPConfig(),
+      http_config: HTTPConfig = field(default_factory=HTTPConfig),
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
       safe_mode: bool = True

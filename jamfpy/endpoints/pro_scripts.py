@@ -26,8 +26,10 @@ class Scripts(ProEndpoint):
         if resp.ok:
             resp_json = resp.json()
             resp_len = len(resp_json["results"])
+
             for i in resp_json["results"]:
                 out_list.append(i)
+
             if resp_len < page_size:
                 return resp, resp_json["results"]
 
@@ -48,25 +50,24 @@ class Scripts(ProEndpoint):
             else:
                 raise JamfAPIError(f"Bad call on page: {page_number}")
 
-        return resp, out_list
-
-
+        return resp
 
 
     def get_by_id(self, target_id: int):
         """Get a script by its ID."""
-        url = self._api.url("1") + f"{self._uri}/{target_id}"
-        headers = self._api.header("read")["json"]
-        req = Request("GET", url=url, headers=headers)
-        resp = self._api.do(req)
-        if resp.ok:
-            return (resp, None)
+        return self._api.do(
+            Request(
+                "GET",
+                url=self._api.url("1") + f"{self._uri}/{target_id}",
+                headers=self._api.header("read")["json"]
 
-        return resp, None
+            )
+        )
 
 
     def delete_by_id(self, target_id: int):
         """Delete a script by its ID."""
-        url = self._api.url("1") + f"{self._uri}/{target_id}"
-        req = Request("DELETE", url=url)
-        return self._api.do(req)
+        return self._api.do(
+            "DELETE",
+            url=self._api.url("1") + f"{self._uri}/{target_id}",
+        )

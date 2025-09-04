@@ -4,7 +4,7 @@
 from base64 import b64encode
 import datetime
 from logging import Logger
-from typing import Callable, Optional
+from typing import Optional
 from requests import request
 
 # This module
@@ -26,11 +26,9 @@ class Auth:
 
     _token_str: str
     _method: str
-    _keep_alive_token: Callable
     _logger: Logger
 
     token_expiry: datetime.time
-    set_new_token: Callable
 
     def __init__(
             self,
@@ -43,19 +41,20 @@ class Auth:
     ):
         self._fqdn = fqdn
         self._http_config = http_config
-        self._logger = self._init_logging(logger, log_level)
+        self._logger = logger or self._init_logging(log_level)
         self._auth_url = self._init_urls()
-
         self.token_exp_thold_mins = token_exp_thold_mins
 
-    def _init_logging(self, logger, log_level) -> Logger:
+
+    def set_new_token(self):
+        """todo"""
+
+    def _keep_alive_token(self):
+        """todo"""
+
+    def _init_logging(self, log_level) -> Logger:
         """Inits loggers for API Object"""
 
-        if logger:
-            return logger
-
-        # Everything after the slashes, before the first dot of an fqdn
-        # This is where the unique identifier of a Jamf Pro Cloud instance is found.
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
 
         return get_logger(
@@ -83,7 +82,6 @@ class Auth:
         self.token_exp_thold_mins = 2
         now = 10:30am
         self.token_expiry = 10:31
-        
         Returns:
             bool: True if token is within the buffer period, False otherwise.
         """
@@ -120,18 +118,12 @@ class Auth:
 
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
-        match now > self.token_expiry:
+        if now >= self.token_expiry:
+            self._logger.warning("Token expired")
+            return True
 
-            case True:
-                self._logger.warning("Token expired")
-                return True
-
-            case False:
-                self._logger.debug("Token not expired")
-                return False
-
-            case _:
-                raise RuntimeError("an error occured")
+        self._logger.debug("Token not expired")
+        return False
 
 
     def check_token(self) -> None:
