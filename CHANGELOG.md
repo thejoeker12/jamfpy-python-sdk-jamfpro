@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.3...v2.2.4) (2025-09-04)
+
+
+### Bug Fixes
+
+* various ([0149314](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/0149314b494393038b1c89bb97fe8c4d418fa188))
+
 ## [2.2.3](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.2...v2.2.3) (2025-09-01)
 
 
