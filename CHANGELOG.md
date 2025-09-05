@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.5](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.4...v2.2.5) (2025-09-05)
+
+
+### Bug Fixes
+
+* the httpconfig thing ([4f1d31e](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/4f1d31e8af294e19dcc1c446026900628b2bbe35))
+
 ## [2.2.4](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.3...v2.2.4) (2025-09-04)
 
 
