@@ -25,7 +25,7 @@ class Tenant:
       client_secret: str = None,
       username: str = None,
       password: str = None,
-      http_config: HTTPConfig = field(default_factory=HTTPConfig),
+      http_config: HTTPConfig = HTTPConfig(),
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
       safe_mode: bool = True
