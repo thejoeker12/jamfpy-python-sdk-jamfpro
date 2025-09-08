@@ -6,7 +6,7 @@ import sys
 DEFAULT_LEVEL = logging.INFO
 DEFAULT_FORMAT = '%(asctime)s [%(levelname)s] (%(name)s): %(message)s'
 
-def get_logger(
+def new_logger(
         name,
         output_format: str = DEFAULT_FORMAT,
         level: int = DEFAULT_LEVEL,

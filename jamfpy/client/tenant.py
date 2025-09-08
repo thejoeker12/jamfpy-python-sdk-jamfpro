@@ -1,8 +1,6 @@
 """Tenant management module for handling Jamf Pro tenant configurations and operations."""
 
 # pylint: disable=broad-exception-raised, unused-argument
-from dataclasses import field
-
 
 # This Lib
 from .client import ProAPI, ClassicAPI
