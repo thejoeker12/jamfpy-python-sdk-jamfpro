@@ -2,7 +2,7 @@
 
 # Libs
 from base64 import b64encode
-import datetime
+from datetime import datetime
 from logging import Logger
 from typing import Optional
 from requests import request
@@ -89,7 +89,7 @@ class Auth:
 
         self._logger.debug("Expiry time: %s", self.token_expiry)
 
-        now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
+        now = round(datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
 
         self._logger.debug("Now: %s", now)
 
@@ -116,7 +116,7 @@ class Auth:
         """
         self._logger.debug("FUNCTION: check_token_is_expired")
 
-        now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        now = datetime.now(datetime.timezone.utc).timestamp()
 
         if now >= self.token_expiry:
             self._logger.warning("Token expired")
@@ -240,7 +240,7 @@ class OAuth(Auth):
 
         call_json = call.json()
         self._token_str = call_json["access_token"]
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.now(datetime.timezone.utc)
         self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
         self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
 
@@ -327,7 +327,7 @@ class BasicAuth(Auth):
         call_json = call.json()
         self._token_str = call_json["token"]
         expiry_str = call_json["expires"]
-        self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
+        self.token_expiry = datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
         self._logger.debug("_keep_alive_token complete")
 
 
@@ -358,4 +358,4 @@ class BasicAuth(Auth):
         self._token_str = call_json["token"]
         expiry_str = call_json["expires"]
         fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
-        self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
+        self.token_expiry = datetime.fromisoformat(fixed_expiry_str).timestamp()
