@@ -1,5 +1,4 @@
 """Utility functions and helper methods for the Jamf Pro API client."""
-# // TODO tidy this whole file up
 from datetime import datetime
 from pathlib import Path
 import xml.etree.ElementTree as ET
