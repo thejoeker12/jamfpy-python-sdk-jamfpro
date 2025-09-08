@@ -8,7 +8,7 @@ from typing import Optional
 from requests import request
 
 # This module
-from .logger import get_logger
+from .logger import new_logger
 from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
 from .utility import fix_jamf_time_to_iso, extract_cloud_tenant_name_from_url
@@ -57,7 +57,7 @@ class Auth:
 
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
 
-        return get_logger(
+        return new_logger(
             name=f"{shortname}-auth",
             level=log_level
         )

@@ -8,7 +8,7 @@ class Endpoint:
     _name = None
     def __init__(self, api):
         """Initialize endpoint with API client instance."""
-        from ..client.client import API
+        from ..client.api import API
         self._api: API = api
 
 
@@ -77,7 +77,7 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
             )
         )
-    
+
 
     def name(self):
         """returns name for easy response browsing"""
