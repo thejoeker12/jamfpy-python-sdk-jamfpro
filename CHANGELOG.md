@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.3.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.5...v2.3.0) (2025-09-08)
+
+
+### Features
+
+* added back xml response optionally ([c5b1796](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/c5b1796211fc0c359db3e3feb8e16cd85342d436))
+
+
+### Bug Fixes
+
+* appeasing pylint ([ccddea2](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/ccddea210c9eac85bf48734fe1d14bdcbee882bf))
+* datetime import ([4ac9b11](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/4ac9b115c57ea2e05a602d9a4804a91da1fcbd68))
+* undone the datetime thing it was bad ([011bf04](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/011bf04b44c193bd148743abecc33e8e735c45a2))
+
 ## [2.2.5](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.4...v2.2.5) (2025-09-05)
 
 
