@@ -16,7 +16,7 @@ from .utility import fix_jamf_time_to_iso, extract_cloud_tenant_name_from_url
 from .constants import (
     DEFAULT_LOG_LEVEL,
     AUTH_REQUEST_TIMEOUT,
-    TIME_ROUNDING_AMOUNT,
+    TIME_ROUNDING_DECIMAL_COUNT,
     DEFAULT_TOKEN_BUFFER
 )
 
@@ -89,12 +89,12 @@ class Auth:
 
         self._logger.debug("Expiry time: %s", self.token_expiry)
 
-        now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_AMOUNT)
+        now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_DECIMAL_COUNT)
 
         self._logger.debug("Now: %s", now)
 
-        expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_AMOUNT)
-        expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_AMOUNT)
+        expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_DECIMAL_COUNT)
+        expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_DECIMAL_COUNT)
 
         self._logger.debug("Token buffer: %s min(s)", self.token_exp_thold_mins)
         self._logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
@@ -242,7 +242,7 @@ class OAuth(Auth):
         self._token_str = call_json["access_token"]
         now = datetime.datetime.now(datetime.timezone.utc)
         self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
-        self.token_expiry = round(self.token_expiry, TIME_ROUNDING_AMOUNT)
+        self.token_expiry = round(self.token_expiry, TIME_ROUNDING_DECIMAL_COUNT)
 
         self._logger.debug("Token set successfully")
 
