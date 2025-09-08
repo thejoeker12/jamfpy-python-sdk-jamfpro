@@ -164,8 +164,6 @@ class API:
 
         response = self._session.send(prepped, timeout=timeout)
 
-        # response.raise_for_status()
-
         self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 
         return response
