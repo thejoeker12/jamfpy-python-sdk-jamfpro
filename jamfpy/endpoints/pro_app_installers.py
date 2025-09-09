@@ -9,7 +9,7 @@ class AppInstallers(Endpoint):
             Request(
                 "POST",
                 url=self._api.url("1") + self._uri,
-                headers=self._api.header("create"),
+                headers=self._api.header("create-update"),
                 data=payload
             )
         )
