@@ -8,7 +8,7 @@ class AppInstallers(Endpoint):
         return self._api.do(
             Request(
                 "POST",
-                url=self._api.url("1") + self._uri,
+                url=self._api.url("1") + self._uri + "/deployments",
                 headers=self._api.header("create-update")["json"],
                 data=payload
             )
