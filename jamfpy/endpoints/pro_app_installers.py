@@ -13,3 +13,13 @@ class AppInstallers(Endpoint):
                 json=payload
             )
         )
+
+
+    def delete(self, target_id: int) -> Response:
+        return self._api.do(
+            Request(
+                "DELETE",
+                url=self._api.url("1") + self._uri + f"/deployments/{target_id}",
+                headers=self._api.header("delete")["json"] 
+            )
+        )
