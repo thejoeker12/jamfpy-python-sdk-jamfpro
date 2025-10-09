@@ -22,6 +22,7 @@ from ..endpoints.clc_endpoints import (
     Computers,
     Sites,
     Departments,
+    RestrictedSoftware
 )
 
 from ..endpoints.clc_endpoints_accounts import Accounts
@@ -73,6 +74,7 @@ class ClassicAPI(API):
         self.departments = Departments(self)
         self.policies = Policies(self)
         self.accounts = Accounts(self)
+        self.restricted_software = RestrictedSoftware(self)
 
 
 
