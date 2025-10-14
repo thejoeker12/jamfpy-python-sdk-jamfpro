@@ -47,7 +47,7 @@ class Departments(ClassicEndpoint):
 class ConfigurationProfiles(ClassicEndpoint):
     """Endpoint for managing macOS configuration profiles in Jamf Pro."""
     _uri = "/osxconfigurationprofiles"
-    _name = "osx_configuration_profiles"
+    _name = "os_x_configuration_profiles"
 
 
 class Packages(ClassicEndpoint):

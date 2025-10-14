@@ -23,3 +23,4 @@ class AppInstallers(Endpoint):
                 headers=self._api.header("delete")["json"] 
             )
         )
+    
