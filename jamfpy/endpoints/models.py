@@ -6,10 +6,11 @@ class Endpoint:
     """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""
     _uri = None
     _name = None
-    def __init__(self, api):
+    def __init__(self, api, cert: str = None):
         """Initialize endpoint with API client instance."""
         from ..client.api import API
         self._api: API = api
+        self.cert = cert
 
 
 class ClassicEndpoint(Endpoint):
@@ -28,7 +29,8 @@ class ClassicEndpoint(Endpoint):
                 method="GET",
                 url=self._api.url() + effective_suffix,
                 headers=self._api.header("read")[read_header]
-            )
+            ),
+            cert=self.cert
         )
 
 
@@ -41,7 +43,8 @@ class ClassicEndpoint(Endpoint):
                 method="GET",
                 url=self._api.url() + suffix,
                 headers=self._api.header("read")[read_header]
-            )
+            ),
+            cert=self.cert
         )
 
 
@@ -54,7 +57,8 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
                 headers=self._api.header("create-update")["xml"],
                 data=updated_configuration
-            )
+            ),
+            cert=self.cert
         )
 
 
@@ -67,7 +71,8 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
                 headers=self._api.header("create-update")["xml"],
                 data=config_profile
-            )
+            ),
+            cert=self.cert
         )
 
 
@@ -78,7 +83,8 @@ class ClassicEndpoint(Endpoint):
             Request(
                 method="DELETE",
                 url=self._api.url() + suffix,
-            )
+            ),
+            cert=self.cert
         )
 
 

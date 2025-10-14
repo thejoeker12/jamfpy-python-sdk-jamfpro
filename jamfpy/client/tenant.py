@@ -26,10 +26,12 @@ class Tenant:
       http_config: HTTPConfig = HTTPConfig(),
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
-      safe_mode: bool = True
+      safe_mode: bool = True,
+      cert_path: str = None
     ):
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
+        self.cert_path = cert_path
 
         auth = self._init_validate_auth(
             auth_method=auth_method,
@@ -86,7 +88,8 @@ class Tenant:
                     client_secret=client_secret,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
-                    http_config=http_config
+                    http_config=http_config,
+                    cert_path=self.cert_path
                 )
 
             case "basic":
@@ -100,7 +103,8 @@ class Tenant:
                     password=password,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
-                    http_config=http_config
+                    http_config=http_config,
+                    cert_path=self.cert_path
                 )
 
             case _:
@@ -122,6 +126,7 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
+            cert_path=self.cert_path
         )
 
         self.classic = ClassicAPI(
@@ -130,4 +135,5 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
+            cert_path=self.cert_path
         )

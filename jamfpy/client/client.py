@@ -46,6 +46,7 @@ class ClassicAPI(API):
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
+            cert_path: str = None,
     ):
 
         # no dynamic args here to preserve the hints.
@@ -56,7 +57,8 @@ class ClassicAPI(API):
             http_config=http_config,
             safe_mode=safe_mode,
             session=session,
-            logger=logger
+            logger=logger,
+            cert_path=cert_path
         )
 
         # Endpoints
@@ -94,6 +96,7 @@ class ProAPI(API):
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
+            cert_path: str = None,
     ):
 
         super().__init__(
@@ -103,7 +106,8 @@ class ProAPI(API):
             http_config=http_config,
             safe_mode=safe_mode,
             session=session,
-            logger=logger
+            logger=logger,
+            cert_path=cert_path
         )
 
         self.scripts = ProScripts(self)
