@@ -137,7 +137,7 @@ class Accounts(Endpoint):
         self.users = AccountUsers(self._api)
         self.groups = AccountGroups(self._api)
 
-    def get_all(self):
+    def get_all(self, cert_path: str | None = None, verify_path: str | None = None):
         """ Get all made to /accounts which includes groups and users """
         classic_endpoint = ClassicEndpoint(self._api)
-        return classic_endpoint.get_all(self._uri)
+        return classic_endpoint.get_all(self._uri, cert_path=cert_path, verify_path=verify_path)
