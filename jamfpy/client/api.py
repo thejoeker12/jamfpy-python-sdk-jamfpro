@@ -30,12 +30,16 @@ class API:
             safe_mode: bool,
             session: Session,
             logger: Logger,
+            cert_path: str = None,
+            verify_path: str = None,
 
     ) -> None:
 
         self._fqdn = fqdn
         self.auth = auth
         self._http_config: HTTPConfig = http_config
+        self.cert_path = cert_path
+        self.verify_path = verify_path
 
         self._session = session or Session()
         self._safe_mode = safe_mode
@@ -142,7 +146,7 @@ class API:
 
 
     # @_check_closed
-    def do(self, request: Request, timeout: int = 10, cert_path: str | None = None, verify_path: str | None = None) -> Response:
+    def do(self, request: Request, timeout: int = 10) -> Response:
         """Takes request, preps and sends"""
         self._refresh_session_headers()
 
@@ -162,7 +166,7 @@ class API:
 
         self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
 
-        response = self._session.send(prepped, timeout=timeout, cert=cert_path, verify=verify_path)
+        response = self._session.send(prepped, timeout=timeout, cert=self.cert_path, verify=self.verify_path)
 
         self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 

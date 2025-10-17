@@ -129,7 +129,9 @@ class Tenant:
             auth=auth,
             log_level=log_level,
             http_config=http_config,
-            safe_mode=safe_mode
+            safe_mode=safe_mode,
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )
 
         self.classic = ClassicAPI(
@@ -137,5 +139,7 @@ class Tenant:
             auth=auth,
             log_level=log_level,
             http_config=http_config,
-            safe_mode=safe_mode
+            safe_mode=safe_mode,
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )
