@@ -32,7 +32,7 @@ class AccountChild(ClassicEndpoint):
         return new_response
 
 
-    def get_by_id(self, target_id: int, cert_path: str | None = None, verify_path: str | None = None) -> Response:
+    def get_by_id(self, target_id: int) -> Response:
         """Get a single record by ID."""
 
         suffix = self._by_id_uri + f"/{target_id}"
@@ -41,13 +41,11 @@ class AccountChild(ClassicEndpoint):
                 method="GET",
                 url=self._api.url() + suffix,
                 headers=self._api.header("read")["json"]
-            ),
-            cert_path=cert_path,
-            verify_path=verify_path
+            )
         )
 
 
-    def update_by_id(self, target_id: int, updated_configuration: str, cert_path: str | None = None, verify_path: str | None = None) -> Response:  # pylint: disable=R0801
+    def update_by_id(self, target_id: int, updated_configuration: str) -> Response:  # pylint: disable=R0801
         """Update a record by ID with new configuration."""
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
@@ -56,13 +54,11 @@ class AccountChild(ClassicEndpoint):
                 url=self._api.url() + suffix,
                 headers=self._api.header("create-update")["xml"],
                 data=updated_configuration
-            ),
-            cert_path=cert_path,
-            verify_path=verify_path
+            )
         )
 
 
-    def create(self, config_profile: str, cert_path: str | None = None, verify_path: str | None = None) -> Response:  # pylint: disable=R0801
+    def create(self, config_profile: str) -> Response:  # pylint: disable=R0801
         """Create a new record."""
         suffix = f"{self._by_id_uri}/0"
         return self._api.do(
@@ -71,21 +67,17 @@ class AccountChild(ClassicEndpoint):
                 url=self._api.url() + suffix,
                 headers=self._api.header("create-update")["xml"],
                 data=config_profile
-            ),
-            cert_path=cert_path,
-            verify_path=verify_path
+            )
         )
 
-    def delete_by_id(self, target_id: int, cert_path: str | None = None, verify_path: str | None = None) -> Response:  # pylint: disable=R0801
+    def delete_by_id(self, target_id: int) -> Response:  # pylint: disable=R0801
         """Delete a record by ID."""
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
             Request(
                 method="DELETE",
                 url=self._api.url() + suffix,
-            ),
-            cert_path=cert_path,
-            verify_path=verify_path
+            )
         )
 
 class AccountUsers(AccountChild):
@@ -96,9 +88,9 @@ class AccountUsers(AccountChild):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
-    def get_all(self, suffix=None, cert_path: str | None = None, verify_path: str | None = None) -> Response:
+    def get_all(self, suffix=None) -> Response:
         """Returns a Response object with its JSON content modified to only include users."""
-        original_response: Response = super().get_all(suffix=None, cert_path=cert_path, verify_path=verify_path)
+        original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
         original_json = original_response.json()
 
@@ -116,9 +108,9 @@ class AccountGroups(AccountChild):
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
-    def get_all(self, suffix=None, cert_path: str | None = None, verify_path: str | None = None) -> Response:
+    def get_all(self, suffix=None) -> Response:
         """ Returns all group objects under /accounts, packaged in a Response object. """
-        original_response: Response = super().get_all(suffix=None, cert_path=cert_path, verify_path=verify_path)
+        original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
         original_json = original_response.json()
 
@@ -137,7 +129,7 @@ class Accounts(Endpoint):
         self.users = AccountUsers(self._api)
         self.groups = AccountGroups(self._api)
 
-    def get_all(self, cert_path: str | None = None, verify_path: str | None = None):
+    def get_all(self):
         """ Get all made to /accounts which includes groups and users """
         classic_endpoint = ClassicEndpoint(self._api)
-        return classic_endpoint.get_all(self._uri, cert_path=cert_path, verify_path=verify_path)
+        return classic_endpoint.get_all(self._uri)
