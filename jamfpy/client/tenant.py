@@ -27,11 +27,13 @@ class Tenant:
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
       safe_mode: bool = True,
-      cert_path: str = None
+      cert_path: str = None,
+      verify_path: str = None,
     ):
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
         self.cert_path = cert_path
+        self.verify_path = verify_path
 
         auth = self._init_validate_auth(
             auth_method=auth_method,
@@ -89,7 +91,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=self.cert_path
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case "basic":
@@ -104,7 +107,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=self.cert_path
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case _:

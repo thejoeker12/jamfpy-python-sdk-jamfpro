@@ -38,7 +38,8 @@ class Auth:
             logger: Logger,
             token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
             log_level: int = DEFAULT_LOG_LEVEL,
-            cert_path: str = None
+            cert_path: str = None,
+            verify_path: str = None,
     ):
         self._fqdn = fqdn
         self._http_config = http_config
@@ -46,6 +47,7 @@ class Auth:
         self._auth_url = self._init_urls()
         self.token_exp_thold_mins = token_exp_thold_mins
         self.cert_path = cert_path
+        self.verify_path = verify_path
 
 
     def set_new_token(self):
@@ -173,7 +175,8 @@ class Auth:
             url=url,
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path
+            cert=self.cert_path,
+            verify=self.verify_path
         )
 
         if call.ok:
@@ -197,7 +200,8 @@ class OAuth(Auth):
             token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
             http_config = HTTPConfig(),
             logger = None,
-            cert_path: str = None
+            cert_path: str = None,
+            verify_path: str = None,
 
     ) -> None:
 
@@ -207,7 +211,8 @@ class OAuth(Auth):
             logger=logger,
             token_exp_thold_mins=token_exp_thold_mins,
             log_level=log_level,
-            cert_path=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
         self._oauth_cid = client_id
@@ -238,7 +243,8 @@ class OAuth(Auth):
             headers=headers,
             data=data,
             timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path
+            cert=self.cert_path,
+            verify=self.verify_path
         )
 
         if not call.ok:
@@ -275,7 +281,8 @@ class BasicAuth(Auth):
             basic_auth_token: Optional[str] = None,
             log_level: int = DEFAULT_LOG_LEVEL,
             logger: Logger = None,
-            cert_path: str = None
+            cert_path: str = None,
+            verify_path: str = None,
     ) -> None:
 
         super().__init__(
@@ -284,7 +291,8 @@ class BasicAuth(Auth):
             token_exp_thold_mins=token_exp_thold_mins,
             logger=logger,
             log_level=log_level,
-            cert_path=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
         self.username = username
@@ -327,7 +335,8 @@ class BasicAuth(Auth):
             url=url,
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path
+            cert=self.cert_path,
+            verify=self.verify_path
         )
 
         if not call.ok:
@@ -357,7 +366,8 @@ class BasicAuth(Auth):
             url=url,
             headers=headers,
             timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path
+            cert=self.cert_path,
+            verify=self.verify_path
         )
 
         if not call.ok:

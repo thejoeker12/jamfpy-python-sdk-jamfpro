@@ -15,7 +15,7 @@ class Endpoint:
 class ClassicEndpoint(Endpoint):
     """Base class for Classic Jamf Pro API endpoints, implementing standard CRUD operations."""
 
-    def get_all(self, suffix: str | None = None, xml_response: bool = False, cert_path: str = None) -> Response:
+    def get_all(self, suffix: str | None = None, xml_response: bool = False, cert_path: str | None = None, verify_path: str | None = None) -> Response:
         """Get all records for this endpoint.
         Optionally uses a provided suffix, otherwise defaults to the endpoint's base URI.
         """
@@ -29,11 +29,12 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + effective_suffix,
                 headers=self._api.header("read")[read_header]
             ),
-            cert=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
 
-    def get_by_id(self, target_id: int, xml_response: bool = False, cert_path: str = None) -> Response:
+    def get_by_id(self, target_id: int, xml_response: bool = False, cert_path: str | None = None, verify_path : str | None = None) -> Response:
         """Get a single record by ID."""
         suffix = self._uri + f"/id/{target_id}"
         read_header = "json" if not xml_response else "xml"
@@ -43,11 +44,12 @@ class ClassicEndpoint(Endpoint):
                 url=self._api.url() + suffix,
                 headers=self._api.header("read")[read_header]
             ),
-            cert=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
 
-    def update_by_id(self, target_id: int, updated_configuration: str, cert_path: str = None) -> Response:
+    def update_by_id(self, target_id: int, updated_configuration: str, cert_path: str | None = None, verify_path: str | None = None) -> Response:
         """Update a record by ID with new configuration."""
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
@@ -57,11 +59,12 @@ class ClassicEndpoint(Endpoint):
                 headers=self._api.header("create-update")["xml"],
                 data=updated_configuration
             ),
-            cert=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
 
-    def create(self, config_profile: str, cert_path: str = None) -> Response:
+    def create(self, config_profile: str, cert_path: str | None = None, verify_path: str | None = None) -> Response:
         """Create a new record."""
         suffix = self._uri + "/id/0"
         return self._api.do(
@@ -71,11 +74,12 @@ class ClassicEndpoint(Endpoint):
                 headers=self._api.header("create-update")["xml"],
                 data=config_profile
             ),
-            cert=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
 
-    def delete_by_id(self, target_id: int, cert_path: str = None) -> Response:
+    def delete_by_id(self, target_id: int, cert_path: str | None = None, verify_path: str | None = None) -> Response:
         """Delete a record by ID."""
         suffix = self._uri + f"/id/{target_id}"
         return self._api.do(
@@ -83,7 +87,8 @@ class ClassicEndpoint(Endpoint):
                 method="DELETE",
                 url=self._api.url() + suffix,
             ),
-            cert=cert_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
 
