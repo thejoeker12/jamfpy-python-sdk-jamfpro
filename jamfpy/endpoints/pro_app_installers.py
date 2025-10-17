@@ -20,6 +20,6 @@ class AppInstallers(Endpoint):
             Request(
                 "DELETE",
                 url=self._api.url("1") + self._uri + f"/deployments/{target_id}",
-                headers=self._api.header("delete")["json"] 
+                headers=self._api.header("delete")["json"]
             )
         )
