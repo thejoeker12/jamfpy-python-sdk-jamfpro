@@ -28,6 +28,7 @@ from ..endpoints.clc_endpoints import (
 from ..endpoints.clc_endpoints_accounts import Accounts
 
 from ..endpoints.pro_scripts import Scripts as ProScripts
+from ..endpoints.pro_mdm_commands import MDMCommands as ProMDMCommands
 from ..endpoints.pro_app_installers import AppInstallers
 
 class ClassicAPI(API):
@@ -115,6 +116,7 @@ class ProAPI(API):
         )
 
         self.scripts = ProScripts(self)
+        self.mdm = ProMDMCommands(self)
         self.app_installers = AppInstallers(self)
 
     # Magic Methods
