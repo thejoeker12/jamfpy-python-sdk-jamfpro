@@ -2,6 +2,9 @@
 
 # pylint: disable=broad-exception-raised, unused-argument
 
+# External
+from pathlib import Path
+
 # This Lib
 from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
@@ -26,7 +29,9 @@ class Tenant:
       http_config: HTTPConfig = HTTPConfig(),
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
-      safe_mode: bool = True
+      safe_mode: bool = True,
+      cert_path: str = None,
+      verify_path: str = None,
     ):
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
@@ -51,7 +56,37 @@ class Tenant:
             safe_mode=safe_mode
         )
 
+        self._validate_path(
+            cert_path=Path(cert_path),
+            verify_path=Path(verify_path)
+            )
 
+    def _validate_path(
+            self,
+            *,
+            cert_path,
+            verify_path
+            ):
+        """
+        Method to validate the supplied configuration of certificate paths
+        and set the attributes of the class
+
+        Returns errors or sets certificate attributes
+        """
+        if cert_path is not None:
+            if not cert_path.exists():
+                raise JamfpyConfigError(f"Cert Path: {cert_path} does not exist")
+            if cert_path.is_dir():
+                raise JamfpyConfigError(f"{cert_path} is a directory")
+
+        if verify_path is not None:
+            if not verify_path.exists():
+                raise JamfpyConfigError(f"Verify Path: {verify_path} does not exist")
+            if verify_path.is_dir():
+                raise JamfpyConfigError(f"{verify_path} is a directory")
+
+        self.cert_path = cert_path
+        self.verify_path = verify_path
 
     def _init_validate_auth(
             self,
@@ -86,7 +121,9 @@ class Tenant:
                     client_secret=client_secret,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
-                    http_config=http_config
+                    http_config=http_config,
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case "basic":
@@ -100,7 +137,9 @@ class Tenant:
                     password=password,
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
-                    http_config=http_config
+                    http_config=http_config,
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case _:
@@ -122,6 +161,8 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )
 
         self.classic = ClassicAPI(
@@ -130,4 +171,6 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )

@@ -28,6 +28,7 @@ from ..endpoints.clc_endpoints import (
 from ..endpoints.clc_endpoints_accounts import Accounts
 
 from ..endpoints.pro_scripts import Scripts as ProScripts
+from ..endpoints.pro_mdm_commands import MDMCommands as ProMDMCommands
 from ..endpoints.pro_app_installers import AppInstallers
 
 class ClassicAPI(API):
@@ -46,6 +47,8 @@ class ClassicAPI(API):
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
+            cert_path: str = None,
+            verify_path: str = None,
     ):
 
         # no dynamic args here to preserve the hints.
@@ -56,7 +59,9 @@ class ClassicAPI(API):
             http_config=http_config,
             safe_mode=safe_mode,
             session=session,
-            logger=logger
+            logger=logger,
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
         # Endpoints
@@ -94,6 +99,8 @@ class ProAPI(API):
             safe_mode: bool = True,
             session: Session = None,
             logger: Logger = None,
+            cert_path: str = None,
+            verify_path: str = None,
     ):
 
         super().__init__(
@@ -103,10 +110,13 @@ class ProAPI(API):
             http_config=http_config,
             safe_mode=safe_mode,
             session=session,
-            logger=logger
+            logger=logger,
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
         self.scripts = ProScripts(self)
+        self.mdm = ProMDMCommands(self)
         self.app_installers = AppInstallers(self)
 
     # Magic Methods
