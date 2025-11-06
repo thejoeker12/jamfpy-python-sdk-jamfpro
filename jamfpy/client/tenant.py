@@ -2,6 +2,9 @@
 
 # pylint: disable=broad-exception-raised, unused-argument
 
+# External
+from pathlib import Path
+
 # This Lib
 from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
@@ -32,8 +35,6 @@ class Tenant:
     ):
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
-        self.cert_path = cert_path
-        self.verify_path = verify_path
 
         auth = self._init_validate_auth(
             auth_method=auth_method,
@@ -55,7 +56,37 @@ class Tenant:
             safe_mode=safe_mode
         )
 
+        self._validate_path(
+            cert_path=Path(cert_path),
+            verify_path=Path(verify_path)
+            )
 
+    def _validate_path(
+            self,
+            *,
+            cert_path,
+            verify_path
+            ):
+        """
+        Method to validate the supplied configuration of certificate paths
+        and set the attributes of the class
+
+        Returns errors or sets certificate attributes
+        """
+        if cert_path is not None:
+            if not cert_path.exists():
+                raise JamfpyConfigError(f"Cert Path: {cert_path} does not exist")
+            if cert_path.is_dir():
+                raise JamfpyConfigError(f"{cert_path} is a directory")
+
+        if verify_path is not None:
+            if not verify_path.exists():
+                raise JamfpyConfigError(f"Verify Path: {verify_path} does not exist")
+            if verify_path.is_dir():
+                raise JamfpyConfigError(f"{verify_path} is a directory")
+
+        self.cert_path = cert_path
+        self.verify_path = verify_path
 
     def _init_validate_auth(
             self,

@@ -1,7 +1,6 @@
 """Endpoint module for managing Jamf Pro MDM commands."""
 from requests import Request, Response
 from .models import ProEndpoint
-from ..client.exceptions import JamfAPIError
 
 class MDMCommands(ProEndpoint):
     """Endpoint for managing MDM commands in the modern Jamf Pro API (v1+)."""
@@ -24,19 +23,12 @@ class MDMCommands(ProEndpoint):
             "commandData": {"commandType": command_type, **kwargs},
         }
 
-        req = Request(
+        return self._api.do(Request(
             method="POST",
             url=self._api.url("2") + self._uri,
             headers=self._api.header("read")["json"],
-            json=payload
+            json=payload)
         )
-
-        resp = self._api.do(req)
-        if not resp.ok:
-            raise JamfAPIError(
-                f"Failed to send MDM command {command_type}: {resp.status_code} {resp.text}"
-            )
-        return resp
 
     # Convience Wrappers:
 
@@ -244,13 +236,7 @@ class MDMCommands(ProEndpoint):
             management_ids if isinstance(management_ids, list) else [management_ids]
         )
 
-    # def settings(self, management_ids: list[str], **kwargs) -> Response:
-    #     """Send SETTINGS command"""
-    #     return self.send_command(
-    #         "SETTINGS",
-    #         management_ids if isinstance(management_ids, list) else [management_ids],
-    #         kwargs
-    #     )
+    # Add in Settings
 
     def set_auto_admin_password(self, management_ids: list[str], guid: str, password: str) -> Response:
         """Send SET_AUTO_ADMIN_PASSWORD command"""
