@@ -36,6 +36,12 @@ class Tenant:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
 
+
+        self._validate_path(
+            cert_path=cert_path,
+            verify_path=verify_path
+        )
+
         auth = self._init_validate_auth(
             auth_method=auth_method,
             client_id=client_id,
@@ -56,11 +62,6 @@ class Tenant:
             safe_mode=safe_mode
         )
 
-        self._validate_path(
-            cert_path=Path(cert_path),
-            verify_path=Path(verify_path)
-            )
-
     def _validate_path(
             self,
             *,
@@ -74,19 +75,24 @@ class Tenant:
         Returns errors or sets certificate attributes
         """
         if cert_path is not None:
-            if not cert_path.exists():
-                raise JamfpyConfigError(f"Cert Path: {cert_path} does not exist")
-            if cert_path.is_dir():
-                raise JamfpyConfigError(f"{cert_path} is a directory")
+            cert_path_obj = Path(cert_path)
+            if not cert_path_obj.exists():
+                raise JamfpyConfigError(f"Cert Path: {cert_path_obj} does not exist")
+            if cert_path_obj.is_dir():
+                raise JamfpyConfigError(f"{cert_path_obj} is a directory")
+            self.cert_path = cert_path_obj
+        else:
+            self.cert_path = None
 
         if verify_path is not None:
-            if not verify_path.exists():
-                raise JamfpyConfigError(f"Verify Path: {verify_path} does not exist")
-            if verify_path.is_dir():
-                raise JamfpyConfigError(f"{verify_path} is a directory")
-
-        self.cert_path = cert_path
-        self.verify_path = verify_path
+            verify_path_obj = Path(verify_path)
+            if not verify_path_obj.exists():
+                raise JamfpyConfigError(f"Verify Path: {verify_path_obj} does not exist")
+            if verify_path_obj.is_dir():
+                raise JamfpyConfigError(f"{verify_path_obj} is a directory")
+            self.verify_path = verify_path_obj
+        else:
+            self.cert_path = None
 
     def _init_validate_auth(
             self,
