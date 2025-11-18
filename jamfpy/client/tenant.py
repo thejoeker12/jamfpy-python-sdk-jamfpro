@@ -35,6 +35,14 @@ class Tenant:
     ):
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
+        self.cert_path = cert_path
+        self.verify_path = verify_path
+
+
+        self._validate_path(
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
+        )
 
 
         self._validate_path(
@@ -65,8 +73,8 @@ class Tenant:
     def _validate_path(
             self,
             *,
-            cert_path,
-            verify_path
+            cert_path: None=None,
+            verify_path: None=None
             ):
         """
         Method to validate the supplied configuration of certificate paths
@@ -81,8 +89,6 @@ class Tenant:
             if cert_path_obj.is_dir():
                 raise JamfpyConfigError(f"{cert_path_obj} is a directory")
             self.cert_path = cert_path_obj
-        else:
-            self.cert_path = None
 
         if verify_path is not None:
             verify_path_obj = Path(verify_path)
@@ -91,8 +97,6 @@ class Tenant:
             if verify_path_obj.is_dir():
                 raise JamfpyConfigError(f"{verify_path_obj} is a directory")
             self.verify_path = verify_path_obj
-        else:
-            self.cert_path = None
 
     def _init_validate_auth(
             self,
