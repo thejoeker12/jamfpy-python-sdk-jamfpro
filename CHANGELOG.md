@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.0...v2.4.1) (2025-11-18)
+
+
+### Bug Fixes
+
+* fixing cert_path logic to work correctly ([#38](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/38)) ([603b583](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/603b583e4a3128d6c5f6db76000b7b74bb137638))
+
 ## [2.4.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.3.0...v2.4.0) (2025-11-18)
 
 
