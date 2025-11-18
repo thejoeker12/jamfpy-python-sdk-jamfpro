@@ -65,8 +65,8 @@ class Tenant:
     def _validate_path(
             self,
             *,
-            cert_path,
-            verify_path
+            cert_path: None=None,
+            verify_path: None=None
             ):
         """
         Method to validate the supplied configuration of certificate paths
@@ -82,7 +82,7 @@ class Tenant:
                 raise JamfpyConfigError(f"{cert_path_obj} is a directory")
             self.cert_path = cert_path_obj
         else:
-            self.cert_path = None
+            self.cert_path = cert_path
 
         if verify_path is not None:
             verify_path_obj = Path(verify_path)
@@ -92,7 +92,7 @@ class Tenant:
                 raise JamfpyConfigError(f"{verify_path_obj} is a directory")
             self.verify_path = verify_path_obj
         else:
-            self.cert_path = None
+            self.cert_path = verify_path
 
     def _init_validate_auth(
             self,
