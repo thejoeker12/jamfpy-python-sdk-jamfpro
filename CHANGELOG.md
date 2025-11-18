@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.4.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.3.0...v2.4.0) (2025-11-18)
+
+
+### Features
+
+* added restricted software ([6b87c7a](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/6b87c7a730a6846e1f45cec5e0ae9884f939ef46))
+* Adding cert and verify to http requests to allow passing certs ([#36](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/36)) ([f45826e](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/f45826ef7258d9855043f322d9d179f4120cf637))
+* all the changes please ([cea8c88](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/cea8c880e8e5615c15102cfe2a5e1d4b55b9634e))
+* delete ([d0178d4](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/d0178d4ba7ec826b465ba638666448985dacc7d0))
+* implement pro app installers ([e0fb6a4](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/e0fb6a435972104491bef86f55c5cdc1d8859ee1))
+
+
+### Bug Fixes
+
+* correct header ([eec1480](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/eec1480c61404edb31ab1a11a23fcd6af174107c))
+* data - ([3e6ebd7](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/3e6ebd7dcf35314ac6cb1451f80fe568264c5dd8))
+* Fixing Cert Path and Verify Path logic to ensure correct working with Path module ([#37](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/37)) ([9b3d563](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/9b3d563e5f1ef45b6d6b08e547e31ffe9b31dd1e))
+* header key ([4640daf](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/4640dafb674ee35a77eae08f6fed38e3c2f0a81b))
+* url change ([d99f13a](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/d99f13a4e9a4e3c9e28f24a893aa46276ab966b0))
+
 ## [2.3.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.2.5...v2.3.0) (2025-09-08)
 
 
