@@ -40,8 +40,8 @@ class Tenant:
 
 
         self._validate_path(
-            cert_path=cert_path,
-            verify_path=verify_path
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )
 
         auth = self._init_validate_auth(
