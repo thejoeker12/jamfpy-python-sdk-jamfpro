@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.2](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.1...v2.4.2) (2025-12-03)
+
+
+### Bug Fixes
+
+* Fixing delete by id scripts ([#40](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/40)) ([04c8618](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/04c8618f1a0e8d14223f6b6e9f4c4b09c430ac75))
+
 ## [2.4.1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.0...v2.4.1) (2025-11-18)
 
 
