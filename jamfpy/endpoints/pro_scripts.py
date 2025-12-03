@@ -67,7 +67,7 @@ class Scripts(ProEndpoint):
 
     def delete_by_id(self, target_id: int):
         """Delete a script by its ID."""
-        return self._api.do(
-            "DELETE",
-            url=self._api.url("1") + f"{self._uri}/{target_id}",
+        return self._api.do(Request(
+            method="DELETE",
+            url=self._api.url("1") + f"{self._uri}/{target_id}")
         )
