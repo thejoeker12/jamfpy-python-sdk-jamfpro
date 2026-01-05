@@ -50,6 +50,12 @@ class ConfigurationProfiles(ClassicEndpoint):
     _name = "os_x_configuration_profiles"
 
 
+class MobileDeviceGroups(ClassicEndpoint):
+    """Endpoint for managing mobile device groups in Jamf Pro."""
+    _uri = "/mobiledevicegroups"
+    _name = "mobile_device_groups"
+
+
 class Packages(ClassicEndpoint):
     """Endpoint for managing software packages in Jamf Pro."""
     _uri = "/packages"
