@@ -17,3 +17,5 @@ jobs:
         with:
           token: ${{ secrets.TOKEN_RELEASE_PLEASE }}
           release-type: python
+
+    # .github/workflows/ci-cd.yml
