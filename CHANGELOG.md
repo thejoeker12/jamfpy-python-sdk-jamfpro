@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.2...v2.5.0) (2026-01-05)
+
+
+### Features
+
+* Add MobileDeviceGroups endpoint to client ([#42](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/42)) ([290821b](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/290821b6f565955717b89ac0fc0fa43b000fa0e6))
+
 ## [2.4.2](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.1...v2.4.2) (2025-12-03)
 
 
