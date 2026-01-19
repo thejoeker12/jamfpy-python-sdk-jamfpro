@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.5.0...v2.6.0) (2026-01-19)
+
+
+### Features
+
+* add get app installer  ([#44](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/44)) ([d9882b1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/d9882b1c3722445f016b8b04f27ab81a718b2984))
+
 ## [2.5.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.4.2...v2.5.0) (2026-01-05)
 
 
