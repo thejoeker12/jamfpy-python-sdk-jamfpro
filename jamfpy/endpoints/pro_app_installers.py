@@ -4,6 +4,16 @@ from .models import Endpoint
 class AppInstallers(Endpoint):
     _uri = "/app-installers"
 
+
+    def get_by_id(self, app_installer_id: int):
+        return self._api.do(
+            Request(
+                "GET",
+                url=self._api.url("1") + self._uri + f"/deployments/{app_installer_id}",
+                headers=self._api.header("create-update")["json"]
+            )
+        )
+
     def create(self, payload: dict) -> Response:
         return self._api.do(
             Request(
@@ -23,3 +33,4 @@ class AppInstallers(Endpoint):
                 headers=self._api.header("delete")["json"]
             )
         )
+
