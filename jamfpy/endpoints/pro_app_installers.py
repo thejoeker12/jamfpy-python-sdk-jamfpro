@@ -4,7 +4,6 @@ from .models import Endpoint
 class AppInstallers(Endpoint):
     _uri = "/app-installers"
 
-
     def get_by_id(self, app_installer_id: int):
         return self._api.do(
             Request(
