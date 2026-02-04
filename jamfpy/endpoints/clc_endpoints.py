@@ -55,6 +55,10 @@ class MobileDeviceGroups(ClassicEndpoint):
     _uri = "/mobiledevicegroups"
     _name = "mobile_device_groups"
 
+class MobileDevices(ClassicEndpoint):
+    """Endpoint for managing mobile devices in Jamf Pro."""
+    _uri = "/mobiledevices"
+    _name = "mobile_devices"
 
 class Packages(ClassicEndpoint):
     """Endpoint for managing software packages in Jamf Pro."""

@@ -21,6 +21,7 @@ from ..endpoints.clc_endpoints import (
     Buildings,
     Packages,
     Computers,
+    MobileDevices,
     Sites,
     Departments,
     RestrictedSoftware
@@ -77,6 +78,7 @@ class ClassicAPI(API):
         self.buildings = Buildings(self)
         self.packages = Packages(self)
         self.computers = Computers(self)
+        self.mobile_devices = MobileDevices(self)
         self.sites = Sites(self)
         self.departments = Departments(self)
         self.policies = Policies(self)
