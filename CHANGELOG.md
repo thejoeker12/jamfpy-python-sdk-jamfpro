@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.6.0...v2.7.0) (2026-02-04)
+
+
+### Features
+
+* add MobileDevices endpoint and integrate into ClassicAPI ([#46](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/46)) ([29470ce](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/29470ce622c58f621ea94736c4def7196012c8b8))
+
 ## [2.6.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.5.0...v2.6.0) (2026-01-19)
 
 
