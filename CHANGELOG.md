@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.7.0...v2.7.1) (2026-03-04)
+
+
+### Bug Fixes
+
+* Update required Python version to 3.10 ([#48](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/48)) ([fa2da8b](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/fa2da8b82c8c73737d0bdb32f3bd32ec518e2536))
+
 ## [2.7.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.6.0...v2.7.0) (2026-02-04)
 
 
