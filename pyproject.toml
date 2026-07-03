@@ -33,3 +33,8 @@ exclude = ["tests*"]
 python_files = ["*_test.py"]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Live tests are opt-in only; a CLI `-m integration` overrides this default.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: live min/max lifecycle tests against a real Jamf Pro tenant; deselected by default, run with `pytest -m integration tests/integration`",
+]
