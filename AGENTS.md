@@ -68,9 +68,9 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 
 ## Conventions (follow these — the codebase is consistent)
 
-1. **Endpoints return the raw `requests.Response`.** Don't `.json()` inside an endpoint or invent return models. Exceptions that *do* transform, and why: `pro_scripts.Scripts.get_all` (paginates and aggregates), `clc_endpoints_accounts` `.users`/`.groups` (repackage the shared `/accounts` payload). Match the surrounding file, not these outliers, unless you have the same reason.
+1. **Endpoints return a `requests.Response`.** Don't `.json()` inside an endpoint or invent return models. Two places synthesize a Response instead of passing the raw one straight back, and both still hand back a `Response`: `ProEndpoint.get_all` (paginates every page and aggregates them into one Response whose body is `{"totalCount": N, "results": [...]}`), and `clc_endpoints_accounts` `.users`/`.groups` (repackage the shared `/accounts` payload). Both use the shared `Endpoint._repackage_response` helper (accounts still has its own near-duplicate `pass_response`). Match the surrounding file unless you have the same reason.
 2. **Classic write bodies are XML strings** passed as `data=`. Pro bodies are dicts passed as `json=`.
-3. **One endpoint = one class.** Classic endpoints subclass `ClassicEndpoint` and usually only set `_uri` and `_name` — they inherit full CRUD. Pro endpoints subclass `ProEndpoint` (which is empty) and implement each method by hand.
+3. **One endpoint = one class.** Classic endpoints subclass `ClassicEndpoint` and usually only set `_uri` and `_name` — they inherit full CRUD. Pro endpoints subclass `ProEndpoint` and usually only set `_uri`, `_name`, and `_version` — they inherit the same full CRUD (with a paginating `get_all`), the Pro mirror of `ClassicEndpoint`. Hand-roll a method only when a resource deviates. **Action/verb endpoints** (send-command style, e.g. `pro_mdm_commands`) subclass the bare `Endpoint` so they don't inherit CRUD.
 4. **`_uri`** is the path segment appended to the base URL (leading slash, e.g. `/computers`). **`_name`** is the snake_case key used for response browsing / `.name()`; keep it aligned with Jamf's JSON top-level key where one exists.
 5. **Docstrings on every public class/method.** `.pylintrc` exempts `_private` names (`no-docstring-rgx=^_`) but everything public needs one. Comments explain **why**, never what.
 6. **`snake_case`** functions/vars/args, **`PascalCase`** classes, **`UPPER_CASE`** constants (all enforced by pylint). Max line length **150**.
@@ -80,7 +80,7 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 
 ## How to add an endpoint
 
-> For a fuller, worked walkthrough of each endpoint variant (simple/composite Classic, hand-rolled/action Pro), including test templates and schema-query recipes, see [`EXPANDING.md`](EXPANDING.md). This section is the quick version.
+> For a fuller, worked walkthrough of each endpoint variant (simple/composite Classic, simple/action Pro), including test templates and schema-query recipes, see [`EXPANDING.md`](EXPANDING.md). This section is the quick version.
 
 ### Classic endpoint (inherits CRUD for free)
 
@@ -95,27 +95,20 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 2. Import it in `jamfpy/client/client.py` (the `from ..endpoints.clc_endpoints import (...)` block).
 3. Attach it in `ClassicAPI.__init__`: `self.buildings = Buildings(self)`.
 
-### Pro endpoint (implement methods by hand)
+### Pro endpoint (inherits CRUD for free)
 
-1. Create/extend a module (e.g. `jamfpy/endpoints/pro_<thing>.py`), subclass `ProEndpoint`, and build each `requests.Request` explicitly:
+1. Add the class in a `jamfpy/endpoints/pro_<thing>.py` module, subclass `ProEndpoint`, and set `_uri`, `_name`, and `_version` (the `/v{n}` prefix on the path in `pro.json`):
    ```python
-   from requests import Request, Response
    from .models import ProEndpoint
 
    class Things(ProEndpoint):
        """Endpoint for managing things in the modern Jamf Pro API."""
        _uri = "/things"
        _name = "things"
-
-       def get_by_id(self, target_id: int) -> Response:
-           """Get a thing by its ID."""
-           return self._api.do(Request(
-               "GET",
-               url=self._api.url("1") + f"{self._uri}/{target_id}",
-               headers=self._api.header("read")["json"],
-           ))
+       _version = "1"
    ```
-2. Import it in `client.py` and attach it in `ProAPI.__init__` (e.g. `self.things = Things(self)`).
+   You now have `get_all`, `get_by_id`, `create`, `update_by_id`, `delete_by_id`, `name` from `ProEndpoint` — the Pro mirror of `ClassicEndpoint`, but with versioned URLs (`url(self._version)`), `/{id}` id paths (**no** `/id/`), JSON bodies (`json=`), and a `get_all` that transparently paginates the `page`/`page-size` cursor and aggregates every page into **one** Response (`{"totalCount": N, "results": [...]}`). Hand-roll a method only when a resource deviates. **Verbs-not-CRUD** endpoints (send-command style) subclass the bare `Endpoint` instead — see `pro_mdm_commands.py`.
+2. Import it in `jamfpy/client/client.py` and attach it in `ProAPI.__init__` (e.g. `self.things = Things(self)`).
 
 ### Querying the API schemas (never read them whole)
 
@@ -199,7 +192,7 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
   ```bash
   .venv/bin/python -m pytest -q
   ```
-  The suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Still never exercise a live tenant** — add tests by mocking, following the existing files. Some tests deliberately **characterize known quirks** (e.g. `pro_scripts.Scripts.get_all`'s inconsistent return, the no-op `time.replace` in `fix_jamf_time_to_iso`); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
+  The suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Still never exercise a live tenant** — add tests by mocking, following the existing files. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
 - **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
 - **Branch/PR:** work on a branch, open a PR to `main`. Don't commit or push unless asked.
 
@@ -210,9 +203,8 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 - **`/json`** at the repo root is a stray file (accidental capture of git output). It is not used by anything — ignore it.
 - **`pyproject.toml`** contains leftover template cruft: `[project.scripts] my-script = ...` and the `pdf`/`rest` optional-dependencies are placeholders, not real. Don't rely on them.
 - **`client.py`** sets `self.policies = Policies(self)` twice in `ClassicAPI.__init__` — harmless duplicate.
-- **`pro_scripts.Scripts.get_all`** has an inconsistent return signature (returns `(resp, list)` on one path, `resp` on another) and hand-rolled pagination. Treat it as legacy; don't copy its shape into new endpoints.
 - **`logger.new_logger`** adds a fresh `StreamHandler` each call for a given name — repeated construction of the same-named logger can duplicate log lines.
-- **`ProEndpoint` is deliberately empty** — Pro endpoints share no base CRUD (the two APIs differ too much). That's by design, not an omission to fill in.
+- **`ProEndpoint` provides shared CRUD + pagination** (mirroring `ClassicEndpoint`). `ProEndpoint.get_all` paginates and aggregates into one Response; its `update_by_id` uses PUT and is a best-effort default (some resources are read-only or need PATCH — override or don't use it). `pro_app_installers` inherits `get_all`/`update_by_id` even though those aren't in `pro.json` for that resource — treat them as best-effort there.
 - **`api_schemas/classic.json` is not strictly valid JSON** (trailing commas) — `json.load` raises. Query it with grep, not a JSON parser.
 
 ---
