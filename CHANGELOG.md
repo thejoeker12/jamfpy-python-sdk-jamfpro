@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.0.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.7.0...v3.0.0) (2026-07-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* Consolidated pro endpoints
+
+### Features
+
+* Consolidated pro endpoints ([6148a67](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/6148a67b484b5fc52f3d8b3752acc1aaba2af840))
+
+
+### Bug Fixes
+
+* Update required Python version to 3.10 ([#48](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/issues/48)) ([fa2da8b](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/commit/fa2da8b82c8c73737d0bdb32f3bd32ec518e2536))
+
 ## [2.7.0](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/compare/v2.6.0...v2.7.0) (2026-02-04)
 
 
