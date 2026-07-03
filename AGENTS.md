@@ -80,6 +80,8 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 
 ## How to add an endpoint
 
+> For a fuller, worked walkthrough of each endpoint variant (simple/composite Classic, hand-rolled/action Pro), including test templates and schema-query recipes, see [`EXPANDING.md`](EXPANDING.md). This section is the quick version.
+
 ### Classic endpoint (inherits CRUD for free)
 
 1. Add the class in `jamfpy/endpoints/clc_endpoints.py`:
