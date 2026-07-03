@@ -32,6 +32,7 @@ from ..endpoints.clc_endpoints_accounts import Accounts
 from ..endpoints.pro_scripts import Scripts as ProScripts
 from ..endpoints.pro_mdm_commands import MDMCommands as ProMDMCommands
 from ..endpoints.pro_app_installers import AppInstallers
+from ..endpoints.pro_dock_items import DockItems as ProDockItems
 
 class ClassicAPI(API):
     """Implementation of the Classic Jamf Pro API (JSS) endpoints and functionality."""
@@ -122,6 +123,7 @@ class ProAPI(API):
         self.scripts = ProScripts(self)
         self.mdm = ProMDMCommands(self)
         self.app_installers = AppInstallers(self)
+        self.dock_items = ProDockItems(self)
 
     # Magic Methods
     def __str__(self) -> str:

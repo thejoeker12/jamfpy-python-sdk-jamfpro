@@ -45,12 +45,14 @@ jamfpy/
     pro_scripts.py          # Pro Scripts endpoint.
     pro_mdm_commands.py     # Pro MDM commands (send_command + ~30 convenience wrappers).
     pro_app_installers.py   # Pro App Installers endpoint.
+    pro_dock_items.py       # Pro Dock Items endpoint.
 api_schemas/
   classic.json, pro.json    # Jamf's own API schemas — query, never read whole (see below).
   api-reference-url.txt     # Pointer to Jamf's human-readable docs: https://developer.jamf.com/jamf-pro/reference
 tests/
   conftest.py               # FakeAPI double + make_response helper + shared fixtures.
   <module>_test.py          # One offline pytest file per source module (mocks the network).
+COVERAGE.md                 # Which API resources the SDK wraps vs. doesn't — update when adding an endpoint.
 ```
 
 ---
@@ -140,6 +142,7 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 - [ ] Tests pass: `.venv/bin/python -m pytest -q` — and a new endpoint gets a `tests/<module>_test.py` covering the Request it builds (mock only; see Quality gates).
 - [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`
 - [ ] No live-request "testing" attempted (the suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
+- [ ] [`COVERAGE.md`](COVERAGE.md) updated: move the resource from *Not yet covered* into the covered table and bump the summary counts.
 - [ ] If asked to commit: Conventional Commit message (`feat:` for a new endpoint).
 
 ---
