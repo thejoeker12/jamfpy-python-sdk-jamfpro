@@ -64,6 +64,43 @@ Pro bodies are **JSON dicts**. Full CRUD = the five methods above (with a pagina
 
 ---
 
+## Live integration test coverage (min/max)
+
+Which covered resources have live min/max lifecycle tests (`tests/integration/` — create with
+required fields only / all writable fields, then read → update → read → delete against a real
+tenant; see `AGENTS.md` → *Quality gates*). Specs live in
+`tests/integration/clc_resources_live_test.py` and `pro_resources_live_test.py`.
+
+**Keep this current:** adding an endpoint, or adding/changing a spec, means updating this table in
+the same change — this is a line item in `AGENTS.md` → *Definition of done*.
+
+| SDK accessor | API | Min | Max | Notes |
+|---|---|:-:|:-:|---|
+| `classic.categories` | Classic | ✅ | ✅ | |
+| `classic.buildings` | Classic | ✅ | ✅ | |
+| `classic.departments` | Classic | ✅ | ✅ | Name-only resource — min ≡ max |
+| `classic.sites` | Classic | ✅ | ✅ | Name-only resource — min ≡ max |
+| `classic.scripts` | Classic | ✅ | ✅ | |
+| `classic.packages` | Classic | ✅ | ✅ | Metadata only — no file upload |
+| `classic.computer_extension_attributes` | Classic | ✅ | ✅ | Text Field input type |
+| `classic.computer_groups` | Classic | ✅ | ✅ | Min = static, max = smart; `criteria` sent, not echo-asserted |
+| `classic.mobile_device_groups` | Classic | ✅ | ✅ | Min = static, max = smart; `criteria` sent, not echo-asserted |
+| `classic.policies` | Classic | ✅ | ✅ | Created disabled, no scope |
+| `classic.configuration_profiles` | Classic | ✅ | ✅ | Minimal plist; `payloads` sent, not echo-asserted |
+| `classic.computer_searches` | Classic | ✅ | ✅ | `criteria`/`display_fields` sent, not echo-asserted |
+| `classic.computers` | Classic | ✅ | ✅ | Fabricated inventory record |
+| `classic.mobile_devices` | Classic | ✅ | ✅ | Fabricated udid/serial |
+| `classic.restricted_software` | Classic | ✅ | ✅ | |
+| `classic.accounts.users` | Classic | ✅ | ✅ | Creates a real (Custom, zero-privilege) account; generated password, never echo-asserted |
+| `classic.accounts.groups` | Classic | ✅ | ✅ | `privileges` sent, not echo-asserted |
+| `classic.accounts` (top level) | Classic | N/A | N/A | Composite `get_all` only — no CRUD surface of its own |
+| `pro.scripts` | Pro | ✅ | ✅ | categoryId/categoryName omitted (instance-state dependent) |
+| `pro.dock_items` | Pro | ✅ | ✅ | All fields required — min ≡ max |
+| `pro.mdm` | Pro | N/A | N/A | Verb endpoint (send-command); no CRUD to lifecycle-test |
+| `pro.app_installers` | Pro | ❌ | ❌ | Needs an App Installers catalog title + accepted T&Cs on the instance |
+
+---
+
 ## Not yet covered
 
 Resource groups present in the bundled schema that the SDK does **not** wrap. Adding any of these follows

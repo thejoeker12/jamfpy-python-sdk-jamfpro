@@ -1,0 +1,40 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One live run at a time — two runs mutating the same tenant is asking for flakes.
+concurrency:
+  group: jamf-live-tenant
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # Skip (not fail) on fork PRs — secrets aren't passed to them (NB: repo *vars*
+    # ARE exposed to fork PRs, so guard on the head repo, not just the var) —
+    # and on repos without the var configured.
+    if: >-
+      vars.JAMFPRO_INSTANCE_FQDN != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    env:
+      JAMFPRO_INSTANCE_FQDN: ${{ vars.JAMFPRO_INSTANCE_FQDN }}
+      JAMFPRO_CLIENT_ID: ${{ secrets.JAMFPRO_CLIENT_ID }}
+      JAMFPRO_CLIENT_SECRET: ${{ secrets.JAMFPRO_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pytest
+      - name: Run live integration tests
+        run: pytest -m integration tests/integration -v

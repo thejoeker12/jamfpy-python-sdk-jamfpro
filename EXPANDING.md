@@ -460,7 +460,8 @@ override `get_all` and still return a single `Response` (aggregate via `Endpoint
 
 ## Writing the test
 
-Tests are **fully offline**. Endpoints only call `url()`, `header()`, and `do()` on their
+Unit tests are **fully offline** (the sanctioned live suite is `tests/integration/` —
+marker-gated, deselected by default; see AGENTS.md Quality gates). Endpoints only call `url()`, `header()`, and `do()` on their
 API object, so the `FakeAPI` double in `tests/conftest.py` implements exactly those and
 **records every `requests.Request` handed to `do()`**. One `tests/<module>_test.py` per
 source module (note the non-default `*_test.py` naming, set in `pyproject.toml`).
@@ -560,5 +561,5 @@ Run the suite from the repo root: `.venv/bin/python -m pytest -q`.
 - [ ] Smoke test: `.venv/bin/python -c "import jamfpy; print(jamfpy.Tenant)"`.
 - [ ] Tests pass: `.venv/bin/python -m pytest -q`.
 - [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`.
-- [ ] No live-request "testing" (the suite mocks the network); no edits to version/CHANGELOG.
+- [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.
 - [ ] If committing: Conventional Commit (`feat:` for a new endpoint).

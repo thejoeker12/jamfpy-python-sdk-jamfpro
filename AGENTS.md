@@ -52,6 +52,7 @@ api_schemas/
 tests/
   conftest.py               # FakeAPI double + make_response helper + shared fixtures.
   <module>_test.py          # One offline pytest file per source module (mocks the network).
+  integration/              # Live min/max lifecycle tests against a real tenant — spec-driven (one spec per resource), opt-in via -m integration, never run by default.
 COVERAGE.md                 # Which API resources the SDK wraps vs. doesn't — update when adding an endpoint.
 ```
 
@@ -141,8 +142,8 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 - [ ] Smoke test passes: `.venv/bin/python -c "import jamfpy; print(jamfpy.Tenant)"`
 - [ ] Tests pass: `.venv/bin/python -m pytest -q` — and a new endpoint gets a `tests/<module>_test.py` covering the Request it builds (mock only; see Quality gates).
 - [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`
-- [ ] No live-request "testing" attempted (the suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
-- [ ] [`COVERAGE.md`](COVERAGE.md) updated: move the resource from *Not yet covered* into the covered table and bump the summary counts.
+- [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
+- [ ] [`COVERAGE.md`](COVERAGE.md) updated: move the resource from *Not yet covered* into the covered table and bump the summary counts — and add a row to the *Live integration test coverage* table (with a min/max spec in `tests/integration/` if the resource supports CRUD, or an N/A row with the reason if it doesn't).
 - [ ] If asked to commit: Conventional Commit message (`feat:` for a new endpoint).
 
 ---
@@ -195,7 +196,7 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
   ```bash
   .venv/bin/python -m pytest -q
   ```
-  The suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Still never exercise a live tenant** — add tests by mocking, following the existing files. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
+  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Never exercise a live tenant from unit tests** — add tests by mocking, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main; needs the repo var/secrets below and skips on forks/unconfigured repos) or explicitly via `pytest -m integration tests/integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
 - **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
 - **Branch/PR:** work on a branch, open a PR to `main`. Don't commit or push unless asked.
 
