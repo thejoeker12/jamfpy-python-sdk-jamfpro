@@ -1,9 +1,13 @@
 """Endpoint module for managing Jamf Pro MDM commands."""
 from requests import Request, Response
-from .models import ProEndpoint
+from .models import Endpoint
 
-class MDMCommands(ProEndpoint):
-    """Endpoint for managing MDM commands in the modern Jamf Pro API (v1+)."""
+class MDMCommands(Endpoint):
+    """Endpoint for managing MDM commands in the modern Jamf Pro API (v1+).
+
+    This is an action endpoint (verbs, not CRUD), so it subclasses the bare ``Endpoint`` and does
+    not inherit ProEndpoint's shared CRUD/pagination.
+    """
     _uri = "/mdm/commands"
     _name = "mdm_commands"
 

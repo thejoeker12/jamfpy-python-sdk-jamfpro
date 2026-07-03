@@ -21,11 +21,12 @@ section.
 |---|---|---|---|---|
 | Classic resource, normal `/id/{id}` CRUD | yes | **A. Classic simple** | `ClassicEndpoint` | `clc_endpoints.py` |
 | Classic resource with sub-resources / non-`/id/` paths | no | **B. Classic composite** | `Endpoint` + `ClassicEndpoint` children | `clc_endpoints_accounts.py` |
-| Pro resource, CRUD | n/a | **C. Pro hand-rolled CRUD** | `ProEndpoint` | `pro_app_installers.py`, `pro_scripts.py` |
-| Pro action / command endpoint (verbs, not CRUD) | n/a | **D. Pro action + wrappers** | `ProEndpoint` | `pro_mdm_commands.py` |
+| Pro resource, CRUD (+ paginated list) | yes | **C. Pro simple** | `ProEndpoint` | `pro_scripts.py`, `pro_app_installers.py` |
+| Pro action / command endpoint (verbs, not CRUD) | n/a | **D. Pro action + wrappers** | `Endpoint` | `pro_mdm_commands.py` |
 
 **By far the most common job is Variant A** — a Classic resource that gets full CRUD for free.
-Start there unless your target clearly doesn't fit.
+Start there unless your target clearly doesn't fit. **Variant C is now its Pro twin**: `ProEndpoint`
+gives Pro resources the same inherit-everything CRUD (with a paginating `get_all`).
 
 Whichever variant you pick, wiring is the same three steps (detailed per-variant below):
 
@@ -80,20 +81,23 @@ returns the **raw** `requests.Response`. Endpoints never touch auth — they jus
 ### Base classes (`jamfpy/endpoints/models.py`)
 
 ```python
-class Endpoint:                 # stores self._api; class attrs _uri, _name (default None)
+class Endpoint:                 # stores self._api; class attrs _uri, _name; _repackage_response helper
 class ClassicEndpoint(Endpoint) # full CRUD: get_all, get_by_id, update_by_id, create, delete_by_id, name
-class ProEndpoint(Endpoint)     # EMPTY marker — implement every method by hand
+class ProEndpoint(Endpoint)     # full CRUD (Pro idioms): same method set, + a paginating get_all; class attrs _version="1", _page_size=100
 ```
 
-Classic vs Pro idioms at a glance:
+Classic vs Pro idioms at a glance (both base classes implement the same method set — these are the
+differences baked into `ProEndpoint`):
 
 | Aspect | Classic (`ClassicEndpoint`) | Pro (`ProEndpoint`) |
 |---|---|---|
-| URL base | `self._api.url()` (no arg) | `self._api.url("1")` / `url("2")` |
+| URL base | `self._api.url()` (no arg) | `self._api.url(self._version)` (e.g. `url("1")`) |
 | ID path | `self._uri + f"/id/{target_id}"` | `self._uri + f"/{target_id}"` (**no `/id/`**) |
-| Create path | `self._uri + "/id/0"` | endpoint-specific (e.g. `/deployments`) |
+| Create path | `self._uri + "/id/0"` | `self._uri` (POST to the collection) |
 | Write body | XML string via `data=` | dict via `json=` |
 | Write headers | `header("create-update")["xml"]` | `header("create-update")["json"]` |
+| `get_all` | one GET, one Response (Classic isn't paginated) | walks `page`/`page-size`, aggregates every page into one Response `{"totalCount", "results"}` |
+| `update_by_id` | PUT | PUT (best-effort default — some resources need PATCH or are read-only) |
 
 ---
 
@@ -316,16 +320,15 @@ tenant.classic.accounts.groups.get_all()     # payload sliced to just groups
 
 ---
 
-## Variant C — Pro hand-rolled CRUD
+## Variant C — Pro simple (inherits CRUD for free)
 
-`ProEndpoint` is deliberately empty — the two APIs differ too much to share CRUD, so you
-implement each method by hand, building the `requests.Request` explicitly. Reference:
-`jamfpy/endpoints/pro_app_installers.py` (minimal) and `pro_scripts.py`.
+`ProEndpoint` mirrors `ClassicEndpoint`: it implements the full method set with Pro idioms, so a
+simple Pro resource is just a subclass that sets `_uri`, `_name`, and `_version` — no methods of
+your own. Reference: `jamfpy/endpoints/pro_scripts.py` and `pro_app_installers.py`.
 
-Create/extend a `jamfpy/endpoints/pro_<thing>.py` module:
+**1. Add the class** in a `jamfpy/endpoints/pro_<thing>.py` module:
 
 ```python
-from requests import Request, Response
 from .models import ProEndpoint
 
 
@@ -333,40 +336,44 @@ class Things(ProEndpoint):
     """Endpoint for managing things in the modern Jamf Pro API."""
     _uri = "/things"
     _name = "things"
-
-    def get_by_id(self, target_id: int) -> Response:
-        """Get a thing by its ID."""
-        return self._api.do(Request(
-            "GET",
-            url=self._api.url("1") + f"{self._uri}/{target_id}",   # Pro ID path: no /id/
-            headers=self._api.header("read")["json"],
-        ))
-
-    def create(self, payload: dict) -> Response:
-        """Create a thing."""
-        return self._api.do(Request(
-            "POST",
-            url=self._api.url("1") + self._uri,
-            headers=self._api.header("create-update")["json"],
-            json=payload,                                          # dict body via json=
-        ))
-
-    def delete_by_id(self, target_id: int) -> Response:
-        """Delete a thing by its ID."""
-        return self._api.do(Request(
-            "DELETE",
-            url=self._api.url("1") + f"{self._uri}/{target_id}",
-            headers=self._api.header("delete")["json"],
-        ))
+    _version = "1"        # the /v{n} prefix on the path in pro.json
 ```
 
-Key points vs Classic:
-- **Version is explicit**: `self._api.url("1")` — swap `"1"`/`"2"` to match the `/v{n}` prefix
-  from the schema for *your* path.
-- **ID path is `{_uri}/{id}`**, no `/id/` segment.
-- **Bodies are dicts passed with `json=`**, headers use `["json"]`.
-- Real Pro paths can nest below `_uri` — e.g. app-installers builds
-  `url("1") + self._uri + f"/deployments/{id}"`. Verify the exact path against the schema.
+You inherit `get_all`, `get_by_id`, `create`, `update_by_id`, `delete_by_id`, `name`. What the
+inherited methods do (differs from Classic — see the idiom table above):
+- **Version is explicit** via `_version`: methods build `self._api.url(self._version)`. Set it to
+  the `/v{n}` prefix from the schema for *your* path (scripts = `"1"`, mdm/commands = `"2"`).
+- **ID path is `{_uri}/{id}`**, no `/id/` segment. **Create POSTs to `{_uri}`** (the collection).
+- **Bodies are dicts passed with `json=`**; write headers use `["json"]`.
+- **`get_all(page_size=None, sort=None)` paginates**: it walks the `page`/`page-size` cursor
+  (default page size 100), stops on `totalCount`/a short page, raises `JamfAPIError` on a non-`ok`
+  response, and returns **one** aggregated `Response` whose body is `{"totalCount": N, "results":
+  [...all pages...]}` (built via `Endpoint._repackage_response`). Callers read `.json()["results"]`.
+- **`update_by_id` uses PUT** as a best-effort default — override if your resource needs PATCH.
+
+For reference, exactly what you inherit (from `ProEndpoint`, `models.py`):
+
+```python
+def get_all(self, page_size=None, sort=None) -> Response:    # paginates -> one aggregated Response
+def get_by_id(self, target_id) -> Response:                  # GET  url(_version)+_uri+/{id}
+def create(self, payload) -> Response:                       # POST url(_version)+_uri, json=<dict>
+def update_by_id(self, target_id, payload) -> Response:      # PUT  ...+/{id}, json=<dict>
+def delete_by_id(self, target_id) -> Response:               # DELETE ...+/{id}, delete json header
+```
+
+**When to hand-roll:** only when a resource deviates from this shape — a nested path, a query
+param the base doesn't build, or a non-JSON body. In that case override just the method that
+differs and build the `requests.Request` explicitly, e.g.:
+
+```python
+    def get_by_id(self, target_id: int) -> Response:
+        """Get a thing by its ID (custom nested path)."""
+        return self._api.do(Request(
+            "GET",
+            url=self._api.url(self._version) + self._uri + f"/nested/{target_id}",
+            headers=self._api.header("read")["json"],
+        ))
+```
 
 Wire it: import in `client.py` (alias if the name clashes with a Classic class —
 `from ..endpoints.pro_scripts import Scripts as ProScripts`), then
@@ -381,12 +388,16 @@ For endpoints that are **verbs, not CRUD** — sending commands to devices, etc.
 JSON payload and POSTs, plus **many thin named wrappers** that fix the command string and map
 snake_case Python args to Jamf's camelCase payload keys.
 
+**Subclass the bare `Endpoint`, not `ProEndpoint`** — an action endpoint has no `/{id}` CRUD to
+inherit, and pulling in `ProEndpoint`'s `get_all`/`get_by_id`/… would just expose meaningless
+methods. (Same reason the composite Classic `Accounts` parent subclasses bare `Endpoint`.)
+
 ```python
 from requests import Request, Response
-from .models import ProEndpoint
+from .models import Endpoint
 
 
-class MDMCommands(ProEndpoint):
+class MDMCommands(Endpoint):
     """Endpoint for issuing MDM commands via the modern Jamf Pro API."""
     _uri = "/mdm/commands"
     _name = "mdm_commands"
@@ -435,14 +446,15 @@ Wire it: `self.mdm = MDMCommands(self)` in `ProAPI.__init__`.
 
 ---
 
-## Legacy pattern — recognise, don't copy
+## Pagination — inherited, don't hand-roll
 
-`pro_scripts.Scripts.get_all` hand-rolls pagination and has an **inconsistent return
-signature** (returns `(resp, list)` on the early-exit path, `resp` on the loop path, and
-accumulates an `out_list` it never returns). It predates the current conventions. Its tests
-deliberately *characterize* this quirk. Recognise it so you don't reproduce its shape — new
-paginating endpoints should return one consistent type. `AGENTS.md` lists this under
-"Known rough edges."
+Pro list endpoints paginate with `page`/`page-size` and return `{"totalCount": N, "results": [...]}`.
+`ProEndpoint.get_all` handles this centrally — do **not** hand-roll a paging loop in your endpoint.
+It walks the cursor from page 0, stops when `totalCount` is reached or a short/empty page arrives
+(with a defensive guard against a server that ignores `page`), raises `JamfAPIError` on a non-`ok`
+response, and returns **one** aggregated `Response`. Just set `_uri`/`_name`/`_version` and call
+`endpoint.get_all()` — pass `page_size=` / `sort=` to tune it. If a resource paginates differently,
+override `get_all` and still return a single `Response` (aggregate via `Endpoint._repackage_response`).
 
 ---
 
