@@ -19,6 +19,7 @@ CLASSIC_ENDPOINTS = [
     (clc.Computers, "/computers", "computers"),
     (clc.Departments, "/departments", "departments"),
     (clc.ConfigurationProfiles, "/osxconfigurationprofiles", "os_x_configuration_profiles"),
+    (clc.MobileDeviceConfigurationProfiles, "/mobiledeviceconfigurationprofiles", "configuration_profiles"),
     (clc.MobileDeviceGroups, "/mobiledevicegroups", "mobile_device_groups"),
     (clc.MobileDevices, "/mobiledevices", "mobile_devices"),
     (clc.Packages, "/packages", "packages"),
@@ -44,7 +45,8 @@ def test_get_by_id_builds_expected_url(cls, uri, name):  # pylint: disable=unuse
 
 # Endpoint attributes ProAPI/ClassicAPI wiring must expose (client.py).
 EXPECTED_ATTRS = [
-    "computer_groups", "mobile_device_groups", "policies", "configuration_profiles",
+    "computer_groups", "mobile_device_groups", "mobile_device_configuration_profiles",
+    "policies", "configuration_profiles",
     "computer_extension_attributes", "categories", "computer_searches", "scripts",
     "buildings", "packages", "computers", "mobile_devices", "sites", "departments",
     "accounts", "restricted_software",
