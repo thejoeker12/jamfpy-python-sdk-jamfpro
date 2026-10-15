@@ -690,6 +690,34 @@ Test-file conventions:
 
 Run the suite from the repo root: `make test`.
 
+### The contract test
+
+`tests/contract_test.py` checks every endpoint against the schemas, and you don't add anything
+to it for a new endpoint. At collection it builds a throwaway `Tenant` (which sends nothing) and
+discovers the endpoints by introspection: every `Endpoint` instance attribute of `tenant.classic`
+and `tenant.pro`, recursing into endpoints that hold endpoints (`classic.accounts.users`). So the
+`self.things = Things(self)` line in `client.py` is what puts an endpoint under test. Every public
+method on it (bar `name()`) becomes one test, with an id like `pro.things.get_by_id`: the method is
+called with dummy arguments built from its signature (`int` → `1`, `str` → the sentinel
+`"jamfpy-contract-arg"`, `list[str]` → `["jamfpy-contract-arg"]`, `dict` → `{}`, defaults as declared)
+under a catch-all `responses` registration, and each
+request it sends must be a path and verb in the schema once ids are normalised (`/v1/things/1` →
+`/v1/things/{id}`, `/buildings/id/1` → `/buildings/id/{id}`; every `{param}` in the schema →
+`{id}`; a path segment equal to the sentinel, URL-encoded or not, is `{id}` too, so a name-based lookup
+like `/accounts/username/jamfpy-contract-arg` matches `/accounts/username/{id}`). A Classic write must
+send an XML string as `data=`, a Pro write a `json=` body. Another test checks that `_uri` (with
+`_version` for Pro) names paths the schema has. Discovery takes every public callable, so a public
+`@staticmethod` or a callable assigned in `__init__` is tested as well. The check is that the
+`(path, verb)` pair exists, so a valid verb that is wrong for the method on a path with several verbs
+is for your `tests/<module>_test.py` to catch.
+
+There is no allowlist. A failure reads
+`pro.things.get_all sent GET /v1/things, which the pro schema has only for ['post']`: the
+endpoint offers a method the API doesn't have, so fix the endpoint (compose only the mixins for the
+verbs listed, or correct the URL), not the test. The one edit the test needs is bumping
+`EXPECTED_ENDPOINT_COUNT` when you wire an endpoint; a parameter type it can't fill raises
+`TypeError` naming the parameter, so teach `dummy_value` that type.
+
 ---
 
 ## Definition of done
@@ -704,6 +732,9 @@ Run the suite from the repo root: `make test`.
       `tests/conftest.py` fixtures).
 - [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
 - [ ] Tests pass: `make test`.
+- [ ] The contract test passes for the new endpoint (`tests/contract_test.py`, part of `make test`): it
+      finds the endpoint through its `client.py` attribute and tests every public method; bump its
+      `EXPECTED_ENDPOINT_COUNT`.
 - [ ] Lint passes: `make lint`.
 - [ ] Type check passes: `make typecheck` (every new parameter and return hinted).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.

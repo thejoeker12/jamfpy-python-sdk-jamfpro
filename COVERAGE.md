@@ -60,7 +60,7 @@ Pro bodies are **JSON dicts**. Full CRUD = the five methods above (with a pagina
 | `pro.scripts` | `/scripts` | v1 | full CRUD |
 | `pro.dock_items` | `/dock-items` | v1 | `get_by_id`, `create`, `update_by_id`, `delete_by_id` — the collection path is **POST-only** in the schema, so there is no `get_all` |
 | `pro.mdm` | `/mdm/commands` | v2 | **Verb endpoint** (not CRUD): `send_command` + ~29 convenience wrappers (`lock_device`, `erase_device`, `restart_device`, …) |
-| `pro.app_installers` | `/app-installers/deployments` | v1 | full CRUD; **not in the bundled `pro.json` snapshot**, but the OPTIONS probe in `pro-supplement.json` shows all five verbs — `get_all`'s pagination and the body shapes are best-effort (undocumented) |
+| `pro.app_installers` | `/app-installers/deployments` | v1 | full CRUD; **not in the bundled `pro.json` snapshot**, but the OPTIONS probe in `pro-supplement.json` shows all five verbs — `get_all`'s pagination and the body shapes are best-effort (undocumented; a live min lifecycle passes, see below) |
 
 ---
 
@@ -69,7 +69,9 @@ Pro bodies are **JSON dicts**. Full CRUD = the five methods above (with a pagina
 Which covered resources have live min/max lifecycle tests (`tests/integration/` — create with
 required fields only / all writable fields, then read → update → read → delete against a real
 tenant; see `AGENTS.md` → *Quality gates*). Specs live in
-`tests/integration/clc_resources_live_test.py` and `pro_resources_live_test.py`.
+`tests/integration/clc_resources_live_test.py` and `pro_resources_live_test.py`. Behaviour that is
+not per resource (lazy auth, parallel pagination, hooks over a lifecycle, `close()` invalidating the
+token) is checked live in `tests/integration/sdk_behaviour_live_test.py`, which is not in this table.
 
 **Keep this current:** adding an endpoint, or adding/changing a spec, means updating this table in
 the same change — this is a line item in `AGENTS.md` → *Definition of done*.
@@ -97,7 +99,7 @@ the same change — this is a line item in `AGENTS.md` → *Definition of done*.
 | `pro.scripts` | Pro | ✅ | ✅ | categoryId/categoryName omitted (instance-state dependent) |
 | `pro.dock_items` | Pro | ✅ | ✅ | All fields required — min ≡ max |
 | `pro.mdm` | Pro | N/A | N/A | Verb endpoint (send-command); no CRUD to lifecycle-test |
-| `pro.app_installers` | Pro | ❌ | ❌ | Needs an App Installers catalog title + accepted T&Cs on the instance |
+| `pro.app_installers` | Pro | ✅ | ❌ | Min: the four fields a 400 on `{}` names as required (`name`, `appTitleId`, `deploymentType`, `updateBehavior`), with the first catalog title from `GET /v1/app-installers/titles` (a spec `setup`), `SELF_SERVICE` / `MANUAL`, plus `enabled: false` so nothing reaches a device. No max: the body is in no published schema, so its writable fields are unknown |
 
 ---
 
