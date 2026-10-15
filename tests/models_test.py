@@ -94,14 +94,14 @@ def test_create_posts_to_id_zero(things, mocked_responses):
     assert req.body == "<thing/>"
 
 
-def test_delete_by_id_sends_no_headers(things, mocked_responses):
+def test_delete_by_id_sends_no_headers_of_its_own(things, mocked_responses):
     mocked_responses.delete(f"{BASE}/things/id/5")
     things.delete_by_id(5)
     req = _last(mocked_responses)
     assert req.method == "DELETE"
     assert req.url == f"{BASE}/things/id/5"
     # Characterises current behaviour: delete builds the Request without a headers= argument,
-    # so only the auth header goes out.
+    # so only the session defaults (requests' Accept: */* among them) and the auth header go out.
     assert sent_headers(req) == with_bearer({})
 
 

@@ -6,7 +6,10 @@ from typing import Any
 DEFAULT_LOG_LEVEL = INFO
 DEFAULT_TOKEN_BUFFER = 20
 
-AUTH_REQUEST_TIMEOUT = 20
+# Seconds, as requests takes them: one value for both phases, or a (connect, read) pair.
+Timeout = float | tuple[float, float]
+DEFAULT_TIMEOUT: Timeout = 30.0
+
 TIME_ROUNDING_DECIMAL_COUNT = 3
 
 VALID_AUTH_METHODS = ("oauth2", "basic")

@@ -6,14 +6,20 @@ from typing import Any
 from requests import Session, Request, Response
 
 from .auth import Auth
+from .constants import DEFAULT_TIMEOUT, Timeout
 from .http_config import HTTPConfig
 from .logger import new_logger
-from .utility import extract_cloud_tenant_name_from_url
+from .utility import extract_cloud_tenant_name_from_url, user_agent
 from .exceptions import JamfpyConfigError
 
 
 class API:
-    """Base class providing core functionality for interacting with Jamf Pro APIs."""
+    """Base class providing core functionality for interacting with Jamf Pro APIs.
+
+    Safe to share between threads: ``do()`` puts the Authorization header on each request rather than on the
+    session, so the session holds only the connection pool (which urllib3 guards), the cookie jar, the
+    redirect cache and the headers set once here; nothing on it changes per request.
+    """
 
     _headers_dict: dict[str, str] = {}
     _is_closed = False
@@ -34,6 +40,7 @@ class API:
             logger: Logger | None,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
 
     ) -> None:
 
@@ -42,12 +49,16 @@ class API:
         self._http_config: HTTPConfig = http_config
         self.cert_path = cert_path
         self.verify_path = verify_path
+        self._timeout = timeout
 
         self._session = session or Session()
         # do() resolves verify/cert through merge_environment_settings, which falls back to these when neither an
         # explicit path nor an env CA bundle is set, so the default is always verified, including on a caller's session.
         self._session.verify = verify_path if verify_path else True
         self._session.cert = cert_path
+        # Set once, never per request: requests merges session headers under each request's own, so an endpoint's
+        # accept/content-type still win over the session's default Accept.
+        self._session.headers["User-Agent"] = user_agent()
         self._safe_mode = safe_mode
 
         self._logger = self._init_logging(logger, log_level)
@@ -98,20 +109,6 @@ class API:
 
 
 
-    # @_check_closed
-    def _refresh_session_headers(self) -> None:
-        """Clears all session headers and replaces with new Auth header"""
-
-        self._logger.debug("Refreshing session headers (Clear + Re-set)")
-
-        self._session.headers.clear()
-
-        token = self.auth.token()
-        self._session.headers.update({"Authorization": f"Bearer {token}"})
-
-        self._logger.debug("Session headers refreshed successfully")
-
-
     # Public Methods
 
 
@@ -153,25 +150,25 @@ class API:
 
 
     # @_check_closed
-    def do(self, request: Request, timeout: int = 10) -> Response:
-        """Takes request, preps and sends"""
-        self._refresh_session_headers()
+    def do(self, request: Request, timeout: Timeout | None = None) -> Response:
+        """
+        Takes request, adds the Authorization header, preps and sends.
+
+        ``timeout`` overrides the configured timeout for this call only; ``None`` uses the configured one.
+        """
+        # On the request, never the shared session, so concurrent callers can't see each other's header changes. A new
+        # dict, not an in-place update: endpoints pass the configured header sets, which must never carry a token.
+        request.headers = {**(request.headers or {}), "Authorization": f"Bearer {self.auth.token()}"}
 
         do_debug_string = "%s: Method: %s at: %s with headers: %s"
 
         # Logging accepts any object, and the value is either a header mapping or a marker string.
-        request_header_log: object = "no headers supplied"
-        if request.headers:
-            request_header_log = request.headers if not self._safe_mode else "[redacted]"
-
+        request_header_log: object = request.headers if not self._safe_mode else "[redacted]"
         self._logger.debug(do_debug_string, "prepping", request.method, request.url, request_header_log)
 
         prepped = self._session.prepare_request(request)
 
-        prepped_header_log: object = "no headers supplied"
-        if prepped.headers:
-            prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
-
+        prepped_header_log: object = prepped.headers if not self._safe_mode else "[redacted]"
         self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
 
         # Session.send bypasses the env merge that Session.request does (CA bundle and proxy env vars); auth calls go
@@ -179,7 +176,7 @@ class API:
         # prepare_request always sets the URL (it raises otherwise); requests only types it as optional.
         assert prepped.url is not None
         settings = self._session.merge_environment_settings(prepped.url, {}, None, self.verify_path, self.cert_path)
-        response = self._session.send(prepped, timeout=timeout, **settings)
+        response = self._session.send(prepped, timeout=self._timeout if timeout is None else timeout, **settings)
 
         self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 

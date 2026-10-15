@@ -6,7 +6,7 @@ from requests import Session
 
 from .auth import Auth
 from .http_config import HTTPConfig
-from .constants import DEFAULT_LOG_LEVEL
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TIMEOUT, Timeout
 from .api import API
 
 from ..endpoints.clc_endpoints import (
@@ -52,6 +52,7 @@ class ClassicAPI(API):
             logger: Logger | None = None,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
     ) -> None:
 
         # no dynamic args here to preserve the hints.
@@ -64,7 +65,8 @@ class ClassicAPI(API):
             session=session,
             logger=logger,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
         )
 
         # Endpoints
@@ -105,6 +107,7 @@ class ProAPI(API):
             logger: Logger | None = None,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
     ) -> None:
 
         super().__init__(
@@ -116,7 +119,8 @@ class ProAPI(API):
             session=session,
             logger=logger,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
         )
 
         self.scripts = ProScripts(self)

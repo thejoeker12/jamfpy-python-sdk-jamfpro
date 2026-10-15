@@ -33,7 +33,8 @@ def tenant():
     """Live ``jamfpy.Tenant`` built from JAMFPRO_* env vars; token invalidated at teardown.
 
     Missing configuration always fails the run, locally and in CI: an
-    environmental gap must never pass as a skip.
+    environmental gap must never pass as a skip. ``Tenant()`` is lazy, so the
+    fixture authenticates straight away: bad credentials fail here, at setup.
     """
     missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
     if missing:
@@ -49,6 +50,7 @@ def tenant():
         client_id=os.environ["JAMFPRO_CLIENT_ID"],
         client_secret=os.environ["JAMFPRO_CLIENT_SECRET"],
     )
+    live_tenant.authenticate()
     yield live_tenant
     # pro and classic share one auth object; a single close invalidates the token.
     live_tenant.classic.close()

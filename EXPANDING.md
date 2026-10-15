@@ -71,12 +71,15 @@ exact shapes:
 `read` and `delete` carry no `content-type` (those requests have no body). Classic writes use
 `["xml"]`; Pro uses `["json"]`. An unknown key raises `KeyError("Invalid header key provided")`.
 
-### `self._api.do(request: Request, timeout: int = 10) -> Response`
+### `self._api.do(request: Request, timeout: Timeout | None = None) -> Response`
 
-The single choke point every request goes through. It refreshes the session's
-`Authorization` header from `auth.token()`, preps the `requests.Request`, sends it, and
-returns the **raw** `requests.Response`. Endpoints never touch auth — they just build a
-`Request` and hand it to `do()`.
+The single choke point every request goes through. It adds `Authorization: Bearer <token>`
+from `auth.token()` to the request's own headers (never the shared session, whose headers are
+just requests' defaults plus `User-Agent: jamfpy/<version>`), preps the `requests.Request`, sends it
+with the configured timeout (`Tenant(timeout=...)`, default 30 s; `timeout=` overrides it for
+that one API call, not for a token fetch it triggers), and returns the **raw** `requests.Response`. Endpoints never touch auth or
+timeouts — they just build a `Request` and hand it to `do()`. Session defaults sit under the
+endpoint's headers, so an endpoint's `accept` replaces the default `Accept: */*`.
 
 ### Base classes (`jamfpy/endpoints/models.py`)
 
@@ -199,7 +202,7 @@ def create(self, config_profile: str) -> Response:                              
 def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/id/{id}, sets no headers of its own
 ```
 
-Note: Classic **create posts to `/id/0`**, and **delete sets no headers of its own** (only `Authorization` goes out). `get_by_id`/
+Note: Classic **create posts to `/id/0`**, and **delete sets no headers of its own** (only the session defaults and `Authorization` go out). `get_by_id`/
 `get_all` accept `xml_response=True` to switch `read` headers from json to xml.
 
 ---
@@ -473,21 +476,24 @@ What `tests/conftest.py` gives you:
   call (`mocked_responses.get(url, json={...})`, `mocked_responses.post(url, status=201, body="<xml/>")`);
   `mocked_responses.calls` records every request in order. Every registration must be used:
   one the code never requests fails the test at teardown.
-- `classic_api` / `pro_api` — the two APIs of a real OAuth `Tenant` (the `tenant` fixture) whose
-  token request is already answered. The call log is reset after construction, so `calls` holds
-  only your test's requests. Reach your endpoint through its wired attribute
+- `classic_api` / `pro_api` — the two APIs of a real OAuth `Tenant` (the `tenant` fixture),
+  already authenticated against the mocked token endpoint (`Tenant()` itself is lazy and sends
+  nothing). The call log is reset after that, so `calls` holds only your test's requests. Reach your endpoint through its wired attribute
   (`classic_api.buildings`), which also exercises the wiring in `client.py`. At teardown the
   fixture fails the test if any call other than a token request went out without the
   `Authorization: Bearer` header, so every endpoint test checks it without asserting it.
 - `response_registry` — the registry class behind `mocked_responses`. A module whose endpoint
   may request the same URL repeatedly (a paginated `get_all`) overrides it to return
   `responses.registries.OrderedRegistry`, as `tests/models_test.py` does.
-- `with_bearer(header_set)` — a config header set plus the `Authorization: Bearer <fake token>`
-  header `API.do()` adds.
+- `with_bearer(header_set)` — every header `API.do()` sends for a config header set: requests'
+  session defaults with the jamfpy `User-Agent`, the set over them, and the
+  `Authorization: Bearer <fake token>` header. Names are lower-cased to match `sent_headers`.
 - `sent_headers(request)` — a recorded request's headers minus `Content-Length`, which
-  requests derives from the body.
+  requests derives from the body, with names lower-cased (header names are case-insensitive,
+  and an endpoint's `accept` replaces the session's `Accept` under its own spelling).
 - `FQDN`, `FAKE_TOKEN`, `TOKEN_URL` and `register_oauth_token(rsps)` for tests that build their
-  own `Tenant`.
+  own `Tenant`. `Tenant()` sends nothing, so register the token endpoint only when the test
+  authenticates or sends a request (an unused registration fails the test).
 
 Assert on `mocked_responses.calls[-1].request` (a `requests.PreparedRequest`): `.method`, the
 full `.url` (`.../JSSResource/...` for Classic, `.../api/v{n}/...` for Pro),

@@ -6,16 +6,24 @@ tests that assert the keyword arguments reaching the adapter (``verify``, ``cert
 ``proxies``, ``timeout``) patch ``HTTPAdapter.send`` directly instead, with a stub Auth and
 no ``responses`` mock: the adapter is where ``verify=None`` used to become an unverified
 connection, so they pin exactly what it is called with.
+
+The concurrency tests run ``do()`` from ``THREADS`` threads released together by a barrier
+(``run_together``); the token endpoint answers slowly, so without the ``Auth`` lock several
+threads would refresh.
 """
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 import logging
 from datetime import datetime, timezone
+from importlib import metadata
 from unittest.mock import MagicMock, patch
 
 import pytest
 from requests import Request, Response, Session
 from requests.adapters import HTTPAdapter
-from conftest import FAKE_TOKEN, FQDN, TOKEN_URL, register_oauth_token, sent_headers
+from conftest import (
+    FAKE_TOKEN, FQDN, THREADS, TOKEN_URL, register_oauth_token, register_slow_oauth_token, run_together, sent_headers,
+    with_bearer,
+)
 
 from jamfpy.client.client import ClassicAPI
 from jamfpy.client.http_config import HTTPConfig
@@ -82,13 +90,6 @@ def test_header_raises_on_bad_key(classic_api):
         classic_api.header("does-not-exist")
 
 
-def test_refresh_session_headers_sets_bearer(classic_api):
-    classic_api._session.headers["X-Stale"] = "1"
-    classic_api._refresh_session_headers()
-    # Cleared, then only the Bearer header from the real Auth.
-    assert dict(classic_api._session.headers) == {"Authorization": f"Bearer {FAKE_TOKEN}"}
-
-
 def test_do_prepares_and_sends(classic_api, mocked_responses):
     mocked_responses.get(COMPUTERS_URL, json={"computers": []})
 
@@ -105,12 +106,105 @@ def test_do_prepares_and_sends(classic_api, mocked_responses):
     assert req.headers["accept"] == "application/json"
 
 
-def test_do_drops_the_session_default_headers(classic_api, mocked_responses):
-    # Characterises current behaviour: _refresh_session_headers clears the session's requests defaults, so a request
-    # goes out with no User-Agent, Accept-Encoding, Accept or Connection header unless the endpoint sets one.
+def test_do_sends_requests_defaults_with_the_jamfpy_user_agent(classic_api, mocked_responses):
     mocked_responses.get(COMPUTERS_URL, json={})
     classic_api.do(Request("GET", url=COMPUTERS_URL))
-    assert sent_headers(mocked_responses.calls[-1].request) == {"Authorization": f"Bearer {FAKE_TOKEN}"}
+
+    req = mocked_responses.calls[-1].request
+    assert req.headers["User-Agent"] == f"jamfpy/{metadata.version('jamfpy')}"
+    # The session keeps requests' Accept-Encoding, Accept and Connection defaults alongside it.
+    assert sent_headers(req) == with_bearer({})
+
+
+def test_endpoint_accept_wins_over_the_session_default(classic_api, mocked_responses):
+    mocked_responses.get(COMPUTERS_URL, body="<computers/>")
+    classic_api.do(Request("GET", url=COMPUTERS_URL, headers={"accept": "text/xml"}))
+
+    req = mocked_responses.calls[-1].request
+    assert req.headers["Accept"] == "text/xml"
+    assert [name for name in req.headers if name.lower() == "accept"] == ["accept"]
+
+
+def test_user_agent_falls_back_when_jamfpy_is_not_installed(classic_api, mocked_responses, silent_logger):
+    with patch("importlib.metadata.version", side_effect=metadata.PackageNotFoundError("jamfpy")):
+        api = _classic_real_session(classic_api.auth, silent_logger)
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert mocked_responses.calls[-1].request.headers["User-Agent"] == "jamfpy/unknown"
+
+
+def test_do_puts_authorization_on_the_request_not_the_session(classic_api, mocked_responses):
+    mocked_responses.get(COMPUTERS_URL, json={})
+    endpoint_headers = {"accept": "application/json"}
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL, headers=endpoint_headers))
+
+    assert mocked_responses.calls[-1].request.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+    assert "Authorization" not in classic_api._session.headers
+    # The endpoint's dict is the shared config header set in real code; the token must not land in it.
+    assert endpoint_headers == {"accept": "application/json"}
+
+
+def test_do_authorization_beats_a_session_default(classic_api, mocked_responses):
+    classic_api._session.headers["Authorization"] = "Bearer stale"
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert mocked_responses.calls[-1].request.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+
+
+def test_do_uses_the_configured_timeout(classic_api, mocked_responses):
+    mocked_responses.get(COMPUTERS_URL, json={})
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+    assert mocked_responses.calls[-1].request.req_kwargs["timeout"] == 30.0
+
+
+def test_do_timeout_overrides_for_that_call_only(classic_api, mocked_responses):
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL), timeout=7)
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert [call.request.req_kwargs["timeout"] for call in mocked_responses.calls] == [7, 30.0]
+
+
+def test_api_timeout_keyword_sets_the_default(classic_api, mocked_responses, silent_logger):
+    api = _classic_real_session(classic_api.auth, silent_logger, timeout=(3.0, 27.0))
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert mocked_responses.calls[-1].request.req_kwargs["timeout"] == (3.0, 27.0)
+
+
+# --- concurrency -----------------------------------------------------------
+
+def test_concurrent_do_with_an_expired_token_fetches_it_once(classic_api, mocked_responses):
+    token = register_slow_oauth_token(mocked_responses, "fresh-token")
+    computers = mocked_responses.get(COMPUTERS_URL, json={})
+    classic_api.auth.token_expiry = 0.0
+
+    run_together(lambda: classic_api.do(Request("GET", url=COMPUTERS_URL)))
+
+    assert token.call_count == 1
+    assert computers.call_count == THREADS
+    assert {call.request.headers["Authorization"] for call in computers.calls} == {"Bearer fresh-token"}
+
+
+def test_concurrent_do_keeps_authorization_off_the_session(classic_api, mocked_responses):
+    computers = mocked_responses.get(COMPUTERS_URL, json={})
+    assert "Authorization" not in classic_api._session.headers
+
+    run_together(lambda: classic_api.do(Request("GET", url=COMPUTERS_URL, headers={"accept": "application/json"})))
+
+    assert computers.call_count == THREADS
+    for call in computers.calls:
+        assert call.request.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+        assert call.request.headers["accept"] == "application/json"
+    assert "Authorization" not in classic_api._session.headers
 
 
 def test_do_fetches_a_new_token_when_expired(classic_api, mocked_responses):
@@ -190,6 +284,7 @@ def test_caller_session_gets_tls_settings(classic_api, silent_logger, tmp_path):
     assert api._session is session
     assert session.verify == str(ca_bundle)
     assert session.cert == str(client_cert)
+    assert session.headers["User-Agent"] == f"jamfpy/{metadata.version('jamfpy')}"
 
 
 def test_caller_session_with_verification_off_is_verified(classic_api, silent_logger):
@@ -240,10 +335,10 @@ def test_do_verifies_by_default(mock_auth, silent_logger):
 
 
 @pytest.mark.usefixtures("clean_env")
-def test_do_times_out_after_ten_seconds_by_default(mock_auth, silent_logger):
+def test_do_times_out_after_thirty_seconds_by_default(mock_auth, silent_logger):
     kwargs = _send_kwargs(_classic_real_session(mock_auth, silent_logger))
 
-    assert kwargs["timeout"] == 10
+    assert kwargs["timeout"] == 30.0
 
 
 @pytest.mark.usefixtures("clean_env")

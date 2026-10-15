@@ -4,7 +4,7 @@ import pytest
 
 import jamfpy
 
-PUBLIC_NAMES = ["Tenant", "OAuth", "BasicAuth", "API", "ProAPI", "ClassicAPI", "new_logger"]
+PUBLIC_NAMES = ["Tenant", "OAuth", "BasicAuth", "API", "ProAPI", "ClassicAPI", "new_logger", "Timeout"]
 
 
 @pytest.mark.parametrize("name", PUBLIC_NAMES)
