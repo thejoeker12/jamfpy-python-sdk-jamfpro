@@ -104,7 +104,7 @@ differences baked into `ProEndpoint`):
 ## Querying the API schemas
 
 `api_schemas/pro.json` is **~1.9 MB** and `classic.json` is **~330 KB** — never read either
-whole; it wastes context. Query them. Use the project venv (`.venv/bin/python`) from the repo
+whole; it wastes context. Query them. Run the one-liners with `uv run python` from the repo
 root. Human-readable docs, if the schema isn't enough:
 <https://developer.jamf.com/jamf-pro/reference> (also in `api_schemas/api-reference-url.txt`).
 
@@ -112,14 +112,14 @@ root. Human-readable docs, if the schema isn't enough:
 
 ```bash
 # 1. Find the path(s) for your resource. The /v1, /v2... prefix IS the string url() needs.
-.venv/bin/python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
+uv run python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
 # -> ['/v1/scripts', '/v1/scripts/{id}', '/v1/scripts/{id}/download', ...]
 
 # 2. Read one path's methods / params / request body reference.
-.venv/bin/python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
+uv run python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
 
 # 3. A POST/PUT body is usually a $ref into components.schemas. Resolve it for the field names.
-.venv/bin/python -c "import json; d=json.load(open('api_schemas/pro.json')); s=d['components']['schemas']['Script']; print('props:', list(s['properties'])); print('required:', s.get('required'))"
+uv run python -c "import json; d=json.load(open('api_schemas/pro.json')); s=d['components']['schemas']['Script']; print('props:', list(s['properties'])); print('required:', s.get('required'))"
 # -> props: ['id', 'name', 'info', 'notes', 'priority', ...]
 # -> required: ['name']
 ```
@@ -137,7 +137,7 @@ grep -o '"/[^"]*buildings[^"]*"' api_schemas/classic.json | sort -u
 # -> "/buildings"  "/buildings/id/{id}"  "/buildings/name/{name}"
 
 # Option 2 — strip the trailing commas, then parse to inspect methods per path.
-.venv/bin/python -c "import re,json; t=re.sub(r',(\s*[}\]])', r'\1', open('api_schemas/classic.json').read()); d=json.loads(t); print('/buildings:', list(d['paths']['/buildings'])); print('/buildings/id/{id}:', list(d['paths']['/buildings/id/{id}']))"
+uv run python -c "import re,json; t=re.sub(r',(\s*[}\]])', r'\1', open('api_schemas/classic.json').read()); d=json.loads(t); print('/buildings:', list(d['paths']['/buildings'])); print('/buildings/id/{id}:', list(d['paths']['/buildings/id/{id}']))"
 # -> /buildings: ['get']
 # -> /buildings/id/{id}: ['delete', 'get', 'post', 'put']
 ```
@@ -546,7 +546,7 @@ Test-file conventions:
   `api = FakeAPI(responses=[make_response({...})])`, then assert on both the returned
   response and `api.last_request`.
 
-Run the suite from the repo root: `.venv/bin/python -m pytest -q`.
+Run the suite from the repo root: `make test`.
 
 ---
 
@@ -558,8 +558,8 @@ Run the suite from the repo root: `.venv/bin/python -m pytest -q`.
 - [ ] Path, version, and body shape verified against the schema (the queries above — not a
       full read).
 - [ ] A `tests/<module>_test.py` covers the Request(s) it builds (mock only, via `FakeAPI`).
-- [ ] Smoke test: `.venv/bin/python -c "import jamfpy; print(jamfpy.Tenant)"`.
-- [ ] Tests pass: `.venv/bin/python -m pytest -q`.
-- [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`.
+- [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
+- [ ] Tests pass: `make test`.
+- [ ] Lint passes: `make lint`.
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.
 - [ ] If committing: Conventional Commit (`feat:` for a new endpoint).

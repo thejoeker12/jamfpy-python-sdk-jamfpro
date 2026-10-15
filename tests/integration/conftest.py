@@ -3,7 +3,8 @@
 Everything in this directory exercises a REAL Jamf Pro tenant, configured via
 the ``JAMFPRO_INSTANCE_FQDN`` / ``JAMFPRO_CLIENT_ID`` / ``JAMFPRO_CLIENT_SECRET``
 environment variables. Tests are marker-gated (``integration``) and deselected
-by default — run them explicitly with ``pytest -m integration tests/integration``.
+by default — run them explicitly with ``make test-integration`` (which loads
+``.env`` when present).
 
 The per-resource specs and lifecycle runners live in ``lifecycle.py`` and the
 ``*_live_test.py`` modules; coverage is tracked in COVERAGE.md → *Live
@@ -31,15 +32,12 @@ def pytest_collection_modifyitems(items):
 def tenant():
     """Live ``jamfpy.Tenant`` built from JAMFPRO_* env vars; token invalidated at teardown.
 
-    Missing configuration fails the run in CI (misconfigured secrets must not go
-    green) but skips locally so humans without creds just see skips.
+    Missing configuration always fails the run, locally and in CI: an
+    environmental gap must never pass as a skip.
     """
     missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
     if missing:
-        msg = f"live-tenant env vars not set: {', '.join(missing)}"
-        if os.environ.get("CI"):
-            pytest.fail(msg, pytrace=False)
-        pytest.skip(msg)
+        pytest.fail(f"live-tenant env vars not set: {', '.join(missing)}", pytrace=False)
 
     fqdn = os.environ["JAMFPRO_INSTANCE_FQDN"]
     if not fqdn.startswith("http"):
