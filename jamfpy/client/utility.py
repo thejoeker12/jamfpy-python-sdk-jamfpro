@@ -1,6 +1,7 @@
 """Utility functions and helper methods for the Jamf Pro API client."""
 from collections.abc import Mapping
 from datetime import datetime
+from importlib import metadata
 from pathlib import Path
 from typing import cast
 import xml.etree.ElementTree as ET
@@ -13,6 +14,15 @@ def extract_cloud_tenant_name_from_url(fqdn: str) -> str:
         This is where the unique identifier of a Jamf Pro Cloud instance is found.
     """
     return fqdn.split("//")[1].split(".")[0]
+
+
+def user_agent() -> str:
+    """The User-Agent jamfpy identifies itself with: ``jamfpy/<installed version>``, or ``jamfpy/unknown``."""
+    try:
+        return f"jamfpy/{metadata.version('jamfpy')}"
+    except metadata.PackageNotFoundError:
+        # Imported from a source tree that was never installed (e.g. vendored), so there is no distribution to ask.
+        return "jamfpy/unknown"
 
 
 def compare_dict_keys(dict1: Mapping[str, object], dict2: Mapping[str, object]) -> list[str]:

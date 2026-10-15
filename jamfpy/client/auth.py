@@ -4,6 +4,7 @@
 from base64 import b64encode
 import datetime
 from logging import Logger
+import threading
 from typing import Optional
 from requests import request
 
@@ -11,13 +12,14 @@ from requests import request
 from .logger import new_logger
 from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
-from .utility import extract_cloud_tenant_name_from_url
+from .utility import extract_cloud_tenant_name_from_url, user_agent
 
 from .constants import (
     DEFAULT_LOG_LEVEL,
-    AUTH_REQUEST_TIMEOUT,
+    DEFAULT_TIMEOUT,
     TIME_ROUNDING_DECIMAL_COUNT,
-    DEFAULT_TOKEN_BUFFER
+    DEFAULT_TOKEN_BUFFER,
+    Timeout,
 )
 
 
@@ -28,9 +30,14 @@ def _parse_jamf_expiry(expires: str) -> float:
 
 
 class Auth:
-    """Base authentication class providing token management and validation for Jamf Pro API."""
+    """Base authentication class providing token management and validation for Jamf Pro API.
 
-    _token_str: str
+    Lazy: no token is fetched until the first ``token()`` call (or an explicit ``set_new_token()``).
+    Thread-safe: a re-entrant lock serialises every fetch, keep-alive and invalidation, so one Auth can
+    serve concurrent requests and only one of them refreshes an expiring token.
+    """
+
+    _token_str: str | None
     _method: str
     _logger: Logger
     _token_lifetime_secs: float | None
@@ -47,6 +54,7 @@ class Auth:
             log_level: int = DEFAULT_LOG_LEVEL,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
     ) -> None:
         self._fqdn = fqdn
         self._http_config = http_config
@@ -55,8 +63,16 @@ class Auth:
         self.token_exp_thold_mins = token_exp_thold_mins
         self.cert_path = cert_path
         self.verify_path = verify_path
+        self._timeout = timeout
+        self._user_agent = user_agent()
         self._token_lifetime_secs = None
         self._buffer_clamp_warned = False
+        self._token_str = None
+        # Epoch 0 reads as expired, so the expiry checks agree there is no usable token yet.
+        self.token_expiry = 0.0
+        # Re-entrant because token() holds it while check_token() calls set_new_token()/_keep_alive_token(), which
+        # take it themselves so that direct callers such as Tenant.authenticate() are serialised too.
+        self._lock = threading.RLock()
 
 
     def set_new_token(self) -> None:
@@ -169,7 +185,12 @@ class Auth:
         """
         self._logger.debug("FUNCTION: check_token")
 
-        if self.check_token_is_expired():
+        if self._token_str is None:
+            # The first fetch is routine under lazy auth, so it is not reported as an expired token.
+            self._logger.debug("No token yet; fetching one")
+            self.set_new_token()
+
+        elif self.check_token_is_expired():
             self.set_new_token()
 
         elif self.check_token_in_buffer():
@@ -180,35 +201,61 @@ class Auth:
                 self.set_new_token()
 
 
+    def _refresh_needed(self) -> bool:
+        """Lock-free, log-free pre-check for token(): no token yet, or one that is expired or inside the buffer."""
+        if self._token_str is None:
+            return True
+
+        remaining_secs = self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp()
+        return remaining_secs <= 0 or remaining_secs < self._buffer_secs()
+
+
     def token(self) -> str:
-        """Checks token validity and returns token string if valid"""
+        """Return a valid token, fetching one first if there is none yet or it is expired or inside the buffer."""
         self._logger.debug("FUNCTION: token")
-        self.check_token()
-        return self._token_str
+
+        # Double-checked so the common case (a valid token) never waits on the lock. A thread that sees a refresh
+        # is due re-checks under the lock, because another thread may have refreshed while it waited.
+        if self._refresh_needed():
+            with self._lock:
+                self.check_token()
+
+        token = self._token_str
+        # check_token() always leaves a token behind or raises; the attribute is only optional before the first fetch.
+        assert token is not None
+        return token
 
 
     def invalidate(self) -> bool:
         """
-        invalidates token
+        Invalidates the current token on the server.
+
+        Returns True when the server accepted it, or when no token has been fetched yet (nothing to invalidate).
         """
-        url = self._fqdn + self._http_config.urls["auth"]["invalidate-token"]
-        headers = {
-            "accept": "application/json",
-            "Authorization": f"Bearer {self._token_str}"
-        }
-        call = request(
-            method="POST",
-            url=url,
-            headers=headers,
-            timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path,
-            verify=self.verify_path
-        )
+        with self._lock:
+            if self._token_str is None:
+                self._logger.debug("No token to invalidate")
+                return True
 
-        if call.ok:
-            return True
+            url = self._fqdn + self._http_config.urls["auth"]["invalidate-token"]
+            headers = {
+                "accept": "application/json",
+                "Authorization": f"Bearer {self._token_str}",
+                "User-Agent": self._user_agent,
+            }
+            call = request(
+                method="POST",
+                url=url,
+                headers=headers,
+                timeout=self._timeout,
+                cert=self.cert_path,
+                verify=self.verify_path
+            )
 
-        return False
+            if call.ok:
+                return True
+
+            return False
 
 
 class OAuth(Auth):
@@ -228,6 +275,7 @@ class OAuth(Auth):
             logger: Logger | None = None,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
 
     ) -> None:
 
@@ -238,7 +286,8 @@ class OAuth(Auth):
             token_exp_thold_mins=token_exp_thold_mins,
             log_level=log_level,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
         )
 
         self._oauth_cid = client_id
@@ -256,32 +305,34 @@ class OAuth(Auth):
         """Requests and sets a new OAuth token."""
         self._logger.debug("FUNCTION: set_new_token")
 
-        headers = self._http_config.headers["auth"]["oauth"]
+        # A new dict: the configured header set is shared and must not carry per-call values.
+        headers = {**self._http_config.headers["auth"]["oauth"], "User-Agent": self._user_agent}
         data = {
             "client_id": self._oauth_cid,
             "client_secret": self._oauth_cs,
             "grant_type": "client_credentials"
         }
 
-        call = request(
-            method="POST",
-            url=self._auth_url,
-            headers=headers,
-            data=data,
-            timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path,
-            verify=self.verify_path
-        )
+        with self._lock:
+            call = request(
+                method="POST",
+                url=self._auth_url,
+                headers=headers,
+                data=data,
+                timeout=self._timeout,
+                cert=self.cert_path,
+                verify=self.verify_path
+            )
 
-        if not call.ok:
-            raise JamfAuthError("Error getting token.", call, call.text)
+            if not call.ok:
+                raise JamfAuthError("Error getting token.", call, call.text)
 
-        call_json = call.json()
-        self._token_str = call_json["access_token"]
-        now = datetime.datetime.now(datetime.timezone.utc)
-        self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
-        self.token_expiry = round(self.token_expiry, TIME_ROUNDING_DECIMAL_COUNT)
-        self._record_token_lifetime(call_json["expires_in"])
+            call_json = call.json()
+            self._token_str = call_json["access_token"]
+            now = datetime.datetime.now(datetime.timezone.utc)
+            expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
+            self.token_expiry = round(expiry, TIME_ROUNDING_DECIMAL_COUNT)
+            self._record_token_lifetime(call_json["expires_in"])
 
         self._logger.debug("Token set successfully")
 
@@ -310,6 +361,7 @@ class BasicAuth(Auth):
             logger: Logger | None = None,
             cert_path: str | None = None,
             verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
     ) -> None:
 
         super().__init__(
@@ -319,7 +371,8 @@ class BasicAuth(Auth):
             logger=logger,
             log_level=log_level,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
         )
 
         self.username = username
@@ -352,27 +405,31 @@ class BasicAuth(Auth):
 
         url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
 
-        headers = {
-            "accept": "application/json",
-            "Authorization": f"Bearer {self._token_str}"
-        }
+        with self._lock:
+            # Read under the lock: the token being extended must be the one this call then replaces.
+            headers = {
+                "accept": "application/json",
+                "Authorization": f"Bearer {self._token_str}",
+                "User-Agent": self._user_agent,
+            }
 
-        call = request(
-            method="POST",
-            url=url,
-            headers=headers,
-            timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path,
-            verify=self.verify_path
-        )
+            call = request(
+                method="POST",
+                url=url,
+                headers=headers,
+                timeout=self._timeout,
+                cert=self.cert_path,
+                verify=self.verify_path
+            )
 
-        if not call.ok:
-            raise JamfAuthError("Error keeping token alive")
+            if not call.ok:
+                raise JamfAuthError("Error keeping token alive")
 
-        call_json = call.json()
-        self._token_str = call_json["token"]
-        self.token_expiry = _parse_jamf_expiry(call_json["expires"])
-        self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())
+            call_json = call.json()
+            self._token_str = call_json["token"]
+            self.token_expiry = _parse_jamf_expiry(call_json["expires"])
+            self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())
+
         self._logger.debug("_keep_alive_token complete")
 
 
@@ -385,23 +442,24 @@ class BasicAuth(Auth):
 
         headers = {
             "accept": "application/json",
-            "Authorization": f"Basic {self.basic_auth_token}"  
+            "Authorization": f"Basic {self.basic_auth_token}",
+            "User-Agent": self._user_agent,
         }
 
-        call = request(
-            method="POST",
-            url=url,
-            headers=headers,
-            timeout=AUTH_REQUEST_TIMEOUT,
-            cert=self.cert_path,
-            verify=self.verify_path
-        )
+        with self._lock:
+            call = request(
+                method="POST",
+                url=url,
+                headers=headers,
+                timeout=self._timeout,
+                cert=self.cert_path,
+                verify=self.verify_path
+            )
 
-        if not call.ok:
-            raise JamfAuthError("Error getting new token", call.status_code, call)
+            if not call.ok:
+                raise JamfAuthError("Error getting new token", call.status_code, call)
 
-
-        call_json = call.json()
-        self._token_str = call_json["token"]
-        self.token_expiry = _parse_jamf_expiry(call_json["expires"])
-        self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())
+            call_json = call.json()
+            self._token_str = call_json["token"]
+            self.token_expiry = _parse_jamf_expiry(call_json["expires"])
+            self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())

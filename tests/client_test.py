@@ -1,18 +1,20 @@
 """Unit tests for jamfpy.client.client (endpoint wiring on ClassicAPI / ProAPI).
 
-Builds a real ``Tenant`` with the token endpoint answered by ``mocked_responses``.
+Builds a real ``Tenant`` under ``mocked_responses``; construction is lazy, so no token
+endpoint is registered or requested.
 """
 # pylint: disable=missing-function-docstring
 import logging
 from unittest.mock import patch
 
-from conftest import FQDN, register_oauth_token
+import pytest
+from conftest import FQDN
 
 import jamfpy
 
 
-def test_classic_api_builds_policies_once(mocked_responses):
-    register_oauth_token(mocked_responses)
+@pytest.mark.usefixtures("mocked_responses")
+def test_classic_api_builds_policies_once():
     with patch("jamfpy.client.client.Policies") as mock_policies:
         tenant = jamfpy.Tenant(fqdn=FQDN, auth_method="oauth2", client_id="c", client_secret="s",
                                log_level=logging.CRITICAL)

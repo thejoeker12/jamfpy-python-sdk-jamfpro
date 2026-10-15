@@ -4,17 +4,20 @@ All four auth network calls (token, bearer token, keep-alive, invalidate) are
 answered by ``responses`` registrations on the ``mocked_responses`` fixture, so the
 real ``requests.request()`` call runs and nothing hits a tenant.
 """
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name,too-many-lines
 import base64
 import logging
+import threading
 from datetime import datetime, timezone
+from importlib import metadata
 from unittest.mock import patch
 from urllib.parse import parse_qs
 
 import pytest
-from conftest import FQDN, TOKEN_URL, register_oauth_token
+from conftest import FQDN, THREADS, TOKEN_URL, register_oauth_token, register_slow_oauth_token, run_together
 
 from jamfpy.client.auth import OAuth, BasicAuth
+from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS
 from jamfpy.client.exceptions import JamfAuthError
 
 BEARER_URL = f"{FQDN}/api/v1/auth/token"
@@ -217,6 +220,7 @@ def test_check_token_oauth_refetches_within_buffer(silent_logger):
 
 def test_check_token_bearer_keeps_alive_within_buffer(silent_logger):
     auth = _basic(silent_logger, token_exp_thold_mins=20)
+    auth._token_str = "old"  # keep-alive extends an existing token
     auth.token_expiry = _now() + 10 * 60
 
     def refresh():
@@ -241,6 +245,122 @@ def test_token_returns_string_when_valid(silent_logger):
     auth.token_expiry = _now() + 3600
     auth._token_str = "live-token"
     assert auth.token() == "live-token"
+
+
+# --- lazy token ------------------------------------------------------------
+
+def test_new_auth_holds_no_token_and_reads_as_expired(silent_logger):
+    auth = _oauth(silent_logger)
+    assert auth._token_str is None
+    assert auth.token_expiry == 0.0
+    assert auth.check_token_is_expired() is True
+
+
+def test_oauth_token_fetches_on_first_call_only(silent_logger, mocked_responses):
+    token = _register_oauth(mocked_responses, 3600)
+    auth = _oauth(silent_logger)
+    assert len(mocked_responses.calls) == 0
+
+    assert auth.token() == "abc"
+    assert auth.token() == "abc"
+    assert token.call_count == 1
+
+
+def test_basic_without_a_token_fetches_rather_than_keeping_alive(silent_logger, mocked_responses):
+    bearer = _register_bearer(mocked_responses, BEARER_URL, 3600, "t1")
+    auth = _basic(silent_logger)
+    auth.token_expiry = _now() + 10 * 60  # inside the buffer, but there is no token to keep alive
+
+    assert auth.token() == "t1"
+    assert bearer.call_count == 1
+
+
+def test_first_fetch_is_not_reported_as_an_expired_token(warning_logger, caplog, mocked_responses):
+    _register_oauth(mocked_responses, 3600)
+    _oauth(warning_logger).token()
+    assert not _warnings_from(caplog, warning_logger)
+
+
+def test_concurrent_first_token_calls_fetch_one_token(silent_logger, mocked_responses):
+    token = register_slow_oauth_token(mocked_responses, "fresh-token")
+    auth = _oauth(silent_logger)
+
+    tokens = run_together(auth.token)
+
+    assert token.call_count == 1
+    assert tokens == ["fresh-token"] * THREADS
+
+
+# --- every auth call: timeout, User-Agent, lock ----------------------------
+
+AUTH_CALLS = ["oauth-token", "bearer-token", "keep-alive", "invalidate"]
+
+
+def _auth_call(name, logger, rsps, **kwargs):
+    """Register the URL one of the four auth calls posts to; return its Auth and a callable that makes the call."""
+    match name:
+        case "oauth-token":
+            _register_oauth(rsps, 3600)
+            auth = _oauth(logger, **kwargs)
+            return auth, auth.set_new_token
+        case "bearer-token":
+            _register_bearer(rsps, BEARER_URL, 3600, "t")
+            auth = _basic(logger, **kwargs)
+            return auth, auth.set_new_token
+        case "keep-alive":
+            _register_bearer(rsps, KEEP_ALIVE_URL, 3600, "t2")
+            auth = _basic(logger, **kwargs)
+            auth._token_str = "old"
+            return auth, auth._keep_alive_token
+        case _:
+            rsps.post(INVALIDATE_URL, status=204)
+            auth = _oauth(logger, **kwargs)
+            auth._token_str = "abc"
+            return auth, auth.invalidate
+
+
+@pytest.mark.parametrize("name", AUTH_CALLS)
+def test_auth_call_uses_the_default_timeout(silent_logger, mocked_responses, name):
+    _, make_call = _auth_call(name, silent_logger, mocked_responses)
+    make_call()
+    assert mocked_responses.calls[-1].request.req_kwargs["timeout"] == 30.0
+
+
+@pytest.mark.parametrize("name", AUTH_CALLS)
+def test_auth_call_uses_the_configured_timeout(silent_logger, mocked_responses, name):
+    _, make_call = _auth_call(name, silent_logger, mocked_responses, timeout=(3.0, 27.0))
+    make_call()
+    assert mocked_responses.calls[-1].request.req_kwargs["timeout"] == (3.0, 27.0)
+
+
+@pytest.mark.parametrize("name", AUTH_CALLS)
+def test_auth_call_sends_the_jamfpy_user_agent(silent_logger, mocked_responses, name):
+    _, make_call = _auth_call(name, silent_logger, mocked_responses)
+    make_call()
+    assert mocked_responses.calls[-1].request.headers["User-Agent"] == f"jamfpy/{metadata.version('jamfpy')}"
+
+
+def test_oauth_token_call_leaves_the_configured_headers_alone(silent_logger, mocked_responses):
+    _, make_call = _auth_call("oauth-token", silent_logger, mocked_responses)
+    make_call()
+    assert DEFAULT_HTTP_CONFIG_HEADERS["auth"]["oauth"] == {"Content-Type": "application/x-www-form-urlencoded"}
+
+
+@pytest.mark.parametrize("name", AUTH_CALLS)
+def test_auth_call_waits_for_the_token_lock(silent_logger, mocked_responses, name):
+    auth, make_call = _auth_call(name, silent_logger, mocked_responses)
+    caller = threading.Thread(target=make_call)
+
+    with auth._lock:
+        caller.start()
+        caller.join(timeout=0.2)
+        # Blocked on the lock this thread holds, so nothing has gone out yet.
+        assert caller.is_alive()
+        assert len(mocked_responses.calls) == 0
+
+    caller.join(timeout=10)
+    assert not caller.is_alive()
+    assert len(mocked_responses.calls) == 1
 
 
 # --- invalidate ------------------------------------------------------------
@@ -269,6 +389,17 @@ def test_invalidate_returns_false_on_error(silent_logger, mocked_responses):
     auth = _oauth(silent_logger)
     auth._token_str = "abc"
     assert auth.invalidate() is False
+
+
+def test_invalidate_without_a_token_sends_nothing(warning_logger, caplog, mocked_responses):
+    auth = _oauth(warning_logger)
+
+    with caplog.at_level(logging.DEBUG, logger=warning_logger.name):
+        assert auth.invalidate() is True
+
+    assert len(mocked_responses.calls) == 0
+    messages = [(r.levelno, r.getMessage()) for r in caplog.records if r.name == warning_logger.name]
+    assert (logging.DEBUG, "No token to invalidate") in messages
 
 
 # --- Jamf expiry parsing -----------------------------------------------------
@@ -308,7 +439,7 @@ def test_basic_keep_alive_parses_jamf_expiry(silent_logger, mocked_responses, ex
 def test_short_lived_oauth_token_is_used_with_default_buffer(silent_logger, mocked_responses):
     token = _register_oauth(mocked_responses, 299)
     auth = _oauth(silent_logger)
-    auth.set_new_token()  # what Tenant does at construction
+    auth.set_new_token()  # what Tenant.authenticate() does
     assert auth.token() == "abc"
 
     assert token.call_count == 1

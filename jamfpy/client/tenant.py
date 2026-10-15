@@ -9,13 +9,19 @@ from pathlib import Path
 from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
 from .http_config import HTTPConfig
-from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TIMEOUT, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS, Timeout
 from .exceptions import JamfpyConfigError
 
 
 
 class Tenant:
-    """Main entry point for Jamf Pro API interactions, managing authentication and API endpoints."""
+    """Main entry point for Jamf Pro API interactions, managing authentication and API endpoints.
+
+    Construction makes no network call: the first request fetches a token. Call ``authenticate()`` to fetch one
+    up front, so bad credentials or an unreachable FQDN fail there instead.
+
+    ``timeout`` (seconds, or a ``(connect, read)`` pair) applies to every API and auth request.
+    """
 
     def __init__(
       self,
@@ -32,6 +38,7 @@ class Tenant:
       safe_mode: bool = True,
       cert_path: str | None = None,
       verify_path: str | None = None,
+      timeout: Timeout = DEFAULT_TIMEOUT,
     ) -> None:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
@@ -43,25 +50,34 @@ class Tenant:
             verify_path=verify_path
         )
 
-        auth = self._init_validate_auth(
+        self._auth = self._init_validate_auth(
             auth_method=auth_method,
             client_id=client_id,
             client_secret=client_secret,
             username=username,
             password=password,
             log_level=log_level,
-            http_config=http_config
+            http_config=http_config,
+            timeout=timeout,
         )
-
-        auth.set_new_token()
 
         self._init_apis(
             fqdn=fqdn,
-            auth=auth,
+            auth=self._auth,
             log_level=log_level,
             http_config=http_config,
-            safe_mode=safe_mode
+            safe_mode=safe_mode,
+            timeout=timeout,
         )
+
+    def authenticate(self) -> None:
+        """
+        Fetch a token now instead of on the first request.
+
+        Raises JamfAuthError on bad credentials, or the requests exception when the FQDN is unreachable.
+        """
+        # set_new_token() holds the auth lock, so this never swaps the token mid-refresh in another thread.
+        self._auth.set_new_token()
 
     def _validate_path(
             self,
@@ -102,6 +118,7 @@ class Tenant:
             password: str | None,
             log_level: int,
             http_config: HTTPConfig,
+            timeout: Timeout,
     ) -> OAuth | BasicAuth:
         """
         Method to validate the supplied configuration of auth credentials
@@ -127,7 +144,8 @@ class Tenant:
                     log_level=log_level,
                     http_config=http_config,
                     cert_path=self.cert_path,
-                    verify_path=self.verify_path
+                    verify_path=self.verify_path,
+                    timeout=timeout,
                 )
 
             case "basic":
@@ -143,7 +161,8 @@ class Tenant:
                     log_level=log_level,
                     http_config=http_config,
                     cert_path=self.cert_path,
-                    verify_path=self.verify_path
+                    verify_path=self.verify_path,
+                    timeout=timeout,
                 )
 
             case _:
@@ -158,6 +177,7 @@ class Tenant:
             log_level: int,
             http_config: HTTPConfig,
             safe_mode: bool,
+            timeout: Timeout,
     ) -> None:
         self.pro = ProAPI(
             fqdn=fqdn,
@@ -166,7 +186,8 @@ class Tenant:
             http_config=http_config,
             safe_mode=safe_mode,
             cert_path=self.cert_path,
-            verify_path=self.verify_path
+            verify_path=self.verify_path,
+            timeout=timeout,
         )
 
         self.classic = ClassicAPI(
@@ -176,5 +197,6 @@ class Tenant:
             http_config=http_config,
             safe_mode=safe_mode,
             cert_path=self.cert_path,
-            verify_path=self.verify_path
+            verify_path=self.verify_path,
+            timeout=timeout,
         )
