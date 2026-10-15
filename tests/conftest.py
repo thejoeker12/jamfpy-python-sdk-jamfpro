@@ -12,6 +12,8 @@ nothing can reach a live tenant.
 answered by ``mocked_responses``; ``pro_api`` and ``classic_api`` are its two
 APIs, so an endpoint test sees the Authorization header the real ``Auth``
 injects, and the fixture fails any test whose API call went out without it.
+Its APIs keep the default ``RetryConfig``, as a real ``Tenant`` does, but record each
+backoff delay in ``sleeps`` instead of sleeping, so a retried status costs no time.
 A test of lazy auth builds its own ``Tenant`` instead, and registers the token
 endpoint only if it makes a request (every registration must be used). The TLS tests in
 ``api_test.py`` patch ``HTTPAdapter.send`` themselves instead, because they
@@ -21,7 +23,7 @@ This ``tenant`` is the offline one. ``tests/integration/conftest.py`` defines a
 different fixture with the same name that builds a ``Tenant`` against a real
 tenant from the environment.
 """
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name,protected-access
 import json
 import logging
 import threading
@@ -138,13 +140,19 @@ def mocked_responses(response_registry):
 
 
 @pytest.fixture
-def tenant(mocked_responses):
+def sleeps():
+    """Every delay the ``tenant`` APIs' retry loop asked for, in order; they append here instead of sleeping."""
+    return []
+
+
+@pytest.fixture
+def tenant(mocked_responses, sleeps):
     """A real OAuth ``Tenant``, authenticated against the mocked token endpoint.
 
     ``Tenant()`` is lazy, so the fixture calls ``authenticate()`` to fetch the token up front and then
     resets the call log: ``mocked_responses.calls`` holds only the requests the test itself triggers.
     The 1800 s token sits outside the (clamped 900 s) refresh buffer, so no test refetches it
-    unless it moves ``token_expiry``.
+    unless it moves ``token_expiry``. Retries keep their defaults; only the sleep is swapped for ``sleeps``.
 
     At teardown it asserts that every call the test made, bar token requests, carried the
     Authorization header, so an endpoint test cannot skip that check.
@@ -159,6 +167,8 @@ def tenant(mocked_responses):
     )
     built.authenticate()
     mocked_responses.calls.reset()
+    for api in (built.pro, built.classic):
+        api._retry.sleep = sleeps.append
     yield built
     _assert_every_api_call_authorised(mocked_responses.calls)
 
@@ -173,6 +183,31 @@ def pro_api(tenant):
 def classic_api(tenant):
     """The tenant's real ``ClassicAPI``."""
     return tenant.classic
+
+
+@pytest.fixture
+def make_classic_api(classic_api, sleeps, silent_logger):
+    """Build a ``ClassicAPI`` on the tenant's ``Auth``, for a test that needs its own retries, hooks or logger.
+
+    Keyword arguments go to ``ClassicAPI``. It records backoff delays in ``sleeps`` unless given a ``sleep``,
+    draws 0.5 for jitter unless given a ``random_source``, and logs nowhere unless given a ``logger``.
+    """
+    def build(**kwargs):
+        kwargs.setdefault("logger", silent_logger)
+        kwargs.setdefault("random_source", lambda: 0.5)
+        kwargs.setdefault("sleep", sleeps.append)
+        return jamfpy.ClassicAPI(fqdn=FQDN, auth=classic_api.auth, **kwargs)
+    return build
+
+
+@pytest.fixture
+def warning_logger():
+    """A logger at WARNING that propagates, so caplog sees exactly what a WARNING-level user would."""
+    logger = logging.getLogger("jamfpy-test-warnings")
+    logger.handlers.clear()
+    logger.setLevel(logging.WARNING)
+    logger.propagate = True
+    return logger
 
 
 @pytest.fixture

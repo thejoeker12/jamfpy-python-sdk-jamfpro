@@ -17,6 +17,7 @@ from responses.registries import OrderedRegistry
 from jamfpy.endpoints.models import ClassicEndpoint, ProEndpoint
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 from jamfpy.client.exceptions import JamfAPIError
+from jamfpy.client.retry import RetryConfig
 
 CRUD = H["crud"]
 BASE = f"{FQDN}/JSSResource"
@@ -221,6 +222,10 @@ def test_pro_get_all_total_count_zero(pro_things, mocked_responses):
 
 
 def test_pro_get_all_raises_on_error(pro_things, mocked_responses):
-    _page(mocked_responses, 0, 100, {}, status=500)
+    # A 500 is retried, so the page answers every attempt with it before get_all sees the failure.
+    attempts = RetryConfig().total + 1
+    for _ in range(attempts):
+        _page(mocked_responses, 0, 100, {}, status=500)
     with pytest.raises(JamfAPIError):
         pro_things.get_all()
+    assert len(mocked_responses.calls) == attempts

@@ -8,7 +8,9 @@ from pathlib import Path
 # This Lib
 from .client import ProAPI, ClassicAPI
 from .auth import OAuth, BasicAuth
+from .hooks import Hooks
 from .http_config import HTTPConfig
+from .retry import RetryConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TIMEOUT, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS, Timeout
 from .exceptions import JamfpyConfigError
 
@@ -21,6 +23,9 @@ class Tenant:
     up front, so bad credentials or an unreachable FQDN fail there instead.
 
     ``timeout`` (seconds, or a ``(connect, read)`` pair) applies to every API and auth request.
+
+    ``retries`` sets how API requests are retried (``None`` turns retries off); auth calls are never retried.
+    ``hooks`` holds the request hooks both APIs fire on every API request attempt.
     """
 
     def __init__(
@@ -39,6 +44,7 @@ class Tenant:
       cert_path: str | None = None,
       verify_path: str | None = None,
       timeout: Timeout = DEFAULT_TIMEOUT,
+      retries: RetryConfig | None = RetryConfig(),
     ) -> None:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
@@ -61,6 +67,9 @@ class Tenant:
             timeout=timeout,
         )
 
+        # One registry for both APIs, so a hook sees every request whichever API sends it.
+        self.hooks = Hooks()
+
         self._init_apis(
             fqdn=fqdn,
             auth=self._auth,
@@ -68,6 +77,7 @@ class Tenant:
             http_config=http_config,
             safe_mode=safe_mode,
             timeout=timeout,
+            retries=retries,
         )
 
     def authenticate(self) -> None:
@@ -178,6 +188,7 @@ class Tenant:
             http_config: HTTPConfig,
             safe_mode: bool,
             timeout: Timeout,
+            retries: RetryConfig | None,
     ) -> None:
         self.pro = ProAPI(
             fqdn=fqdn,
@@ -188,6 +199,8 @@ class Tenant:
             cert_path=self.cert_path,
             verify_path=self.verify_path,
             timeout=timeout,
+            retries=retries,
+            hooks=self.hooks,
         )
 
         self.classic = ClassicAPI(
@@ -199,4 +212,6 @@ class Tenant:
             cert_path=self.cert_path,
             verify_path=self.verify_path,
             timeout=timeout,
+            retries=retries,
+            hooks=self.hooks,
         )

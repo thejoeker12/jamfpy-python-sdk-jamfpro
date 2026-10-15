@@ -6,6 +6,7 @@ Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-author
 
 - **Adding an endpoint** (the most common job) → jump to **How to add an endpoint**.
 - **Touching auth, tokens, or request plumbing** → read **Architecture & request lifecycle** first.
+- **Touching retries or request hooks** → **Retries** and **Request hooks** (the hook contract is public; change it deliberately).
 - **Anything else** → skim **Conventions** and **Quality gates**, and read **Known rough edges** before "fixing" anything you didn't come here to change.
 
 ---
@@ -27,14 +28,17 @@ The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, 
 
 ```
 jamfpy/
-  __init__.py               # public surface (`__all__`): Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, new_logger, Timeout
+  __init__.py               # public surface (`__all__`): Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, new_logger, Timeout,
+                            #   RetryConfig, Hooks, RequestContext
   py.typed                  # PEP 561 marker: tells downstream type checkers the package ships inline hints.
   client/
     tenant.py               # Tenant — the main entrypoint. Validates config, builds Auth + both APIs.
     auth.py                 # Auth base + OAuth + BasicAuth. Token acquisition, refresh, keep-alive, invalidate.
-    api.py                  # API base class. do() is the central request executor.
+    api.py                  # API base class. do() is the central request executor and runs the retry loop.
     client.py               # ProAPI / ClassicAPI. Wire endpoint objects onto each API.
     http_config.py          # HTTPConfig wrapper around the URL/header dicts.
+    retry.py                # RetryConfig (public) + RetryPolicy (internal): what do() retries and how long it waits.
+    hooks.py                # Hooks + RequestContext: request hooks do() fires per attempt.
     constants.py            # Default URLs, header sets, DEFAULT_TIMEOUT + the Timeout alias, VALID_AUTH_METHODS. Edit URLs/headers HERE.
     exceptions.py           # JamfAPIError, JamfpyConfigError, JamfpyInitError, JamfAuthError.
     logger.py               # new_logger() — per-tenant stdout logger; names are {tenant}-pro, {tenant}-clc and {tenant}-auth.
@@ -158,30 +162,110 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 ## Architecture & request lifecycle
 
 ```
-Tenant(fqdn, auth_method, creds..., timeout=30.0)
+Tenant(fqdn, auth_method, creds..., timeout=30.0, retries=RetryConfig())
   ├─ builds ONE Auth object (OAuth or BasicAuth)   ← no network call: auth is lazy
-  ├─ tenant.pro     = ProAPI(...)      ┐ both APIs share the SAME auth object; each has its own Session
-  └─ tenant.classic = ClassicAPI(...)  ┘ (requests' default headers + User-Agent: jamfpy/<version>)
+  ├─ tenant.hooks   = Hooks()          ← one hook registry, shared by both APIs
+  ├─ tenant.pro     = ProAPI(...)      ┐ both APIs share the SAME auth object and hooks; each has its own Session
+  └─ tenant.classic = ClassicAPI(...)  ┘ (requests' default headers + User-Agent: jamfpy/<version>) and RetryPolicy
 
 tenant.authenticate()                  ← optional: fetch a token now, to fail fast
 
 tenant.classic.computers.get_all()
   → ClassicEndpoint builds a requests.Request (url via api.url(), headers via api.header())
   → api.do(request, timeout=None)
-       → auth.token() → check_token()  ← first fetch, or refresh if expired / within buffer, under the Auth lock
-       → request.headers = {**endpoint headers, "Authorization": "Bearer <token>"}   ← per request, never on the session
-       → session.prepare_request() + merge_environment_settings() + session.send(prepped, timeout=<configured or override>, **settings)
-       → returns raw requests.Response
+       loop: attempt = 1, 2, ... (at most 1 + RetryConfig.total attempts)
+       → auth.token() → check_token()  ← first fetch, or refresh if expired / within buffer, under the Auth lock (never retried, no hooks)
+       → request.headers = {**endpoint headers, "Authorization": "Bearer <token>"}   ← per attempt, never on the session
+       → session.prepare_request()
+       → hooks: before_request(prepared, ctx)
+       → merge_environment_settings() + session.send(prepped, timeout=<configured or override>, **settings)
+            got a response → hooks: after_response(prepared, response, ctx)   (any status)
+            send raised    → no after_response
+       → RetryPolicy.delay(): retryable, not exhausted, Retry-After within max_backoff?
+            no  → return the raw requests.Response, or raise the exception (ERROR log if it gave up on a retryable one)
+            yes → WARNING log → hooks: on_retry(prepared, ctx, reason, delay) → sleep(delay) → next attempt
 ```
 
 - **`API.do()` (`client/api.py`) is the one place every request goes through.** It puts `Authorization: Bearer <token>` from `auth.token()` on each `Request`'s own headers before `prepare_request` — endpoints never touch auth. It builds a new dict over the endpoint's headers rather than updating them in place, because endpoints pass the shared header sets from `constants.py`, which must never carry a token. requests merges request headers over session headers case-insensitively, so the per-request `Authorization` (and an endpoint's `accept`/`content-type`) win over any session default.
 - **Auth is lazy.** `Tenant()` makes no network call. `Auth` starts with no token (`_token_str = None`) and `token_expiry = 0.0`, which reads as expired, and `token()` fetches one on demand, so the first request does it. Bad credentials (`JamfAuthError`) or an unreachable FQDN (the requests exception) therefore raise on the first request, not at construction. `Tenant.authenticate()` fetches a token immediately for callers who want to fail fast; the live `tenant` fixture calls it. A `ProAPI`/`ClassicAPI` built directly from an `Auth` needs no setup either. `invalidate()` before any token exists returns `True` without a request.
-- **Thread safety.** One `Tenant` can serve concurrent callers. `do()` never mutates the `Session`: its headers (requests' defaults plus `User-Agent`), `verify` and `cert` are set once at construction, and per-request state (the `Authorization` header, the timeout) travels with each request. What concurrent callers share is the `Session`, which holds the connection pool, the cookie jar and the redirect cache. The SDK mutates none of them per request, and the pool is the part urllib3 guards, so one session per API is fine. The token is the only shared mutable state, and `Auth` guards it with a `threading.RLock`. `token()` does a double-checked refresh: a lock-free check, then, if a fetch or refresh is due, the lock and a re-check, because another thread may have refreshed while this one waited. So N threads that hit an expired token make one token request and all use its result. `set_new_token()`, `_keep_alive_token()` and `invalidate()` take the same lock, so no thread swaps the token out from under another. The lock is re-entrant because `token()` holds it while `check_token()` calls `set_new_token()` / `_keep_alive_token()`. A failing fetch is not shared: the lock is held across the fetch and every waiting thread re-checks and re-tries it in turn, so N concurrent first requests against a dead token endpoint take up to N times the timeout. That is by design (simple and correct); the API retry loop in the next PR never retries auth calls.
+- **Thread safety.** One `Tenant` can serve concurrent callers. `do()` never mutates the `Session`: its headers (requests' defaults plus `User-Agent`), `verify` and `cert` are set once at construction, and per-request state (the `Authorization` header, the timeout) travels with each request. What concurrent callers share is the `Session`, which holds the connection pool, the cookie jar and the redirect cache. The SDK mutates none of them per request, and the pool is the part urllib3 guards, so one session per API is fine. The token is the only shared state that changes as requests run, and `Auth` guards it with a `threading.RLock`. (The hook registry is shared too, but changes only when a caller registers or removes a hook; `Hooks` guards its lists with its own lock, see Request hooks. Everything else `do()` touches per attempt, the retry counter and the `RequestContext`, is local to the call.) `token()` does a double-checked refresh: a lock-free check, then, if a fetch or refresh is due, the lock and a re-check, because another thread may have refreshed while this one waited. So N threads that hit an expired token make one token request and all use its result. `set_new_token()`, `_keep_alive_token()` and `invalidate()` take the same lock, so no thread swaps the token out from under another. The lock is re-entrant because `token()` holds it while `check_token()` calls `set_new_token()` / `_keep_alive_token()`. A failing fetch is not shared: the lock is held across the fetch and every waiting thread re-checks and re-tries it in turn, so N concurrent first requests against a dead token endpoint take up to N times the timeout. That is by design (simple and correct); the API retry loop never retries auth calls.
 - **Timeout.** `Tenant(timeout=30.0)` takes seconds or a `(connect, read)` tuple, as requests does (type alias `jamfpy.Timeout`; default `DEFAULT_TIMEOUT` in `constants.py`). It applies to every API call and every auth call (token, keep-alive, invalidate). `OAuth`, `BasicAuth`, `ProAPI` and `ClassicAPI` take the same `timeout=` keyword. `api.do(request, timeout=...)` overrides it for that API request only; the default `None` means the configured value. A token fetch the call triggers uses the configured `Tenant(timeout=...)`, not the override.
 - **User-Agent.** Each API's session sends `User-Agent: jamfpy/<version>`, with the version from `importlib.metadata` (`jamfpy/unknown` when jamfpy isn't installed as a distribution). It is set at construction, including on a `session=` you pass in, and the auth calls send the same header. requests' other defaults (`Accept-Encoding`, `Accept: */*`, `Connection: keep-alive`) go out too; an endpoint's `accept` replaces `Accept` per request.
 - **API requests are TLS-verified by default and honour the environment like the auth calls.** `API.__init__` sets `session.verify` (`True`, or `verify_path` as a CA-bundle path) and `session.cert` (`cert_path`, or `None`) once, including on a `session=` you pass in. `do()` resolves `verify`/`cert`/`proxies` through `Session.merge_environment_settings` and passes them to `session.send`, because `send` skips the env merge that `Session.request` does. So API requests pick up `REQUESTS_CA_BUNDLE`/`CURL_CA_BUNDLE` and `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` exactly as the auth calls (which go through `requests.request()`) do; an explicit `verify_path` wins over the env bundle, and a request is never sent unverified. `Tenant` checks both paths exist and stores them as `str`.
 - **`auth.token()` → `check_token()`** checks for a token, its expiry, and a refresh buffer. No token yet or expired ⇒ new token (the first fetch logs at DEBUG, not as an expired token). Within buffer ⇒ OAuth re-fetches, Basic/Bearer calls keep-alive. The buffer is `token_exp_threshold_mins` (default 20), capped at half the current token's lifetime (0 s if the lifetime is 0 or negative), which `Auth` records whenever a token is set (OAuth: `expires_in`; Bearer: `expires` minus now, at issue and on keep-alive). The cap exists because API clients can issue tokens shorter than the buffer (the dev tenant's are 299 s). The clamp is silent unless the configured buffer is at least the whole token lifetime (the case that used to raise); then `Auth` logs one WARNING per instance naming the buffer it uses instead. A freshly issued token is always used, never rejected.
 - **`close()` → `auth.invalidate()`** POSTs `{fqdn}/api/v1/auth/invalidate-token`. Pro and Classic share one `Auth`, so closing either invalidates the token for both. If invalidation fails, `close()` logs a WARNING and still marks the API closed.
+
+---
+
+## Retries
+
+`API.do()` retries a failed attempt itself, in a loop. It does not use urllib3's `Retry`, which cannot fire the `on_retry` hook, log per attempt or re-apply a refreshed token. Configure it with `Tenant(retries=RetryConfig(...))`; the default is `RetryConfig()`, and `retries=None` turns retries off (one attempt, and the loop logs nothing). `API`, `ProAPI` and `ClassicAPI` take the same `retries=` keyword. Auth calls (token fetch, keep-alive, invalidate) are never retried: a token fetch that fails inside `do()` raises out of it on that attempt.
+
+`RetryConfig` (`jamfpy/client/retry.py`, exported as `jamfpy.RetryConfig`) is a frozen dataclass, so one instance is safe to share:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `total` | `3` | Retries after the first attempt, so at most four attempts. Attempts are numbered from 1 in logs and hooks. |
+| `backoff_factor` | `0.5` | Base of the exponential backoff. |
+| `max_backoff` | `30.0` | Cap on the computed delay, and the most `Retry-After` the loop will honour. |
+| `jitter` | `True` | Full jitter on the computed delay. |
+| `statuses` | `(429, 500, 502, 503, 504)` | Statuses that are retried. |
+| `methods` | `("GET", "HEAD", "OPTIONS", "PUT", "DELETE")` | Methods retried after a status, read timeout or connection error (compared case-insensitively). |
+| `retry_post` | `False` | Also retry POST under those rules. POST is not idempotent: a resend can create a second record. |
+
+The fields are validated when the config is built, so a typo fails at construction rather than mid-outage: `total` must be an `int` and `backoff_factor` and `max_backoff` numbers, none of them negative or NaN, and `statuses` (ints) and `methods` (strings) must be collections, not a bare string (`methods="GET"` raises `ValueError` and shows the one-item tuple form, `methods=("GET",)`). Any bad value raises `ValueError`. Lists and sets are accepted and stored as tuples, which keeps the frozen config hashable.
+
+What is retried:
+
+- **A status in `statuses`**: for a method in `methods`, plus POST when `retry_post`. Any other status, or a listed status on any other method (PATCH, a POST without `retry_post`), is returned at once.
+- **`requests.ConnectTimeout`**: every method, POST included, whatever `retry_post` says. The connection never opened, so nothing reached the server.
+- **`requests.ReadTimeout` and `requests.ConnectionError`**: the same method rule as a status, because the server may have processed the request. `ProxyError` subclasses `ConnectionError` and is treated as one.
+- **Nothing else.** `SSLError` also subclasses `ConnectionError`, so the policy checks it first and lets it propagate at once (a TLS failure won't fix itself on a resend). `ConnectTimeout` is checked before the `ConnectionError` rule too, since it subclasses both `ConnectionError` and `Timeout`. `InvalidURL`, `MissingSchema`, `ChunkedEncodingError` and every other exception propagate at once.
+
+Delay before the next attempt, when attempt `n` failed:
+
+- **Computed:** `min(backoff_factor * 2**(n-1), max_backoff)`, then, with `jitter`, multiplied by a uniform draw in [0, 1) ("full jitter": capped first, so late retries still spread over the whole window). Without jitter the defaults give 0.5 s, 1 s, 2 s.
+- **`Retry-After`:** on a retryable response it replaces the computed delay, unjittered. It may be integer seconds or an HTTP-date (RFC 9110), which is parsed with `email.utils.parsedate_to_datetime` and measured from the current UTC time (a naive `-0000` date is read as UTC; a date in the past means no wait). A value that parses as neither is ignored and the computed delay applies. If the value is more than `max_backoff`, the loop stops and returns that response, because sleeping less than the server asked would only earn another 429. A `Retry-After` on a status that isn't retried changes nothing.
+
+Each attempt re-prepares the `Request` and re-applies `Authorization` from `auth.token()`, so a token that expires during a backoff is refreshed before the resend. The body must therefore be replayable: a `str`/`bytes`/dict `data=` or `json=`, as every endpoint passes. A file-like or generator body would be used up by the first attempt.
+
+When retries run out, a status retry returns the last response (`do()` never raises on a status) and a timeout or connection retry raises the last exception.
+
+Logging goes through the API's logger. Each retry logs one WARNING with the method, URL, the number of the attempt that failed, the reason (`HTTP 503`, or the exception's class and message) and the delay. Giving up on an outcome that was still retryable (retries exhausted, or a `Retry-After` beyond `max_backoff`) logs one ERROR. A clean first attempt, a status that isn't retried and an exception that isn't retried add nothing at WARNING or above. At DEBUG each attempt logs three lines, `prepping` and `sending` (method, URL, headers redacted under `safe_mode`) and `Response: <method> <url> -> <status>`, each ending `(attempt n)`, so a retried request reads as one trace; the response line is neutral because it runs for every status, including one about to be retried.
+
+For tests, `API.__init__` (and `ProAPI`/`ClassicAPI`) take keyword-only `sleep: Callable[[float], None] = time.sleep` and `random_source: Callable[[], float] = random.random`. They are deliberately not on `Tenant`. The decisions live in `RetryPolicy` (`retry.py`, internal), which the API keeps as `_retry` (`None` when retries are off). The unit suite injects a recording sleep and a fixed random source, so no test ever waits (see Quality gates).
+
+---
+
+## Request hooks
+
+`tenant.hooks` is a `Hooks` object (`jamfpy/client/hooks.py`; `Hooks` and `RequestContext` are exported from `jamfpy`). `Tenant` creates one and both APIs share it. `API`, `ProAPI` and `ClassicAPI` take `hooks: Hooks | None = None`; `None` gives that API a private, empty `Hooks`, so nothing fires.
+
+Registering: `before_request(fn)`, `after_response(fn)` and `on_retry(fn)` each register `fn` and return it, so each also works as a decorator (`@tenant.hooks.after_response`). `remove(fn)` removes `fn` from every list it is in, every time it was registered; removing a function that isn't registered does nothing. The lists are guarded by a lock and copied before each dispatch, so registering or removing is safe from any thread and from inside a hook; a change applies from the next dispatch.
+
+Signatures:
+
+- `before_request(prepared: PreparedRequest, ctx: RequestContext) -> None`
+- `after_response(prepared: PreparedRequest, response: Response, ctx: RequestContext) -> None`
+- `on_retry(prepared: PreparedRequest, ctx: RequestContext, reason: Response | Exception, delay: float) -> None`
+
+`RequestContext` is a frozen dataclass:
+
+- `tenant: str`: the tenant's FQDN. It is a plain string so hooks also work for an API built without a `Tenant`, and so a hook never receives the object that holds the credentials.
+- `api: str`: `"pro"` or `"classic"`.
+- `attempt: int`: 1 for the first attempt, then one more per retry.
+- `started: float`: `time.monotonic()` at the start of the attempt, taken after the request is prepared, so a token fetch isn't counted.
+
+The contract:
+
+- Hooks fire per HTTP attempt, not per SDK operation. They fire for API requests only, never for auth calls (token fetch, keep-alive, invalidate).
+- For each attempt: `before_request`, then the send, then exactly one of `after_response` (for any response received, whatever its status, including one that is about to be retried) or nothing, when the send raised.
+- If a retry follows, `on_retry` fires after that and before the sleep, with the response or the exception as `reason` and the delay about to be slept as `delay`.
+- `ProEndpoint.get_all` runs this sequence once per page. `ctx.attempt` lets a consumer tell retries apart.
+- Return values are ignored. Mutating the arguments is unsupported.
+- A hook that raises is logged at WARNING, with the hook's `__qualname__` (its `repr` for a callable without one) and the traceback, and the request carries on. The remaining hooks still run.
+- Hooks may run on worker threads, not only the caller's, and from several threads at once (concurrent callers of one `Tenant`, or SDK worker threads such as page fetchers), so they must be thread-safe.
+- The prepared request carries the real `Authorization` header. A consumer that persists requests redacts it itself.
 
 ---
 
@@ -204,8 +288,8 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 - **CI.** `.github/workflows/ci.yml` runs on every pull request (no base-branch filter, so stacked PRs are checked too) and every push to `main`. Three jobs: `lint` (Python 3.13, `make lint`), `typecheck` (3.13, `make typecheck`) and `test` (matrix 3.15 / 3.14 / 3.13, `make coverage`). Each job uses `astral-sh/setup-uv` pinned to `v10.3.0`, `uv python install <version>`, `uv sync --frozen`, then the make target, with `UV_PYTHON` and `UV_FROZEN=1` in the job env so `uv run` inside make neither picks another interpreter nor rewrites the lock. No `actions/setup-python`. Locally, `make check` runs the same three gates; `make check-matrix` repeats `make check` once per interpreter in `PYTHON_VERSIONS` (default `3.15 3.14 3.13`), each in its own per-version virtualenv (via `UV_PROJECT_ENVIRONMENT`).
 - **Lint — a CI gate.** `make lint` runs pylint over every tracked `.py` file and **fails under 9.0**. Baseline is ~9.9/10. Config is `.pylintrc` (`py-version=3.13`; max line 150; `missing-module-docstring`, `too-many-arguments`, `duplicate-code` disabled). Keep the score ≥ 9.0 — don't blanket-disable checks to get there.
 - **Types — a CI gate.** `jamfpy/` is fully type-hinted, and `make typecheck` runs mypy in strict mode (config in `pyproject.toml` `[tool.mypy]`) over it; the package ships `jamfpy/py.typed` so downstream type checkers use the hints. New code must be hinted too: no bare `def f(x):`, every parameter and return annotated (strict mypy rejects anything less). Endpoints reference `API` through the `typing.TYPE_CHECKING` import at the top of `jamfpy/endpoints/models.py` (reuse it in any endpoint module that needs the name): the client layer imports the endpoints at runtime, so endpoints import `API` for hints only and the import graph cannot become a cycle. `# type: ignore` needs an error code and a one-line reason; prefer `cast()` when the narrowing is genuinely known. `tests/` is not type-checked.
-- **Tests — a CI gate.** `make test` runs the unit suite; `make coverage` (what CI runs, on all three interpreters) adds branch coverage of `jamfpy/` and **fails under 90%** (baseline 96%).
-  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: tests drive the real SDK stack and mock only the network edge, with [`responses`](https://github.com/getsentry/responses). `responses` replaces `HTTPAdapter.send`, so the auth calls (`requests.request()`) and every endpoint call (`API.do()` → `Session.send`) both land in one `RequestsMock`; an unregistered URL raises `ConnectionError`, so nothing can leak to a live tenant. `tests/conftest.py` provides `mocked_responses` (an active `RequestsMock` that fails the test if a registration goes unused), `response_registry` (the registry class behind it; `tests/models_test.py` overrides it with `OrderedRegistry` so a paginated `get_all` that repeats a URL fails the test instead of looping), `tenant` (a real OAuth `Tenant`, authenticated with `authenticate()` against the token endpoint `mocked_responses` answers; the call log is reset after that, so `mocked_responses.calls` holds only the test's own requests; at teardown it fails the test if any call other than a token request went out without the `Authorization: Bearer` header), `pro_api` / `classic_api` (its two APIs), the helpers `register_oauth_token`, `with_bearer` and `sent_headers`, and for the concurrency tests `run_together` (calls a function from `THREADS` = 20 threads released together by a `threading.Barrier`, with timeouts so a deadlock fails instead of hanging) and `register_slow_oauth_token` (a token endpoint slow enough that, without the `Auth` lock, every thread would reach it). A lazy-auth test builds its own `Tenant` inside `mocked_responses` and registers the token endpoint only if it authenticates or sends a request. An endpoint test registers the URL it expects, calls the endpoint through `pro_api` / `classic_api`, and asserts on `mocked_responses.calls[-1].request`: method, full URL (with the `/JSSResource` or `/api/v{n}` prefix), headers (`sent_headers(req) == with_bearer(<config header set>)`: requests' session defaults with the jamfpy `User-Agent`, the config header set over them, and the `Authorization: Bearer` header the real `Auth` injects; names lower-cased) and body (`request.body`: the XML string for Classic, JSON for Pro). Auth tests register the four auth URLs (`/api/oauth/token`, `/api/v1/auth/token`, `/api/v1/auth/keep-alive`, `/api/v1/auth/invalidate-token`) the same way. The one exception is the TLS tests in `api_test.py`: they patch `HTTPAdapter.send` directly, with a stub Auth and no `responses` mock, because they assert the exact keyword arguments the adapter receives (`verify`, `cert`, `proxies`, `timeout`), the point where `verify=None` used to become an unverified connection. Other timeout tests read the value `responses` records on `mocked_responses.calls[i].request.req_kwargs["timeout"]`. **Never exercise a live tenant from unit tests** — add tests by registering responses, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main, also on uv: setup-uv, `uv sync --frozen`, `make test-integration`; needs the repo var/secrets below and skips on forks/unconfigured repos) or locally via `make test-integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). Locally the target loads `.env` when it exists (copy `.env.example`); if any of the three vars is unset or empty it exits non-zero with a one-line reason before pytest starts, and the live `tenant` fixture in `tests/integration/conftest.py` also fails (never skips) as a backstop. That live `tenant` (a real tenant, built from the environment) and the unit `tenant` in `tests/conftest.py` (a fake token served by `responses`) are different fixtures that share a name; each applies only to the tests under its own directory. The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. `new_logger` stacking a fresh handler per call, `ClassicEndpoint.delete_by_id` sending no headers of its own); the tests that pin current behaviour carry a `# Characterises current behaviour` comment, so `grep -rn "Characterises current behaviour" tests` finds them (the `new_logger` test says `KNOWN QUIRK` instead); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
+- **Tests — a CI gate.** `make test` runs the unit suite; `make coverage` (what CI runs, on all three interpreters) adds branch coverage of `jamfpy/` and **fails under 90%** (baseline 97%).
+  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: tests drive the real SDK stack and mock only the network edge, with [`responses`](https://github.com/getsentry/responses). `responses` replaces `HTTPAdapter.send`, so the auth calls (`requests.request()`) and every endpoint call (`API.do()` → `Session.send`) both land in one `RequestsMock`; an unregistered URL raises `ConnectionError`, so nothing can leak to a live tenant. `tests/conftest.py` provides `mocked_responses` (an active `RequestsMock` that fails the test if a registration goes unused), `response_registry` (the registry class behind it; `tests/models_test.py` overrides it with `OrderedRegistry` so a paginated `get_all` that repeats a URL fails the test instead of looping), `tenant` (a real OAuth `Tenant`, authenticated with `authenticate()` against the token endpoint `mocked_responses` answers; the call log is reset after that, so `mocked_responses.calls` holds only the test's own requests; its APIs keep the default `RetryConfig` but append each backoff delay to the `sleeps` list instead of sleeping, so a retried status costs no time; at teardown it fails the test if any call other than a token request went out without the `Authorization: Bearer` header), `pro_api` / `classic_api` (its two APIs), `make_classic_api` (builds a `ClassicAPI` on the tenant's `Auth` with whatever `retries`, `hooks`, `logger` or `sleep` a test passes, defaulting to a recording `sleep` and a `random_source` fixed at 0.5), `warning_logger` (a propagating WARNING-level logger for `caplog` tests), the helpers `register_oauth_token`, `with_bearer` and `sent_headers`, and for the concurrency tests `run_together` (calls a function from `THREADS` = 20 threads released together by a `threading.Barrier`, with timeouts so a deadlock fails instead of hanging) and `register_slow_oauth_token` (a token endpoint slow enough that, without the `Auth` lock, every thread would reach it). A lazy-auth test builds its own `Tenant` inside `mocked_responses` and registers the token endpoint only if it authenticates or sends a request. An endpoint test registers the URL it expects, calls the endpoint through `pro_api` / `classic_api`, and asserts on `mocked_responses.calls[-1].request`: method, full URL (with the `/JSSResource` or `/api/v{n}` prefix), headers (`sent_headers(req) == with_bearer(<config header set>)`: requests' session defaults with the jamfpy `User-Agent`, the config header set over them, and the `Authorization: Bearer` header the real `Auth` injects; names lower-cased) and body (`request.body`: the XML string for Classic, JSON for Pro). Auth tests register the four auth URLs (`/api/oauth/token`, `/api/v1/auth/token`, `/api/v1/auth/keep-alive`, `/api/v1/auth/invalidate-token`) the same way. The one exception is the TLS tests in `api_test.py`: they patch `HTTPAdapter.send` directly, with a stub Auth and no `responses` mock, because they assert the exact keyword arguments the adapter receives (`verify`, `cert`, `proxies`, `timeout`), the point where `verify=None` used to become an unverified connection. Other timeout tests read the value `responses` records on `mocked_responses.calls[i].request.req_kwargs["timeout"]`. `tests/retry_test.py` scripts each attempt with `OrderedRegistry` (one registration per attempt, in order) and raises network failures by registering an exception as the `body` (`body=requests.exceptions.ConnectTimeout(...)`), which `responses` raises from the send; `tests/hooks_test.py` records hook calls in lists, tests that a hook registered (or re-registered by itself) from inside a dispatch only runs from the next one, and includes a 20-thread test where workers register and remove hooks while others dispatch. **Never exercise a live tenant from unit tests** — add tests by registering responses, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main, also on uv: setup-uv, `uv sync --frozen`, `make test-integration`; needs the repo var/secrets below and skips on forks/unconfigured repos) or locally via `make test-integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). Locally the target loads `.env` when it exists (copy `.env.example`); if any of the three vars is unset or empty it exits non-zero with a one-line reason before pytest starts, and the live `tenant` fixture in `tests/integration/conftest.py` also fails (never skips) as a backstop. That live `tenant` (a real tenant, built from the environment) and the unit `tenant` in `tests/conftest.py` (a fake token served by `responses`) are different fixtures that share a name; each applies only to the tests under its own directory. The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. `new_logger` stacking a fresh handler per call, `ClassicEndpoint.delete_by_id` sending no headers of its own); the tests that pin current behaviour carry a `# Characterises current behaviour` comment, so `grep -rn "Characterises current behaviour" tests` finds them (the `new_logger` test says `KNOWN QUIRK` instead); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
 - **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
 - **Branch/PR:** work on a branch, open a PR to `main`. Don't commit or push unless asked.
 
@@ -222,6 +306,8 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 ## Quick reference
 
 ```python
+import logging
+
 import jamfpy
 
 tenant = jamfpy.Tenant(
@@ -229,8 +315,16 @@ tenant = jamfpy.Tenant(
     auth_method="oauth2",              # or "basic"
     client_id="...", client_secret="...",   # or username=..., password=...
     timeout=30.0,                      # the default; or (connect, read). API and auth calls alike.
+    retries=jamfpy.RetryConfig(),      # the default; e.g. RetryConfig(total=5, retry_post=True). retries=None turns retries off.
 )
 tenant.authenticate()                  # optional: fetch the token now (fail fast) instead of on the first request
+
+# Hooks fire per HTTP attempt (API requests only) and must be thread-safe.
+@tenant.hooks.after_response
+def log_status(prepared, response, ctx):
+    logging.getLogger("audit").info("%s %s -> %s (attempt %d)", prepared.method, prepared.url, response.status_code, ctx.attempt)
+
+tenant.hooks.remove(log_status)
 
 # Classic (raw requests.Response back)
 resp = tenant.classic.computers.get_all()

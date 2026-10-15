@@ -81,6 +81,14 @@ that one API call, not for a token fetch it triggers), and returns the **raw** `
 timeouts — they just build a `Request` and hand it to `do()`. Session defaults sit under the
 endpoint's headers, so an endpoint's `accept` replaces the default `Accept: */*`.
 
+`do()` also retries a failed attempt (a listed status, a timeout or a connection error, per the
+`RetryConfig`; see **Retries** in AGENTS.md) and fires the request hooks on every attempt (see
+**Request hooks**). Neither changes what an endpoint does: it still builds one `Request` and returns
+what `do()` returns. Two consequences for the `Request` you build: `do()` re-prepares it for each
+attempt, so pass a replayable body (`data=` a string, or `json=`), never a file object or generator;
+and a POST is only retried after a connect timeout unless the caller opted in with `retry_post`, so an
+endpoint that POSTs needs no special handling.
+
 ### Base classes (`jamfpy/endpoints/models.py`)
 
 ```python
@@ -504,6 +512,13 @@ query string (a Pro `get_all` page, `?page=0&page-size=100`) matches only that e
 several registrations of one URL are served in order, the last repeating (under
 `OrderedRegistry`, one request each, in order, and a surplus request raises); a
 `re.compile(...)` URL matches any URL it prefixes.
+
+The `tenant` APIs keep the default `RetryConfig`, so a retryable status (429, 500, 502, 503,
+504) on a GET, PUT or DELETE is retried up to three times; the fixture swaps the backoff sleep for
+the `sleeps` list, so it costs no time. With the default registry one registration answers every
+attempt; under `OrderedRegistry` register the URL once per attempt (`RetryConfig().total + 1`
+times), as `test_pro_get_all_raises_on_error` in `tests/models_test.py` does. Error-path tests that
+don't care about retries can use a status that isn't retried (400, 404).
 
 ### Classic test
 
