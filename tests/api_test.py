@@ -43,16 +43,6 @@ def mock_auth():
 
 
 @pytest.fixture
-def warning_logger():
-    """A logger at WARNING that propagates, so caplog sees exactly what a WARNING-level user would."""
-    logger = logging.getLogger("jamfpy-test-api-warnings")
-    logger.handlers.clear()
-    logger.setLevel(logging.WARNING)
-    logger.propagate = True
-    return logger
-
-
-@pytest.fixture
 def clean_env(monkeypatch):
     """Clear the CA bundle and proxy env vars requests reads, so the developer's shell can't change the outcome."""
     for var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"):
