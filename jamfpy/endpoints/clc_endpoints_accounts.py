@@ -1,5 +1,4 @@
 
-import json
 from typing import TYPE_CHECKING
 
 from requests import Response, Request
@@ -14,27 +13,6 @@ class AccountChild(ClassicEndpoint):
 
     _by_id_uri: str
     _by_name_uri: str
-
-    def pass_response(self, original_response: Response, new_data: object) -> Response:
-        """Packages new_data into a Response object based on original_response."""
-        new_response = Response()
-
-        new_response.status_code = original_response.status_code
-        new_response.headers = original_response.headers.copy()
-        new_response.encoding = original_response.encoding
-        new_response.url = original_response.url
-        new_response.request = original_response.request
-
-        modified_json_string = json.dumps(new_data)
-
-        response_encoding = new_response.encoding if new_response.encoding else 'utf-8'
-        # This is acknowledging that accessing protected members is frowned upon, but nececcary for this use case.
-        new_response._content = modified_json_string.encode(response_encoding)  # pylint: disable=protected-access
-
-        new_response.headers['Content-Length'] = str(len(new_response._content))  # pylint: disable=protected-access
-
-        return new_response
-
 
     def get_by_id(self, target_id: int) -> Response:  # type: ignore[override]
         """Get a single record by ID."""
@@ -102,7 +80,7 @@ class AccountUsers(AccountChild):
 
         users_data = {self._name : original_json.get('accounts', {}).get('users', [])}
 
-        return self.pass_response(original_response, users_data)
+        return self._repackage_response(original_response, users_data)
 
 
 class AccountGroups(AccountChild):
@@ -122,7 +100,7 @@ class AccountGroups(AccountChild):
         original_json = original_response.json()
 
         groups_data = {self._name : original_json.get('accounts', {}).get('groups', [])}
-        return self.pass_response(original_response, groups_data)
+        return self._repackage_response(original_response, groups_data)
 
 
 class Accounts(Endpoint):

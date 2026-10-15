@@ -223,7 +223,7 @@ class MDMCommands(Endpoint):
         return self.send_command(
             "RESTART_DEVICE",
             management_ids if isinstance(management_ids, list) else [management_ids],
-            rebuildKernalCache=rebuild_kernel_cache,
+            rebuildKernelCache=rebuild_kernel_cache,
             kextPaths=kextpath,
             notifyUser=notify_user
         )

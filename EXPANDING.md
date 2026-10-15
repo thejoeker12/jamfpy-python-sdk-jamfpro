@@ -246,24 +246,10 @@ The accounts overrides of `get_by_id` and `get_all` drop the base's `xml_respons
 mypy rejects as an incompatible override, so they carry `# type: ignore[override]` to keep their
 public signatures. A new composite should keep the base signature instead and needs no ignore.
 
-It also provides a helper to repackage a filtered JSON payload into a fresh `Response`
-(so a transforming `get_all` still returns a real `requests.Response`):
-
-```python
-def pass_response(self, original_response: Response, new_data: object) -> Response:
-    """Repackage new_data as a Response, preserving status/headers/encoding/url of the original."""
-    new_response = Response()
-    new_response.status_code = original_response.status_code
-    new_response.headers = original_response.headers.copy()
-    new_response.encoding = original_response.encoding
-    new_response.url = original_response.url
-    new_response.request = original_response.request
-    body = json.dumps(new_data)
-    encoding = new_response.encoding or "utf-8"
-    new_response._content = body.encode(encoding)  # pylint: disable=protected-access
-    new_response.headers["Content-Length"] = str(len(new_response._content))  # pylint: disable=protected-access
-    return new_response
-```
+To repackage a filtered JSON payload into a fresh `Response` (so a transforming `get_all` still
+returns a real `requests.Response`), use the inherited `Endpoint._repackage_response(original, new_data)`:
+it keeps the original's status, headers, encoding, url and request and resets `Content-Length`.
+Don't write another copy of it.
 
 **2. The concrete children**, composing their URIs off a shared `_uri`, each overriding
 `get_all` to slice the shared payload down to its part:
@@ -281,7 +267,7 @@ class AccountUsers(AccountChild):
         original = super().get_all(suffix=None)      # hits /accounts
         original.raise_for_status()
         users = {self._name: original.json().get("accounts", {}).get("users", [])}
-        return self.pass_response(original, users)
+        return self._repackage_response(original, users)
 
 class AccountGroups(AccountChild):
     """Endpoint for managing account groups in Jamf Pro."""

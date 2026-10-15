@@ -7,6 +7,7 @@ from requests import HTTPError
 from conftest import FakeAPI, FQDN, make_response
 
 from jamfpy.endpoints.clc_endpoints_accounts import (
+    AccountChild,
     AccountUsers,
     AccountGroups,
     Accounts,
@@ -17,16 +18,24 @@ BASE = f"{FQDN}/JSSResource"
 ACCOUNTS_PAYLOAD = {"accounts": {"users": [{"id": 1, "name": "u"}], "groups": [{"id": 2}]}}
 
 
-def test_pass_response_repackages_json():
-    users = AccountUsers(FakeAPI())
-    original = make_response({"ignored": True}, status=201, headers={"X-Test": "1"})
-    new = users.pass_response(original, {"users": [{"id": 9}]})
+def test_account_child_uses_base_repackage_helper():
+    # The near-duplicate pass_response is gone; Endpoint._repackage_response is the one helper.
+    assert not hasattr(AccountChild, "pass_response")
 
-    assert new.status_code == 201
-    assert new.json() == {"users": [{"id": 9}]}
-    assert new.headers["X-Test"] == "1"  # copied from original
-    expected_len = str(len(json.dumps({"users": [{"id": 9}]}).encode("utf-8")))
-    assert new.headers["Content-Length"] == expected_len
+
+@pytest.mark.parametrize("child, key, expected", [
+    (AccountUsers, "users", [{"id": 1, "name": "u"}]),
+    (AccountGroups, "groups", [{"id": 2}]),
+])
+def test_get_all_repackage_preserves_response_metadata(child, key, expected):
+    original = make_response(ACCOUNTS_PAYLOAD, status=203, headers={"X-Test": "1"}, url=f"{BASE}/accounts")
+    resp = child(FakeAPI(responses=[original])).get_all()
+
+    assert resp.json() == {key: expected}
+    assert resp.status_code == 203
+    assert resp.headers["X-Test"] == "1"
+    assert resp.url == f"{BASE}/accounts"
+    assert resp.headers["Content-Length"] == str(len(json.dumps({key: expected}).encode("utf-8")))
 
 
 def test_users_get_all_strips_payload_to_users():

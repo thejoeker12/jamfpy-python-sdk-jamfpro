@@ -44,6 +44,10 @@ class API:
         self.verify_path = verify_path
 
         self._session = session or Session()
+        # do() resolves verify/cert through merge_environment_settings, which falls back to these when neither an
+        # explicit path nor an env CA bundle is set, so the default is always verified, including on a caller's session.
+        self._session.verify = verify_path if verify_path else True
+        self._session.cert = cert_path
         self._safe_mode = safe_mode
 
         self._logger = self._init_logging(logger, log_level)
@@ -116,7 +120,8 @@ class API:
 
         self._logger.info("Closing %s", str(self))
 
-        self.auth.invalidate()
+        if not self.auth.invalidate():
+            self._logger.warning("Token invalidation failed for %s", self._fqdn)
         self._is_closed = True
 
         self._logger.info("%s closed", str(self))
@@ -169,7 +174,12 @@ class API:
 
         self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
 
-        response = self._session.send(prepped, timeout=timeout, cert=self.cert_path, verify=self.verify_path)
+        # Session.send bypasses the env merge that Session.request does (CA bundle and proxy env vars); auth calls go
+        # through requests.request and already honour it, so resolve the same settings here.
+        # prepare_request always sets the URL (it raises otherwise); requests only types it as optional.
+        assert prepped.url is not None
+        settings = self._session.merge_environment_settings(prepped.url, {}, None, self.verify_path, self.cert_path)
+        response = self._session.send(prepped, timeout=timeout, **settings)
 
         self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
 

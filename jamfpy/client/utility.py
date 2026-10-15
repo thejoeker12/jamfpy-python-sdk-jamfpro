@@ -15,25 +15,6 @@ def extract_cloud_tenant_name_from_url(fqdn: str) -> str:
     return fqdn.split("//")[1].split(".")[0]
 
 
-def fix_jamf_time_to_iso(time: str) -> str:
-    """Fixes time recieved from jamf, converts to iso"""
-    time.replace("Z", "+00:00")
-    if len(time) in [26, 27, 28]:
-        time_split = time.split(".")
-        date_time_no_seconds = time_split[0]
-
-        seconds_and_tz = time_split[1]
-        s_tz_split = seconds_and_tz.split("+")
-
-        seconds = s_tz_split[0]
-        while len(seconds) < 3:
-            seconds += "0"
-
-        time = f"{date_time_no_seconds}.{seconds}+{s_tz_split[1]}"
-
-    return time
-
-
 def compare_dict_keys(dict1: Mapping[str, object], dict2: Mapping[str, object]) -> list[str]:
     """Returns duplicate keys from 2 supplied dictionaries"""
     dict1_keys = dict1.keys()
