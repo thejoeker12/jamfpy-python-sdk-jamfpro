@@ -1,23 +1,26 @@
 """Base endpoint class providing common functionality and structure for all Jamf Pro API endpoints."""
-# pylint: disable=import-outside-toplevel
 import json
+from typing import TYPE_CHECKING, Any
 
 from requests import Request, Response
 
 from ..client.exceptions import JamfAPIError
 
+if TYPE_CHECKING:
+    # Hint-only: the client layer imports the endpoints, so endpoints never import it at runtime and the graph cannot cycle.
+    from ..client.api import API
+
 
 class Endpoint:
     """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""
-    _uri = None
-    _name = None
-    def __init__(self, api):
+    _uri: str
+    _name: str | None = None
+    def __init__(self, api: "API") -> None:
         """Initialize endpoint with API client instance."""
-        from ..client.api import API
         self._api: API = api
 
     @staticmethod
-    def _repackage_response(original: Response, new_data) -> Response:
+    def _repackage_response(original: Response, new_data: object) -> Response:
         # Rebuild a Response around new_data, preserving the original's status/headers/encoding/url.
         new = Response()
         new.status_code = original.status_code
@@ -101,7 +104,7 @@ class ClassicEndpoint(Endpoint):
         )
 
 
-    def name(self):
+    def name(self) -> str | None:
         """returns name for easy response browsing"""
         return self._name
 
@@ -162,7 +165,7 @@ class ProEndpoint(Endpoint):
             )
         )
 
-    def create(self, payload: dict) -> Response:
+    def create(self, payload: dict[str, Any]) -> Response:
         """Create a new record from a JSON payload."""
         return self._api.do(
             Request(
@@ -173,7 +176,7 @@ class ProEndpoint(Endpoint):
             )
         )
 
-    def update_by_id(self, target_id: int, payload: dict) -> Response:
+    def update_by_id(self, target_id: int, payload: dict[str, Any]) -> Response:
         """Update a record by ID with a JSON payload."""
         return self._api.do(
             Request(
@@ -194,6 +197,6 @@ class ProEndpoint(Endpoint):
             )
         )
 
-    def name(self):
+    def name(self) -> str | None:
         """returns name for easy response browsing"""
         return self._name

@@ -164,11 +164,11 @@ the numbers after adding endpoints:
 
 ```bash
 # Covered: introspect the wired endpoint classes (accessor <- client.py, metadata <- the class)
-.venv/bin/python -c "import inspect, jamfpy.endpoints.clc_endpoints as c, jamfpy.endpoints.pro_scripts as s; \
+uv run python -c "import inspect, jamfpy.endpoints.clc_endpoints as c, jamfpy.endpoints.pro_scripts as s; \
 print([(n,o._uri) for n,o in vars(c).items() if inspect.isclass(o) and getattr(o,'_uri',None)])"
 
 # Pro resource groups (first path segment after the /v{n} prefix)
-.venv/bin/python -c "import json,re,collections; d=json.load(open('api_schemas/pro.json')); \
+uv run python -c "import json,re,collections; d=json.load(open('api_schemas/pro.json')); \
 g=sorted({(re.match(r'^/v\d+/([^/]+)', p) or re.match(r'^/([^/]+)', p)).group(1) for p in d['paths']}); \
 print(len(g)); print(', '.join(g))"
 

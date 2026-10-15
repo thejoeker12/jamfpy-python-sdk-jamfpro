@@ -19,7 +19,7 @@ Jamf Pro exposes **two** HTTP APIs and this SDK wraps both:
 | **Classic** | JSS Resource API | `/JSSResource` | **XML** for writes, JSON readable | `tenant.classic.*` |
 | **Pro** | Modern Jamf Pro API | `/api/v{n}` (versioned per-endpoint) | **JSON** | `tenant.pro.*` |
 
-The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, logging — then it hands back the **raw `requests.Response`**. It does *not* deserialize into models (two documented exceptions, see Conventions). Only runtime dependency is `requests`. Python **>= 3.10** (`match`, `X | Y` unions).
+The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, logging — then it hands back the **raw `requests.Response`**. It does *not* deserialize into models (two documented exceptions, see Conventions). Only runtime dependency is `requests`. Python **>= 3.13**; CI tests the three newest stable CPython lines (3.15, 3.14, 3.13).
 
 ---
 
@@ -27,7 +27,8 @@ The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, 
 
 ```
 jamfpy/
-  __init__.py               # public surface: Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, new_logger
+  __init__.py               # public surface (`__all__`): Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, new_logger
+  py.typed                  # PEP 561 marker: tells downstream type checkers the package ships inline hints.
   client/
     tenant.py               # Tenant — the main entrypoint. Validates config, builds Auth + both APIs.
     auth.py                 # Auth base + OAuth + BasicAuth. Token acquisition, refresh, keep-alive, invalidate.
@@ -52,8 +53,11 @@ api_schemas/
 tests/
   conftest.py               # FakeAPI double + make_response helper + shared fixtures.
   <module>_test.py          # One offline pytest file per source module (mocks the network).
-  integration/              # Live min/max lifecycle tests against a real tenant — spec-driven (one spec per resource), opt-in via -m integration, never run by default.
+  integration/              # Live min/max lifecycle tests against a real tenant — spec-driven (one spec per resource), opt-in via `make test-integration`, never run by default.
 COVERAGE.md                 # Which API resources the SDK wraps vs. doesn't — update when adding an endpoint.
+Makefile                    # The single dev entrypoint (`make help` lists targets). Docs only ever point at make targets.
+uv.lock                     # Locked runtime + dev dependency set; `make setup` installs exactly this.
+.env.example                # Template for the live-tenant vars; copy to `.env` (gitignored) for `make test-integration`.
 ```
 
 ---
@@ -78,6 +82,7 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 5. **Docstrings on every public class/method.** `.pylintrc` exempts `_private` names (`no-docstring-rgx=^_`) but everything public needs one. Comments explain **why**, never what.
 6. **`snake_case`** functions/vars/args, **`PascalCase`** classes, **`UPPER_CASE`** constants (all enforced by pylint). Max line length **150**.
 7. **Log through the injected logger** (`self._logger` / `self._api._logger`), not `print`. `safe_mode=True` (default) redacts headers from debug logs — don't log secrets around it.
+8. **Style reference is [PEP 8](https://peps.python.org/pep-0008/); docstrings follow [PEP 257](https://peps.python.org/pep-0257/).** pylint (`make lint`) is the only lint gate. There is no auto-formatter — don't add one.
 
 ---
 
@@ -119,10 +124,10 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 
 ```bash
 # Pro: find the path. The /v1, /v2... prefix IS the version string url() needs.
-.venv/bin/python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
+uv run python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
 
 # Pro: full spec for one path (methods, params, request body shape)
-.venv/bin/python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
+uv run python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
 
 # Classic: NOT valid JSON (trailing commas — json.load raises). grep it instead:
 grep -o '"/[^"]*buildings[^"]*"' api_schemas/classic.json | sort -u
@@ -139,9 +144,11 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 - [ ] Class added, with docstrings on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` / `ClassicAPI.__init__`.
 - [ ] Path, version, and body shape verified against the schema (queries above, not a full read).
-- [ ] Smoke test passes: `.venv/bin/python -c "import jamfpy; print(jamfpy.Tenant)"`
-- [ ] Tests pass: `.venv/bin/python -m pytest -q` — and a new endpoint gets a `tests/<module>_test.py` covering the Request it builds (mock only; see Quality gates).
-- [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`
+- [ ] Smoke test passes: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`
+- [ ] Tests pass: `make test` — and a new endpoint gets a `tests/<module>_test.py` covering the Request it builds (mock only; see Quality gates).
+- [ ] Lint passes: `make lint`
+- [ ] Type check passes: `make typecheck`
+- [ ] Coverage gate passes: `make coverage` (or run all three gates CI runs with `make check`).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
 - [ ] [`COVERAGE.md`](COVERAGE.md) updated: move the resource from *Not yet covered* into the covered table and bump the summary counts — and add a row to the *Live integration test coverage* table (with a min/max spec in `tests/integration/` if the resource supports CRUD, or an N/A row with the reason if it doesn't).
 - [ ] If asked to commit: Conventional Commit message (`feat:` for a new endpoint).
@@ -186,17 +193,12 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 
 ## Quality gates & workflow
 
-- **Setup:** a `.venv` already exists with `requests`, `pylint` + `pytest`. Use it (`.venv/bin/python`, `.venv/bin/pylint`, `.venv/bin/pytest`). If recreating: `python -m venv .venv && .venv/bin/pip install requests pylint pytest`.
-- **Lint — a CI gate.** `.github/workflows/pylint.yml` runs on every push against Python 3.13 and **fails under 9.0**. Match it locally before you push:
-  ```bash
-  .venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0
-  ```
-  Baseline is ~9.8/10. Config is `.pylintrc` (max line 150; `missing-module-docstring`, `too-many-arguments`, `duplicate-code` disabled). Keep the score ≥ 9.0 — don't blanket-disable checks to get there.
-- **Tests — a CI gate.** `.github/workflows/pytest.yml` runs `pytest` on every pull request to `main` (Python 3.13). Run locally before you push:
-  ```bash
-  .venv/bin/python -m pytest -q
-  ```
-  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Never exercise a live tenant from unit tests** — add tests by mocking, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main; needs the repo var/secrets below and skips on forks/unconfigured repos) or explicitly via `pytest -m integration tests/integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
+- **Setup:** install [uv](https://docs.astral.sh/uv/), then `make setup` (`uv sync`). It creates the project virtualenv from `uv.lock` with the runtime dependency plus the `dev` dependency group in `pyproject.toml` (`pytest`, `pytest-cov`, `responses`, `pylint`, `mypy`). Run everything through `make` (`make help` lists the targets); each target calls `uv run`, which keeps the virtualenv in step with the lock. To change a dependency, edit `pyproject.toml`, run `uv lock`, and commit `uv.lock` with it.
+- **CI.** `.github/workflows/ci.yml` runs on every pull request (no base-branch filter, so stacked PRs are checked too) and every push to `main`. Three jobs: `lint` (Python 3.13, `make lint`), `typecheck` (3.13, `make typecheck`) and `test` (matrix 3.15 / 3.14 / 3.13, `make coverage`). Each job uses `astral-sh/setup-uv` pinned to `v10.3.0`, `uv python install <version>`, `uv sync --frozen`, then the make target, with `UV_PYTHON` and `UV_FROZEN=1` in the job env so `uv run` inside make neither picks another interpreter nor rewrites the lock. No `actions/setup-python`. Locally, `make check` runs the same three gates; `make check-matrix` repeats `make check` once per interpreter in `PYTHON_VERSIONS` (default `3.15 3.14 3.13`), each in its own per-version virtualenv (via `UV_PROJECT_ENVIRONMENT`).
+- **Lint — a CI gate.** `make lint` runs pylint over every tracked `.py` file and **fails under 9.0**. Baseline is ~9.9/10. Config is `.pylintrc` (`py-version=3.13`; max line 150; `missing-module-docstring`, `too-many-arguments`, `duplicate-code` disabled). Keep the score ≥ 9.0 — don't blanket-disable checks to get there.
+- **Types — a CI gate.** `jamfpy/` is fully type-hinted, and `make typecheck` runs mypy in strict mode (config in `pyproject.toml` `[tool.mypy]`) over it; the package ships `jamfpy/py.typed` so downstream type checkers use the hints. New code must be hinted too: no bare `def f(x):`, every parameter and return annotated (strict mypy rejects anything less). Endpoints reference `API` through the `typing.TYPE_CHECKING` import at the top of `jamfpy/endpoints/models.py` (reuse it in any endpoint module that needs the name): the client layer imports the endpoints at runtime, so endpoints import `API` for hints only and the import graph cannot become a cycle. `# type: ignore` needs an error code and a one-line reason; prefer `cast()` when the narrowing is genuinely known. `tests/` is not type-checked.
+- **Tests — a CI gate.** `make test` runs the unit suite; `make coverage` (what CI runs, on all three interpreters) adds branch coverage of `jamfpy/` and **fails under 90%** (baseline 94%).
+  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Never exercise a live tenant from unit tests** — add tests by mocking, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main, also on uv: setup-uv, `uv sync --frozen`, `make test-integration`; needs the repo var/secrets below and skips on forks/unconfigured repos) or locally via `make test-integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). Locally the target loads `.env` when it exists (copy `.env.example`); if any of the three vars is unset or empty it exits non-zero with a one-line reason before pytest starts, and the `tenant` fixture also fails (never skips) as a backstop. The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
 - **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
 - **Branch/PR:** work on a branch, open a PR to `main`. Don't commit or push unless asked.
 
@@ -204,8 +206,6 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 
 ## Known rough edges (don't "fix" without asking)
 
-- **`/json`** at the repo root is a stray file (accidental capture of git output). It is not used by anything — ignore it.
-- **`pyproject.toml`** contains leftover template cruft: `[project.scripts] my-script = ...` and the `pdf`/`rest` optional-dependencies are placeholders, not real. Don't rely on them.
 - **`client.py`** sets `self.policies = Policies(self)` twice in `ClassicAPI.__init__` — harmless duplicate.
 - **`logger.new_logger`** adds a fresh `StreamHandler` each call for a given name — repeated construction of the same-named logger can duplicate log lines.
 - **`ProEndpoint` provides shared CRUD + pagination** (mirroring `ClassicEndpoint`). `ProEndpoint.get_all` paginates and aggregates into one Response; its `update_by_id` uses PUT and is a best-effort default (some resources are read-only or need PATCH — override or don't use it). `pro_app_installers` inherits `get_all`/`update_by_id` even though those aren't in `pro.json` for that resource — treat them as best-effort there.

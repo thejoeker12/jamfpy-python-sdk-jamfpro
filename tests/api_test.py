@@ -74,12 +74,12 @@ def test_do_prepares_and_sends(mock_auth, silent_logger):
     api = _classic(mock_auth, silent_logger)
     prepped = MagicMock()
     api._session.prepare_request.return_value = prepped
-    sentinel = MagicMock(status_code=200, url=f"{FQDN}/x")
-    api._session.send.return_value = sentinel
+    sent_response = MagicMock(status_code=200, url=f"{FQDN}/x")
+    api._session.send.return_value = sent_response
 
     result = api.do(Request("GET", url=f"{FQDN}/JSSResource/computers"))
 
-    assert result is sentinel
+    assert result is sent_response
     api._session.prepare_request.assert_called_once()
     api._session.send.assert_called_once()
     # Auth is refreshed before every send.

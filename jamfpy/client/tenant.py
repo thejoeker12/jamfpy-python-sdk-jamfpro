@@ -4,6 +4,7 @@
 
 # External
 from pathlib import Path
+from typing import cast
 
 # This Lib
 from .client import ProAPI, ClassicAPI
@@ -22,21 +23,22 @@ class Tenant:
       *,
       fqdn: str,
       auth_method: str,
-      client_id: str = None,
-      client_secret: str = None,
-      username: str = None,
-      password: str = None,
+      client_id: str | None = None,
+      client_secret: str | None = None,
+      username: str | None = None,
+      password: str | None = None,
       http_config: HTTPConfig = HTTPConfig(),
       token_exp_threshold_mins: int = DEFAULT_TOKEN_BUFFER,
       log_level: int = DEFAULT_LOG_LEVEL,
       safe_mode: bool = True,
-      cert_path: str = None,
-      verify_path: str = None,
-    ):
+      cert_path: str | None = None,
+      verify_path: str | None = None,
+    ) -> None:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
-        self.cert_path = cert_path
-        self.verify_path = verify_path
+        # _validate_path swaps a supplied str for a Path.
+        self.cert_path: str | Path | None = cert_path
+        self.verify_path: str | Path | None = verify_path
 
 
         self._validate_path(
@@ -73,9 +75,9 @@ class Tenant:
     def _validate_path(
             self,
             *,
-            cert_path: None=None,
-            verify_path: None=None
-            ):
+            cert_path: str | None = None,
+            verify_path: str | None = None
+            ) -> None:
         """
         Method to validate the supplied configuration of certificate paths
         and set the attributes of the class
@@ -102,13 +104,13 @@ class Tenant:
             self,
             *,
             auth_method: str,
-            client_id: str,
-            client_secret: str,
-            username: str,
-            password: str,
+            client_id: str | None,
+            client_secret: str | None,
+            username: str | None,
+            password: str | None,
             log_level: int,
             http_config: HTTPConfig,
-    ):
+    ) -> OAuth | BasicAuth:
         """
         Method to validate the supplied configuration of auth credentials
         and instantialise an Auth object with them if valid
@@ -118,6 +120,11 @@ class Tenant:
 
         if auth_method not in VALID_AUTH_METHODS:
             raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
+
+        # Auth and the APIs hint str because requests only accepts str, while _validate_path stores a Path
+        # on the Tenant; the cast bridges the two without changing what callers see.
+        cert_path = cast(str | None, self.cert_path)
+        verify_path = cast(str | None, self.verify_path)
 
         match auth_method:
 
@@ -132,8 +139,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=self.cert_path,
-                    verify_path=self.verify_path
+                    cert_path=cert_path,
+                    verify_path=verify_path
                 )
 
             case "basic":
@@ -148,8 +155,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=self.cert_path,
-                    verify_path=self.verify_path
+                    cert_path=cert_path,
+                    verify_path=verify_path
                 )
 
             case _:
@@ -164,15 +171,19 @@ class Tenant:
             log_level: int,
             http_config: HTTPConfig,
             safe_mode: bool,
-    ):
+    ) -> None:
+        # Same Path-vs-str gap as in _init_validate_auth; see the note there.
+        cert_path = cast(str | None, self.cert_path)
+        verify_path = cast(str | None, self.verify_path)
+
         self.pro = ProAPI(
             fqdn=fqdn,
             auth=auth,
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
-            cert_path=self.cert_path,
-            verify_path=self.verify_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
 
         self.classic = ClassicAPI(
@@ -181,6 +192,6 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
-            cert_path=self.cert_path,
-            verify_path=self.verify_path
+            cert_path=cert_path,
+            verify_path=verify_path
         )
