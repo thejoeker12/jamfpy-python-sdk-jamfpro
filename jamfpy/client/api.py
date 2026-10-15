@@ -1,6 +1,9 @@
 """api model"""
 
+from collections.abc import Mapping
 from logging import Logger
+from typing import Any
+
 from requests import Session, Request, Response
 
 from .auth import Auth
@@ -13,9 +16,9 @@ from .exceptions import JamfpyConfigError
 class API:
     """Base class providing core functionality for interacting with Jamf Pro APIs."""
 
-    _headers_dict = {}
+    _headers_dict: dict[str, str] = {}
     _is_closed = False
-    _short_name = None
+    _short_name: str
     _version: str
     _http_config: HTTPConfig
     _logger: Logger
@@ -25,13 +28,13 @@ class API:
             *,
             fqdn: str,
             auth: Auth,
-            log_level,
+            log_level: int,
             http_config: HTTPConfig,
             safe_mode: bool,
-            session: Session,
-            logger: Logger,
-            cert_path: str = None,
-            verify_path: str = None,
+            session: Session | None,
+            logger: Logger | None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
 
     ) -> None:
 
@@ -54,7 +57,7 @@ class API:
 
     # Private Methods - Init
 
-    def _init_logging(self, logger, log_level) -> None:
+    def _init_logging(self, logger: Logger | None, log_level: int) -> Logger:
         """Inits loggers for API Object"""
 
         # Everything after the slashes, before the first dot of an fqdn
@@ -88,7 +91,7 @@ class API:
         Loads headers into object
         """
         self._logger.debug("FUNCTION: _init_headers")
-        self._headers = self._http_config.headers["crud"]
+        self._headers: dict[str, dict[str, Any]] = self._http_config.headers["crud"]
 
 
 
@@ -121,7 +124,7 @@ class API:
 
 
     # @_check_closed
-    def url(self, target=None) -> str:
+    def url(self, target: str | None = None) -> str:
         """
         Allows access to base url from endpoint
         Universal interface across API versions
@@ -136,7 +139,7 @@ class API:
 
 
     # @_check_closed
-    def header(self, key: str) -> str:
+    def header(self, key: str) -> dict[str, Any]:
         """Returns given set of headers from config"""
         try:
             return self._headers[key]
@@ -160,7 +163,7 @@ class API:
 
         prepped = self._session.prepare_request(request)
 
-        prepped_header_log = "no headers supplied"
+        prepped_header_log: Mapping[str, str] | str = "no headers supplied"
         if prepped.headers:
             prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
 

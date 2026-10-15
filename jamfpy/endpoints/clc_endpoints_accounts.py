@@ -1,17 +1,21 @@
 
 import json
+from typing import TYPE_CHECKING
 
 from requests import Response, Request
 from .models import ClassicEndpoint, Endpoint
+
+if TYPE_CHECKING:
+    from ..client.api import API
 
 
 class AccountChild(ClassicEndpoint):
     """Base class for account-related sub-endpoints; users and groups."""
 
-    _by_id_uri: str = None
-    _by_name_uri: str = None
+    _by_id_uri: str
+    _by_name_uri: str
 
-    def pass_response(self, original_response: Response, new_data) -> Response:
+    def pass_response(self, original_response: Response, new_data: object) -> Response:
         """Packages new_data into a Response object based on original_response."""
         new_response = Response()
 
@@ -32,7 +36,8 @@ class AccountChild(ClassicEndpoint):
         return new_response
 
 
-    def get_by_id(self, target_id: int) -> Response:
+    # Drops the base's xml_response argument; restoring it would change this public signature.
+    def get_by_id(self, target_id: int) -> Response:  # type: ignore[override]
         """Get a single record by ID."""
 
         suffix = self._by_id_uri + f"/{target_id}"
@@ -88,7 +93,8 @@ class AccountUsers(AccountChild):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
-    def get_all(self, suffix=None) -> Response:
+    # Drops the base's xml_response argument; restoring it would change this public signature.
+    def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """Returns a Response object with its JSON content modified to only include users."""
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
@@ -108,7 +114,8 @@ class AccountGroups(AccountChild):
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
-    def get_all(self, suffix=None) -> Response:
+    # Drops the base's xml_response argument; restoring it would change this public signature.
+    def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """ Returns all group objects under /accounts, packaged in a Response object. """
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
@@ -123,13 +130,13 @@ class Accounts(Endpoint):
     _uri = "/accounts"
     _name = "accounts"
 
-    def __init__(self, api_client):
+    def __init__(self, api_client: "API") -> None:
         super().__init__(api_client)
         self._api = api_client
         self.users = AccountUsers(self._api)
         self.groups = AccountGroups(self._api)
 
-    def get_all(self):
+    def get_all(self) -> Response:
         """ Get all made to /accounts which includes groups and users """
         classic_endpoint = ClassicEndpoint(self._api)
         return classic_endpoint.get_all(self._uri)

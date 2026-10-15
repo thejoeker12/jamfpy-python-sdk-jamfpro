@@ -45,14 +45,14 @@ class ClassicAPI(API):
             *,
             fqdn: str,
             auth: Auth,
-            log_level = DEFAULT_LOG_LEVEL,
+            log_level: int = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
-            session: Session = None,
-            logger: Logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
-    ):
+            session: Session | None = None,
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+    ) -> None:
 
         # no dynamic args here to preserve the hints.
         super().__init__(
@@ -99,14 +99,14 @@ class ProAPI(API):
             *,
             fqdn: str,
             auth: Auth,
-            log_level = DEFAULT_LOG_LEVEL,
+            log_level: int = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
-            session: Session = None,
-            logger: Logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
-    ):
+            session: Session | None = None,
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+    ) -> None:
 
         super().__init__(
             fqdn=fqdn,

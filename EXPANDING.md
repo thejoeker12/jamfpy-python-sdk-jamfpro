@@ -44,7 +44,7 @@ You never touch `jamfpy/__init__.py` — endpoints are reached through a client
 Endpoints never hardcode URLs, headers, or auth. They call three methods on `self._api`
 (the API client instance passed into the constructor). Source: `jamfpy/client/api.py`.
 
-### `self._api.url(target=None) -> str`
+### `self._api.url(target: str | None = None) -> str`
 
 - **Classic** ignores `target` and returns the base, e.g. `https://<fqdn>/JSSResource`.
 - **Pro** *requires* `target` = the API version string and interpolates it:
@@ -53,7 +53,7 @@ Endpoints never hardcode URLs, headers, or auth. They call three methods on `sel
   the `/v{n}` prefix on the path in `pro.json`** (see [Querying the schemas](#querying-the-api-schemas)).
   Calling a Pro `url()` with no target yields the literal string `.../api/vNone` — always pass one.
 
-### `self._api.header(key: str)`
+### `self._api.header(key: str) -> dict[str, Any]`
 
 Indexes the `crud` header block from `jamfpy/client/constants.py`. The valid keys and their
 exact shapes:
@@ -192,11 +192,11 @@ tenant.classic.buildings.delete_by_id(123)
 For reference, here is exactly what you inherit (from `ClassicEndpoint`, `models.py`):
 
 ```python
-def get_all(self, suffix=None, xml_response=False) -> Response:   # GET  url()+_uri
-def get_by_id(self, target_id, xml_response=False) -> Response:   # GET  url()+_uri+/id/{id}
-def update_by_id(self, target_id, updated_configuration) -> Response:  # PUT  ...+/id/{id}, data=<xml>
-def create(self, config_profile) -> Response:                    # POST url()+_uri+/id/0, data=<xml>
-def delete_by_id(self, target_id) -> Response:                   # DELETE ...+/id/{id}, no headers
+def get_all(self, suffix: str | None = None, xml_response: bool = False) -> Response:  # GET  url()+_uri
+def get_by_id(self, target_id: int, xml_response: bool = False) -> Response:           # GET  url()+_uri+/id/{id}
+def update_by_id(self, target_id: int, updated_configuration: str) -> Response:        # PUT  ...+/id/{id}, data=<xml>
+def create(self, config_profile: str) -> Response:                                     # POST url()+_uri+/id/0, data=<xml>
+def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/id/{id}, no headers
 ```
 
 Note: Classic **create posts to `/id/0`**, and **delete sends no headers**. `get_by_id`/
@@ -218,10 +218,10 @@ both. Reference: `jamfpy/endpoints/clc_endpoints_accounts.py`. Three pieces.
 ```python
 class AccountChild(ClassicEndpoint):
     """Shared CRUD for account sub-resources that use non-standard id/name URIs."""
-    _by_id_uri: str = None
-    _by_name_uri: str = None
+    _by_id_uri: str
+    _by_name_uri: str
 
-    def get_by_id(self, target_id: int) -> Response:
+    def get_by_id(self, target_id: int) -> Response:  # type: ignore[override]
         """Get a single record by ID."""
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(Request(
@@ -242,11 +242,15 @@ class AccountChild(ClassicEndpoint):
     # update_by_id (PUT) and delete_by_id (DELETE) follow the same shape off _by_id_uri.
 ```
 
+The accounts overrides of `get_by_id` and `get_all` drop the base's `xml_response` argument, which
+mypy rejects as an incompatible override, so they carry `# type: ignore[override]` to keep their
+public signatures. A new composite should keep the base signature instead and needs no ignore.
+
 It also provides a helper to repackage a filtered JSON payload into a fresh `Response`
 (so a transforming `get_all` still returns a real `requests.Response`):
 
 ```python
-def pass_response(self, original_response: Response, new_data) -> Response:
+def pass_response(self, original_response: Response, new_data: object) -> Response:
     """Repackage new_data as a Response, preserving status/headers/encoding/url of the original."""
     new_response = Response()
     new_response.status_code = original_response.status_code
@@ -272,7 +276,7 @@ class AccountUsers(AccountChild):
     _by_id_uri = _uri + "/userid"       # "/accounts/userid"
     _by_name_uri = _uri + "/username"   # "/accounts/username"
 
-    def get_all(self, suffix=None) -> Response:
+    def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """Get all users, sliced out of the shared /accounts payload."""
         original = super().get_all(suffix=None)      # hits /accounts
         original.raise_for_status()
@@ -289,22 +293,29 @@ class AccountGroups(AccountChild):
 ```
 
 **3. The composite parent — subclasses bare `Endpoint`, NOT `ClassicEndpoint`** — and wires
-the children in its `__init__`:
+the children in its `__init__`. The `API` hint comes from the same `TYPE_CHECKING` import that
+`models.py` uses, so the endpoint never imports the client layer at runtime:
 
 ```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..client.api import API
+
+
 class Accounts(Endpoint):
     """Composite endpoint for Jamf Pro accounts, exposing .users and .groups."""
     _uri = "/accounts"
     _name = "accounts"
 
-    def __init__(self, api_client):
+    def __init__(self, api_client: "API") -> None:
         """Wire the user and group sub-endpoints onto the shared API client."""
         super().__init__(api_client)
         self._api = api_client
         self.users = AccountUsers(self._api)
         self.groups = AccountGroups(self._api)
 
-    def get_all(self):
+    def get_all(self) -> Response:
         """Get the raw, unfiltered /accounts payload (both users and groups)."""
         return ClassicEndpoint(self._api).get_all(self._uri)
 ```
@@ -354,11 +365,11 @@ inherited methods do (differs from Classic — see the idiom table above):
 For reference, exactly what you inherit (from `ProEndpoint`, `models.py`):
 
 ```python
-def get_all(self, page_size=None, sort=None) -> Response:    # paginates -> one aggregated Response
-def get_by_id(self, target_id) -> Response:                  # GET  url(_version)+_uri+/{id}
-def create(self, payload) -> Response:                       # POST url(_version)+_uri, json=<dict>
-def update_by_id(self, target_id, payload) -> Response:      # PUT  ...+/{id}, json=<dict>
-def delete_by_id(self, target_id) -> Response:               # DELETE ...+/{id}, delete json header
+def get_all(self, page_size: int | None = None, sort: str | None = None) -> Response:  # paginates -> one aggregated Response
+def get_by_id(self, target_id: int) -> Response:                                       # GET  url(_version)+_uri+/{id}
+def create(self, payload: dict[str, Any]) -> Response:                                 # POST url(_version)+_uri, json=<dict>
+def update_by_id(self, target_id: int, payload: dict[str, Any]) -> Response:           # PUT  ...+/{id}, json=<dict>
+def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/{id}, delete json header
 ```
 
 **When to hand-roll:** only when a resource deviates from this shape — a nested path, a query
@@ -402,7 +413,7 @@ class MDMCommands(Endpoint):
     _uri = "/mdm/commands"
     _name = "mdm_commands"
 
-    def send_command(self, command_type: str, management_ids: list[str], **kwargs) -> Response:
+    def send_command(self, command_type: str, management_ids: list[str], **kwargs: object) -> Response:
         """Build the command payload and POST it. All wrappers delegate here."""
         payload = {
             "clientData": [{"managementId": mid} for mid in management_ids],
@@ -416,7 +427,7 @@ class MDMCommands(Endpoint):
         ))
 
     def lock_device(self, management_ids: list[str], message: str = "Device locked remotely",
-                    pin: str = "1234", phone_number: str = None) -> Response:
+                    pin: str = "1234", phone_number: str | None = None) -> Response:
         """Send a DEVICE_LOCK command."""
         return self.send_command(
             "DEVICE_LOCK",
@@ -425,7 +436,7 @@ class MDMCommands(Endpoint):
         )
 
     def erase_device(self, management_ids: list[str], pin: str = "1234",
-                     return_to_service: dict = None) -> Response:
+                     return_to_service: dict[str, bool | str] | None = None) -> Response:
         """Send an ERASE_DEVICE command."""
         if return_to_service is None:              # avoid a mutable default
             return_to_service = {"enabled": True}
@@ -561,5 +572,6 @@ Run the suite from the repo root: `make test`.
 - [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
 - [ ] Tests pass: `make test`.
 - [ ] Lint passes: `make lint`.
+- [ ] Type check passes: `make typecheck` (every new parameter and return hinted).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.
 - [ ] If committing: Conventional Commit (`feat:` for a new endpoint).

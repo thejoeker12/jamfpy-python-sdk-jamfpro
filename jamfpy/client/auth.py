@@ -28,19 +28,19 @@ class Auth:
     _method: str
     _logger: Logger
 
-    token_expiry: datetime.time
+    token_expiry: float
 
     def __init__(
             self,
             *,
             fqdn: str,
             http_config: HTTPConfig,
-            logger: Logger,
+            logger: Logger | None,
             token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
             log_level: int = DEFAULT_LOG_LEVEL,
-            cert_path: str = None,
-            verify_path: str = None,
-    ):
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+    ) -> None:
         self._fqdn = fqdn
         self._http_config = http_config
         self._logger = logger or self._init_logging(log_level)
@@ -50,13 +50,13 @@ class Auth:
         self.verify_path = verify_path
 
 
-    def set_new_token(self):
-        """todo"""
+    def set_new_token(self) -> None:
+        """Request and store a new token; subclasses implement this."""
 
-    def _keep_alive_token(self):
-        """todo"""
+    def _keep_alive_token(self) -> None:
+        """Extend the current token's lifetime; subclasses implement this."""
 
-    def _init_logging(self, log_level) -> Logger:
+    def _init_logging(self, log_level: int) -> Logger:
         """Inits loggers for API Object"""
 
         shortname = extract_cloud_tenant_name_from_url(self._fqdn)
@@ -67,10 +67,10 @@ class Auth:
         )
 
 
-    def _init_urls(self) -> None:
+    def _init_urls(self) -> str:
         self._logger.debug("FUNCTION: _init_urls")
 
-        auth_endpoint = self._http_config.urls["auth"][self._method]
+        auth_endpoint: str = self._http_config.urls["auth"][self._method]
 
         auth_url = self._fqdn + auth_endpoint
         self._logger.debug("Auth URL set: %s", auth_url)
@@ -196,12 +196,12 @@ class OAuth(Auth):
             fqdn: str,
             client_id: str,
             client_secret: str,
-            log_level = DEFAULT_LOG_LEVEL,
-            token_exp_thold_mins = DEFAULT_TOKEN_BUFFER,
-            http_config = HTTPConfig(),
-            logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
+            log_level: int = DEFAULT_LOG_LEVEL,
+            token_exp_thold_mins: int = DEFAULT_TOKEN_BUFFER,
+            http_config: HTTPConfig = HTTPConfig(),
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
 
     ) -> None:
 
@@ -273,16 +273,16 @@ class BasicAuth(Auth):
     def __init__(
             self,
             *,
-            fqdn,
-            token_exp_thold_mins,
+            fqdn: str,
+            token_exp_thold_mins: int,
             http_config: HTTPConfig = HTTPConfig(),
             username: Optional[str] = None,
             password: Optional[str] = None,
             basic_auth_token: Optional[str] = None,
             log_level: int = DEFAULT_LOG_LEVEL,
-            logger: Logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
     ) -> None:
 
         super().__init__(
