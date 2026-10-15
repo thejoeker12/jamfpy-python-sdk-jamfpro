@@ -3,7 +3,6 @@
 import json
 
 import pytest
-from requests import HTTPError
 from conftest import FQDN, sent_headers, with_bearer
 
 from jamfpy.endpoints.clc_endpoints_accounts import (
@@ -55,11 +54,13 @@ def test_groups_get_all_strips_payload_to_groups(classic_api, mocked_responses):
 
 
 @pytest.mark.parametrize("child", ["users", "groups"])
-def test_get_all_raises_for_status(classic_api, mocked_responses, child):
-    # Characterises current behaviour: both accounts get_alls call raise_for_status before repackaging.
-    mocked_responses.get(ACCOUNTS_URL, json={}, status=500)
-    with pytest.raises(HTTPError):
-        getattr(classic_api.accounts, child).get_all()
+def test_get_all_returns_a_failed_accounts_response_raw(classic_api, mocked_responses, child):
+    # The 500 is retried, and the one registration answers every attempt; get_all hands back the last one unrepackaged.
+    mocked_responses.get(ACCOUNTS_URL, json={"error": "boom"}, status=500)
+    resp = getattr(classic_api.accounts, child).get_all()
+    assert resp.status_code == 500
+    assert resp.json() == {"error": "boom"}
+    assert resp.url == ACCOUNTS_URL
 
 
 def test_account_child_get_by_id_uses_by_id_uri(classic_api, mocked_responses):

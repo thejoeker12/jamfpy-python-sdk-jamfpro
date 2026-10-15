@@ -27,7 +27,7 @@ from conftest import (
     with_bearer,
 )
 
-from jamfpy.client.client import ClassicAPI
+from jamfpy.client.client import ClassicAPI, ProAPI
 from jamfpy.client.http_config import HTTPConfig
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS
 from jamfpy.client.exceptions import JamfpyConfigError
@@ -570,3 +570,17 @@ def test_debug_rendering_is_skipped_unless_debug_is_on(classic_api, mocked_respo
         classic_api.do(Request("GET", url=COMPUTERS_URL))
 
     assert len(_records(caplog, level=logging.INFO)) == 1
+
+
+# --- parallelism -------------------------------------------------------------
+
+@pytest.mark.parametrize("api_class", [ProAPI, ClassicAPI])
+def test_parallelism_defaults_to_five(classic_api, silent_logger, api_class):
+    assert api_class(fqdn=FQDN, auth=classic_api.auth, logger=silent_logger)._parallelism == 5
+
+
+@pytest.mark.parametrize("api_class", [ProAPI, ClassicAPI])
+@pytest.mark.parametrize("parallelism", [0, -1, True, 2.0, "5"])
+def test_parallelism_below_one_or_not_an_int_raises(classic_api, silent_logger, api_class, parallelism):
+    with pytest.raises(ValueError, match="parallelism must be an int of at least 1"):
+        api_class(fqdn=FQDN, auth=classic_api.auth, logger=silent_logger, parallelism=parallelism)

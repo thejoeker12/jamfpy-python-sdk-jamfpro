@@ -1,4 +1,4 @@
-"""Unit tests for the Pro App Installers endpoint (inherits ProEndpoint CRUD + pagination)."""
+"""Unit tests for the Pro App Installers endpoint (full ProEndpoint CRUD + pagination)."""
 # pylint: disable=missing-function-docstring
 import json
 
@@ -39,8 +39,8 @@ def test_delete_by_id_uses_delete_header(pro_api, mocked_responses):
 
 
 def test_get_all_builds_paginated_url(pro_api, mocked_responses):
-    # Construction-only: the deployments response shape is unverified, so we assert only the
-    # request the (inherited) get_all builds for the first page.
+    # Construction-only: the probe shows GET on the collection, but nothing documents its paging or body shape, so
+    # we assert only the request the (inherited) get_all builds for the first page.
     mocked_responses.get(f"{BASE}?page=0&page-size=100", json={"totalCount": 1, "results": [{"id": 1}]})
     pro_api.app_installers.get_all()
     req = mocked_responses.calls[-1].request

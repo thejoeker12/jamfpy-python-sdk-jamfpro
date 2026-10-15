@@ -68,6 +68,17 @@ def test_oauth_tenant_builds_both_apis_without_a_request(mocked_responses):
     assert tenant.pro.auth is tenant.classic.auth is tenant._auth
 
 
+@pytest.mark.parametrize("kwargs, expected", [({}, 5), ({"parallelism": 1}, 1), ({"parallelism": 3}, 3)])
+def test_parallelism_reaches_both_apis(kwargs, expected):
+    tenant = _oauth_tenant(**kwargs)
+    assert tenant.pro._parallelism == tenant.classic._parallelism == expected
+
+
+def test_parallelism_zero_raises():
+    with pytest.raises(ValueError, match="parallelism must be an int of at least 1, got 0"):
+        _oauth_tenant(parallelism=0)
+
+
 def test_authenticate_fetches_a_token_now(mocked_responses):
     token = register_oauth_token(mocked_responses)
     tenant = _oauth_tenant()

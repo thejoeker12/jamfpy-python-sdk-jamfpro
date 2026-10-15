@@ -58,9 +58,9 @@ Pro bodies are **JSON dicts**. Full CRUD = the five methods above (with a pagina
 | SDK accessor | Path | Version | Methods / notes |
 |---|---|---|---|
 | `pro.scripts` | `/scripts` | v1 | full CRUD |
-| `pro.dock_items` | `/dock-items` | v1 | full CRUD — collection path is **POST-only** in the schema, so `get_all` is best-effort |
+| `pro.dock_items` | `/dock-items` | v1 | `get_by_id`, `create`, `update_by_id`, `delete_by_id` — the collection path is **POST-only** in the schema, so there is no `get_all` |
 | `pro.mdm` | `/mdm/commands` | v2 | **Verb endpoint** (not CRUD): `send_command` + ~29 convenience wrappers (`lock_device`, `erase_device`, `restart_device`, …) |
-| `pro.app_installers` | `/app-installers/deployments` | v1 | full CRUD inherited, but this resource is **not in the bundled `pro.json` snapshot** — `get_all`/`update_by_id` are best-effort |
+| `pro.app_installers` | `/app-installers/deployments` | v1 | full CRUD; **not in the bundled `pro.json` snapshot**, but the OPTIONS probe in `pro-supplement.json` shows all five verbs — `get_all`'s pagination and the body shapes are best-effort (undocumented) |
 
 ---
 

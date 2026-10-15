@@ -1,12 +1,12 @@
-"""Unit tests for the Pro Dock Items endpoint (inherits ProEndpoint CRUD + pagination)."""
+"""Unit tests for the Pro Dock Items endpoint (composes get_by_id, create, update_by_id and delete_by_id; no get_all)."""
 # pylint: disable=missing-function-docstring
 import json
 
-import pytest
 from conftest import FQDN, sent_headers, with_bearer
 
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
-from jamfpy.client.exceptions import JamfAPIError
+from jamfpy.endpoints.models import ProGetAll
+from jamfpy.endpoints.pro_dock_items import DockItems
 
 BASE = f"{FQDN}/api/v1"
 
@@ -52,20 +52,11 @@ def test_delete_by_id_uses_delete_header(pro_api, mocked_responses):
     assert sent_headers(req) == with_bearer(H["crud"]["delete"]["json"])
 
 
-def test_get_all_single_page_returns_aggregated_response(pro_api, mocked_responses):
-    mocked_responses.get(f"{BASE}/dock-items?page=0&page-size=100",
-                         json={"totalCount": 2, "results": [{"id": "1"}, {"id": "2"}]})
-    result = pro_api.dock_items.get_all()
-    body = json.loads(result.content)
-    assert body == {"totalCount": 2, "results": [{"id": "1"}, {"id": "2"}]}
-    assert len(mocked_responses.calls) == 1
-    assert mocked_responses.calls[-1].request.url == f"{BASE}/dock-items?page=0&page-size=100"
-
-
-def test_get_all_raises_on_error(pro_api, mocked_responses):
-    mocked_responses.get(f"{BASE}/dock-items?page=0&page-size=100", json={}, status=500)
-    with pytest.raises(JamfAPIError):
-        pro_api.dock_items.get_all()
+def test_has_no_get_all():
+    # The schema's /v1/dock-items collection takes POST only, so DockItems composes four capabilities.
+    assert not hasattr(DockItems, "get_all")
+    assert not issubclass(DockItems, ProGetAll)
+    assert all(hasattr(DockItems, method) for method in ("get_by_id", "create", "update_by_id", "delete_by_id"))
 
 
 def test_name_returns_snake_case_key(pro_api):

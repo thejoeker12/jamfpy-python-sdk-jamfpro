@@ -11,7 +11,7 @@ from requests import PreparedRequest, Session, Request, Response
 from requests.exceptions import ConnectionError as RequestsConnectionError, ReadTimeout
 
 from .auth import Auth
-from .constants import DEFAULT_TIMEOUT, Timeout
+from .constants import DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, Timeout
 from .hooks import Hooks, RequestContext
 from .http_config import HTTPConfig
 from .logger import render_body, render_headers, tenant_logger
@@ -30,6 +30,10 @@ class API:
     ``retries`` sets how ``do()`` retries a failed attempt (``None`` turns retries off) and ``hooks`` the
     request hooks it fires (``None`` means none). ``sleep`` and ``random_source`` exist so tests can run the
     retry loop without waiting or randomness.
+
+    ``parallelism`` caps the requests the SDK itself runs at once for one operation it fans out (today, the page
+    fetches of a Pro ``get_all``); ``1`` makes those sequential. It never throttles, queues or serialises requests
+    the caller makes concurrently. Less than 1 raises ``ValueError``.
     """
 
     _headers_dict: dict[str, str] = {}
@@ -56,8 +60,13 @@ class API:
             hooks: Hooks | None = None,
             sleep: Callable[[float], None] = time.sleep,
             random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
 
+        # bool is an int subclass, so True would otherwise pass as 1.
+        if isinstance(parallelism, bool) or not isinstance(parallelism, int) or parallelism < 1:
+            raise ValueError(f"parallelism must be an int of at least 1, got {parallelism!r}")
+        self._parallelism = parallelism
         self._fqdn = fqdn
         self.auth = auth
         self._http_config: HTTPConfig = http_config

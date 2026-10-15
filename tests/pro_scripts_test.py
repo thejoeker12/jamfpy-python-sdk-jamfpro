@@ -2,11 +2,9 @@
 # pylint: disable=missing-function-docstring
 import json
 
-import pytest
 from conftest import FQDN, sent_headers, with_bearer
 
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
-from jamfpy.client.exceptions import JamfAPIError
 
 BASE = f"{FQDN}/api/v1"
 
@@ -101,7 +99,8 @@ def test_get_all_empty_returns_zero_count(pro_api, mocked_responses):
     assert len(mocked_responses.calls) == 1
 
 
-def test_get_all_raises_on_error(pro_api, mocked_responses):
-    mocked_responses.get(f"{BASE}/scripts?page=0&page-size=100", json={}, status=500)
-    with pytest.raises(JamfAPIError):
-        pro_api.scripts.get_all()
+def test_get_all_returns_a_failed_page_raw(pro_api, mocked_responses):
+    mocked_responses.get(f"{BASE}/scripts?page=0&page-size=100", json={"error": "boom"}, status=500)
+    result = pro_api.scripts.get_all()
+    assert result.status_code == 500
+    assert result.json() == {"error": "boom"}

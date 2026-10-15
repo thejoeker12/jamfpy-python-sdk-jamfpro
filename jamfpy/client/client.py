@@ -9,7 +9,7 @@ from requests import Session
 
 from .auth import Auth
 from .http_config import HTTPConfig
-from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TIMEOUT, Timeout
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, Timeout
 from .api import API
 from .hooks import Hooks
 from .retry import RetryConfig
@@ -62,6 +62,7 @@ class ClassicAPI(API):
             hooks: Hooks | None = None,
             sleep: Callable[[float], None] = time.sleep,
             random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
 
         # no dynamic args here to preserve the hints.
@@ -80,6 +81,7 @@ class ClassicAPI(API):
             hooks=hooks,
             sleep=sleep,
             random_source=random_source,
+            parallelism=parallelism,
         )
 
         # Endpoints
@@ -125,6 +127,7 @@ class ProAPI(API):
             hooks: Hooks | None = None,
             sleep: Callable[[float], None] = time.sleep,
             random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
 
         super().__init__(
@@ -142,6 +145,7 @@ class ProAPI(API):
             hooks=hooks,
             sleep=sleep,
             random_source=random_source,
+            parallelism=parallelism,
         )
 
         self.scripts = ProScripts(self)
