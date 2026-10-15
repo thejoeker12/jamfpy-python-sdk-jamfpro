@@ -22,7 +22,6 @@ dev = [
     "responses",
     "pylint",
     "mypy",
-    "types-requests",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,4 +1,6 @@
 """Endpoint module for managing Jamf Pro MDM commands."""
+from typing import Any
+
 from requests import Request, Response
 from .models import Endpoint
 
@@ -22,7 +24,7 @@ class MDMCommands(Endpoint):
             management_ids: List of Jamf Pro management IDs to target.
             **kwargs: Additional fields (like pin, message, preserveDataPlan).
         """        
-        payload = {
+        payload: dict[str, Any] = {
             "clientData": [{"managementId": mid} for mid in management_ids],
             "commandData": {"commandType": command_type, **kwargs},
         }

@@ -1,6 +1,5 @@
 """api model"""
 
-from collections.abc import Mapping
 from logging import Logger
 from typing import Any
 
@@ -155,7 +154,8 @@ class API:
 
         do_debug_string = "%s: Method: %s at: %s with headers: %s"
 
-        request_header_log = "no headers supplied"
+        # Logging accepts any object, and the value is either a header mapping or a marker string.
+        request_header_log: object = "no headers supplied"
         if request.headers:
             request_header_log = request.headers if not self._safe_mode else "[redacted]"
 
@@ -163,7 +163,7 @@ class API:
 
         prepped = self._session.prepare_request(request)
 
-        prepped_header_log: Mapping[str, str] | str = "no headers supplied"
+        prepped_header_log: object = "no headers supplied"
         if prepped.headers:
             prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
 
