@@ -23,7 +23,7 @@ line item in `AGENTS.md` → *Definition of done*. Regeneration commands are at 
 | API | Resources covered | In schema snapshot | Rough coverage |
 |-----|------------------:|-------------------:|---------------:|
 | **Classic** (`tenant.classic.*`) | 16 | 79 | ~20% |
-| **Pro** (`tenant.pro.*`) | 3 in-snapshot **+ 1** outside it | 123 | ~2% |
+| **Pro** (`tenant.pro.*`) | 3 in-snapshot **+ 1** outside it | 124 | ~2% |
 
 ---
 
@@ -127,7 +127,7 @@ vppassignments, vppinvitations, webhooks
 
 > Note: Classic also exposes `dockitems`; the SDK currently implements the **Pro** dock-items resource only.
 
-### Pro (120)
+### Pro (121)
 
 ```
 account-groups, account-preferences, accounts, activation-code, adue-session-token-settings,
@@ -139,7 +139,7 @@ computer-groups, computer-inventory, computer-inventory-collection-settings, com
 computers, computers-inventory, computers-inventory-detail, conditional-access, csa, dashboard, ddm,
 departments, deploy-package, device-communication-settings, device-enrollments, devices,
 distribution-points, dss-declarations, ebooks, enrollment, enrollment-customization,
-enrollment-customizations, groups, gsx-connection, health-check, health-status, icon,
+enrollment-customizations, environment-type, groups, gsx-connection, health-check, health-status, icon,
 impact-alert-notification-settings, inventory-information, inventory-preload, jamf-connect,
 jamf-management-framework, jamf-package, jamf-pro-information, jamf-pro-server-url, jamf-pro-version,
 jamf-protect, jamf-remote-assist, jcds, last-login, ldap, ldap-keystore, local-admin-password,

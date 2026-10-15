@@ -1,0 +1,99 @@
+{
+  "x-jamfpy-generated": {
+    "generatedAt": "2026-10-15T20:01:58+00:00",
+    "method": "OPTIONS request per path through jamfpy with the tenant's token; verbs from the Allow header, less HEAD and OPTIONS",
+    "note": "Written by `make schemas`; the path list is curated by hand, the verbs are always probed, never typed. These are Pro paths the tenant serves but /api/schema/ leaves out; tools.schemas.load_pro merges them in."
+  },
+  "paths": {
+    "/v1/app-installers": {
+      "x-jamfpy-source": "options-probe",
+      "get": {}
+    },
+    "/v1/app-installers/titles": {
+      "x-jamfpy-source": "options-probe",
+      "get": {}
+    },
+    "/v1/app-installers/titles/{id}": {
+      "x-jamfpy-source": "options-probe",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {}
+    },
+    "/v1/app-installers/deployments": {
+      "x-jamfpy-source": "options-probe",
+      "get": {},
+      "post": {}
+    },
+    "/v1/app-installers/deployments/{id}": {
+      "x-jamfpy-source": "options-probe",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {},
+      "put": {},
+      "delete": {}
+    },
+    "/v1/app-installers/deployments/{id}/computers": {
+      "x-jamfpy-source": "options-probe",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {}
+    },
+    "/v1/app-installers/deployments/{id}/installation-summary": {
+      "x-jamfpy-source": "options-probe",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {}
+    },
+    "/v1/app-installers/deployments/{id}/computers/installation-retry": {
+      "x-jamfpy-source": "options-probe",
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {}
+    },
+    "/v1/app-installers/global-settings": {
+      "x-jamfpy-source": "options-probe",
+      "get": {},
+      "put": {}
+    }
+  }
+}
