@@ -196,10 +196,10 @@ def get_all(self, suffix: str | None = None, xml_response: bool = False) -> Resp
 def get_by_id(self, target_id: int, xml_response: bool = False) -> Response:           # GET  url()+_uri+/id/{id}
 def update_by_id(self, target_id: int, updated_configuration: str) -> Response:        # PUT  ...+/id/{id}, data=<xml>
 def create(self, config_profile: str) -> Response:                                     # POST url()+_uri+/id/0, data=<xml>
-def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/id/{id}, no headers
+def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/id/{id}, sets no headers of its own
 ```
 
-Note: Classic **create posts to `/id/0`**, and **delete sends no headers**. `get_by_id`/
+Note: Classic **create posts to `/id/0`**, and **delete sets no headers of its own** (only `Authorization` goes out). `get_by_id`/
 `get_all` accept `xml_response=True` to switch `read` headers from json to xml.
 
 ---
@@ -460,50 +460,73 @@ override `get_all` and still return a single `Response` (aggregate via `Endpoint
 ## Writing the test
 
 Unit tests are **fully offline** (the sanctioned live suite is `tests/integration/` —
-marker-gated, deselected by default; see AGENTS.md Quality gates). Endpoints only call `url()`, `header()`, and `do()` on their
-API object, so the `FakeAPI` double in `tests/conftest.py` implements exactly those and
-**records every `requests.Request` handed to `do()`**. One `tests/<module>_test.py` per
-source module (note the non-default `*_test.py` naming, set in `pyproject.toml`).
+marker-gated, deselected by default; see AGENTS.md Quality gates). They drive the real SDK
+stack and mock only the network edge with [`responses`](https://github.com/getsentry/responses):
+your endpoint runs on a real `Tenant`, `API.do()` adds the Bearer token from the real `Auth`,
+and `responses` answers the request and records it. An unregistered URL raises
+`ConnectionError`, so a wrong URL fails the test and nothing leaves the process. One
+`tests/<module>_test.py` per source module (note the non-default `*_test.py` naming, set in
+`pyproject.toml`).
 
-What `FakeAPI` gives you:
-- `api.last_request` — the most recently built `requests.Request`.
-- `api.requests` — the full ordered list (for multi-call flows like pagination).
-- `FakeAPI(responses=[make_response(...)])` — seed a response queue when the method actually
-  reads the response (`.json()`, `.raise_for_status()`); `do()` pops them FIFO.
-- `FQDN` and `make_response` are importable from `conftest`.
+What `tests/conftest.py` gives you:
+- `mocked_responses` — an active `responses.RequestsMock`. Register what the endpoint should
+  call (`mocked_responses.get(url, json={...})`, `mocked_responses.post(url, status=201, body="<xml/>")`);
+  `mocked_responses.calls` records every request in order. Every registration must be used:
+  one the code never requests fails the test at teardown.
+- `classic_api` / `pro_api` — the two APIs of a real OAuth `Tenant` (the `tenant` fixture) whose
+  token request is already answered. The call log is reset after construction, so `calls` holds
+  only your test's requests. Reach your endpoint through its wired attribute
+  (`classic_api.buildings`), which also exercises the wiring in `client.py`. At teardown the
+  fixture fails the test if any call other than a token request went out without the
+  `Authorization: Bearer` header, so every endpoint test checks it without asserting it.
+- `response_registry` — the registry class behind `mocked_responses`. A module whose endpoint
+  may request the same URL repeatedly (a paginated `get_all`) overrides it to return
+  `responses.registries.OrderedRegistry`, as `tests/models_test.py` does.
+- `with_bearer(header_set)` — a config header set plus the `Authorization: Bearer <fake token>`
+  header `API.do()` adds.
+- `sent_headers(request)` — a recorded request's headers minus `Content-Length`, which
+  requests derives from the body.
+- `FQDN`, `FAKE_TOKEN`, `TOKEN_URL` and `register_oauth_token(rsps)` for tests that build their
+  own `Tenant`.
 
-Assert on the recorded request: `.method`, `.url`, `.headers` (vs
-`DEFAULT_HTTP_CONFIG_HEADERS["crud"][op][fmt]`), and the body — `.data` for Classic XML
-strings, `.json` for Pro dicts. Delete with no headers asserts `req.headers == {}`.
+Assert on `mocked_responses.calls[-1].request` (a `requests.PreparedRequest`): `.method`, the
+full `.url` (`.../JSSResource/...` for Classic, `.../api/v{n}/...` for Pro),
+`sent_headers(req) == with_bearer(DEFAULT_HTTP_CONFIG_HEADERS["crud"][op][fmt])`, and the body:
+`req.body` is the XML string for Classic, `json.loads(req.body)` the dict for Pro. A Classic
+delete passes no header set, so assert `sent_headers(req) == with_bearer({})`. A URL with a
+query string (a Pro `get_all` page, `?page=0&page-size=100`) matches only that exact query;
+several registrations of one URL are served in order, the last repeating (under
+`OrderedRegistry`, one request each, in order, and a surplus request raises); a
+`re.compile(...)` URL matches any URL it prefixes.
 
 ### Classic test
 
 ```python
 """Unit tests for the Buildings endpoint."""
 # pylint: disable=missing-function-docstring
-from conftest import FakeAPI, FQDN
-from jamfpy.endpoints.clc_endpoints import Buildings
+from conftest import FQDN, sent_headers, with_bearer
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 
 BASE = f"{FQDN}/JSSResource"
 
 
-def test_get_by_id_builds_id_url():
-    api = FakeAPI()
-    Buildings(api).get_by_id(7)
-    req = api.last_request
+def test_get_by_id_builds_id_url(classic_api, mocked_responses):
+    mocked_responses.get(f"{BASE}/buildings/id/7", json={"building": {"id": 7}})
+    classic_api.buildings.get_by_id(7)
+    req = mocked_responses.calls[-1].request
     assert req.method == "GET"
     assert req.url == f"{BASE}/buildings/id/7"
-    assert req.headers == H["crud"]["read"]["json"]
+    assert sent_headers(req) == with_bearer(H["crud"]["read"]["json"])
 
 
-def test_create_posts_xml_to_id_zero():
-    api = FakeAPI()
-    Buildings(api).create("<building/>")
-    req = api.last_request
+def test_create_posts_xml_to_id_zero(classic_api, mocked_responses):
+    mocked_responses.post(f"{BASE}/buildings/id/0", status=201, body="<building><id>8</id></building>")
+    classic_api.buildings.create("<building/>")
+    req = mocked_responses.calls[-1].request
     assert req.method == "POST"
     assert req.url == f"{BASE}/buildings/id/0"
-    assert req.data == "<building/>"
+    assert sent_headers(req) == with_bearer(H["crud"]["create-update"]["xml"])
+    assert req.body == "<building/>"
 ```
 
 ### Pro test
@@ -511,39 +534,41 @@ def test_create_posts_xml_to_id_zero():
 ```python
 """Unit tests for the Pro Things endpoint."""
 # pylint: disable=missing-function-docstring
-from conftest import FakeAPI, FQDN
-from jamfpy.endpoints.pro_things import Things
+import json
+
+from conftest import FQDN, sent_headers, with_bearer
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 
 BASE = f"{FQDN}/api/v1"      # Pro URLs carry the version
 
 
-def test_get_by_id_builds_v1_url():
-    api = FakeAPI()
-    Things(api).get_by_id(5)
-    req = api.last_request
+def test_get_by_id_builds_v1_url(pro_api, mocked_responses):
+    mocked_responses.get(f"{BASE}/things/5", json={"id": "5"})
+    pro_api.things.get_by_id(5)
+    req = mocked_responses.calls[-1].request
     assert req.method == "GET"
     assert req.url == f"{BASE}/things/5"
-    assert req.headers == H["crud"]["read"]["json"]
+    assert sent_headers(req) == with_bearer(H["crud"]["read"]["json"])
 
 
-def test_create_sends_json_body():
-    api = FakeAPI()
-    Things(api).create({"name": "x"})
-    req = api.last_request
+def test_create_sends_json_body(pro_api, mocked_responses):
+    mocked_responses.post(f"{BASE}/things", status=201, json={"id": "6"})
+    pro_api.things.create({"name": "x"})
+    req = mocked_responses.calls[-1].request
     assert req.method == "POST"
     assert req.url == f"{BASE}/things"
-    assert req.json == {"name": "x"}
+    assert sent_headers(req) == with_bearer(H["crud"]["create-update"]["json"])
+    assert json.loads(req.body) == {"name": "x"}
 ```
 
 Test-file conventions:
 - Module docstring, then `# pylint: disable=missing-function-docstring`. Add
-  `,redefined-outer-name` if you use fixtures as function args, and `,protected-access` (or
-  inline) when touching `_uri`/`_name`.
+  `,redefined-outer-name` if the module defines a fixture its tests take as an argument, and
+  `,protected-access` (or inline) when touching `_uri`/`_name`.
 - Function names are behavioural: `test_<what>_<expected>` (e.g. `test_get_by_id_builds_v1_url`).
-- For a method that reads its response, seed it:
-  `api = FakeAPI(responses=[make_response({...})])`, then assert on both the returned
-  response and `api.last_request`.
+- For a method that reads its response (`get_all`, the accounts transforms), register a
+  realistic body (and status) and assert on both the returned response and the request(s) in
+  `mocked_responses.calls`.
 
 Run the suite from the repo root: `make test`.
 
@@ -556,7 +581,8 @@ Run the suite from the repo root: `make test`.
       `ClassicAPI.__init__` (alias the import if the name clashes across APIs).
 - [ ] Path, version, and body shape verified against the schema (the queries above — not a
       full read).
-- [ ] A `tests/<module>_test.py` covers the Request(s) it builds (mock only, via `FakeAPI`).
+- [ ] A `tests/<module>_test.py` covers the request(s) it sends (mock only, via `responses` and the
+      `tests/conftest.py` fixtures).
 - [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
 - [ ] Tests pass: `make test`.
 - [ ] Lint passes: `make lint`.

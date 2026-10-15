@@ -1,49 +1,49 @@
 """Unit tests for the Pro App Installers endpoint (inherits ProEndpoint CRUD + pagination)."""
 # pylint: disable=missing-function-docstring
-from conftest import FakeAPI, FQDN
+import json
 
-from jamfpy.endpoints.pro_app_installers import AppInstallers
+from conftest import FQDN, sent_headers, with_bearer
+
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 
 BASE = f"{FQDN}/api/v1/app-installers/deployments"
 
 
-def test_get_by_id_builds_deployment_url():
-    api = FakeAPI()
-    AppInstallers(api).get_by_id(5)
-    req = api.last_request
+def test_get_by_id_builds_deployment_url(pro_api, mocked_responses):
+    mocked_responses.get(f"{BASE}/5", json={"id": "5"})
+    pro_api.app_installers.get_by_id(5)
+    req = mocked_responses.calls[-1].request
     assert req.method == "GET"
     assert req.url == f"{BASE}/5"
     # Standardised: reads now use the read json header (was create-update).
-    assert req.headers == H["crud"]["read"]["json"]
+    assert sent_headers(req) == with_bearer(H["crud"]["read"]["json"])
 
 
-def test_create_posts_json_payload():
-    api = FakeAPI()
-    AppInstallers(api).create({"name": "app"})
-    req = api.last_request
+def test_create_posts_json_payload(pro_api, mocked_responses):
+    mocked_responses.post(BASE, status=201, json={"id": "6"})
+    pro_api.app_installers.create({"name": "app"})
+    req = mocked_responses.calls[-1].request
     assert req.method == "POST"
     assert req.url == BASE
-    assert req.headers == H["crud"]["create-update"]["json"]
-    assert req.json == {"name": "app"}
+    assert sent_headers(req) == with_bearer(H["crud"]["create-update"]["json"])
+    assert json.loads(req.body) == {"name": "app"}
 
 
-def test_delete_by_id_uses_delete_header():
-    api = FakeAPI()
-    AppInstallers(api).delete_by_id(5)
-    req = api.last_request
+def test_delete_by_id_uses_delete_header(pro_api, mocked_responses):
+    mocked_responses.delete(f"{BASE}/5", status=204)
+    pro_api.app_installers.delete_by_id(5)
+    req = mocked_responses.calls[-1].request
     assert req.method == "DELETE"
     assert req.url == f"{BASE}/5"
-    assert req.headers == H["crud"]["delete"]["json"]
+    assert sent_headers(req) == with_bearer(H["crud"]["delete"]["json"])
 
 
-def test_get_all_builds_paginated_url():
+def test_get_all_builds_paginated_url(pro_api, mocked_responses):
     # Construction-only: the deployments response shape is unverified, so we assert only the
     # request the (inherited) get_all builds for the first page.
-    from conftest import make_response  # pylint: disable=import-outside-toplevel
-    api = FakeAPI(responses=[make_response({"totalCount": 1, "results": [{"id": 1}]})])
-    AppInstallers(api).get_all()
-    req = api.last_request
+    mocked_responses.get(f"{BASE}?page=0&page-size=100", json={"totalCount": 1, "results": [{"id": 1}]})
+    pro_api.app_installers.get_all()
+    req = mocked_responses.calls[-1].request
     assert req.method == "GET"
     assert req.url == f"{BASE}?page=0&page-size=100"
-    assert req.headers == H["crud"]["read"]["json"]
+    assert sent_headers(req) == with_bearer(H["crud"]["read"]["json"])
