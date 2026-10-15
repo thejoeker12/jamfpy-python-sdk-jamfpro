@@ -211,3 +211,46 @@ def test_basic_tenant_builds_both_apis(mocked_responses):
     req = mocked_responses.calls[-1].request
     assert req.url == BEARER_URL
     assert req.headers["Authorization"] == f"Basic {base64.b64encode(b'u:p').decode()}"
+
+
+# --- logging ---------------------------------------------------------------
+
+KINDS = ("auth", "pro", "clc")
+
+
+def _tenant_loggers(tenant):
+    return {"auth": tenant._auth._logger, "pro": tenant.pro._logger, "clc": tenant.classic._logger}
+
+
+def test_tenant_logs_through_three_jamfpy_children():
+    tenant = _oauth_tenant()
+
+    for kind, logger in _tenant_loggers(tenant).items():
+        assert logger.name == f"jamfpy.test-{kind}"
+        assert logger is logging.getLogger(f"jamfpy.test-{kind}")
+        assert logger.parent is logging.getLogger("jamfpy")
+        assert logger.propagate is True
+        assert logger.handlers == []
+
+
+def test_short_tenant_names_are_not_padded():
+    tenant = jamfpy.Tenant(fqdn="https://ab.jamfcloud.com", auth_method="oauth2", client_id="c", client_secret="s")
+    assert {kind: logger.name for kind, logger in _tenant_loggers(tenant).items()} == {
+        kind: f"jamfpy.ab-{kind}" for kind in KINDS
+    }
+
+
+@pytest.mark.parametrize("kwargs, level", [({}, logging.INFO), ({"log_level": logging.DEBUG}, logging.DEBUG)])
+def test_log_level_sets_all_three_loggers(kwargs, level):
+    tenant = jamfpy.Tenant(fqdn=FQDN, auth_method="oauth2", client_id="c", client_secret="s", **kwargs)
+    assert {kind: logger.level for kind, logger in _tenant_loggers(tenant).items()} == dict.fromkeys(KINDS, level)
+
+
+@pytest.mark.parametrize("auth_method, credentials", [
+    ("oauth2", {"client_id": "c", "client_secret": "s"}),
+    ("basic", {"username": "u", "password": "p"}),
+])
+@pytest.mark.parametrize("safe_mode", [True, False])
+def test_safe_mode_reaches_auth_and_both_apis(auth_method, credentials, safe_mode):
+    tenant = jamfpy.Tenant(fqdn=FQDN, auth_method=auth_method, safe_mode=safe_mode, **credentials)
+    assert (tenant._auth._safe_mode, tenant.pro._safe_mode, tenant.classic._safe_mode) == (safe_mode,) * 3

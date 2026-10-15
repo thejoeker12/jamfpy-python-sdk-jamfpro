@@ -2,16 +2,20 @@
 
 # Libs
 from base64 import b64encode
+from collections.abc import Mapping
 import datetime
+import logging
 from logging import Logger
 import threading
+import time
 from typing import Optional
-from requests import request
+from requests import Response, request
 
 # This module
-from .logger import new_logger
+from .logger import render_body, render_headers, tenant_logger
 from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
+from .redaction import redact
 from .utility import extract_cloud_tenant_name_from_url, user_agent
 
 from .constants import (
@@ -35,6 +39,9 @@ class Auth:
     Lazy: no token is fetched until the first ``token()`` call (or an explicit ``set_new_token()``).
     Thread-safe: a re-entrant lock serialises every fetch, keep-alive and invalidation, so one Auth can
     serve concurrent requests and only one of them refreshes an expiring token.
+
+    Every auth call is logged at DEBUG with its headers and bodies; ``safe_mode`` (the default) redacts them.
+    ``safe_mode=False`` logs the client secret, password and tokens in full: use it against a dev tenant only.
     """
 
     _token_str: str | None
@@ -55,10 +62,12 @@ class Auth:
             cert_path: str | None = None,
             verify_path: str | None = None,
             timeout: Timeout = DEFAULT_TIMEOUT,
+            safe_mode: bool = True,
     ) -> None:
         self._fqdn = fqdn
         self._http_config = http_config
-        self._logger = logger or self._init_logging(log_level)
+        self._safe_mode = safe_mode
+        self._logger = logger if logger is not None else self._init_logging(log_level)
         self._auth_url = self._init_urls()
         self.token_exp_thold_mins = token_exp_thold_mins
         self.cert_path = cert_path
@@ -82,19 +91,11 @@ class Auth:
         """Extend the current token's lifetime; subclasses implement this."""
 
     def _init_logging(self, log_level: int) -> Logger:
-        """Inits loggers for API Object"""
-
-        shortname = extract_cloud_tenant_name_from_url(self._fqdn)
-
-        return new_logger(
-            name=f"{shortname}-auth",
-            level=log_level
-        )
+        """This tenant's ``jamfpy.{tenant}-auth`` child logger, set to ``log_level``."""
+        return tenant_logger(extract_cloud_tenant_name_from_url(self._fqdn), "auth", log_level)
 
 
     def _init_urls(self) -> str:
-        self._logger.debug("FUNCTION: _init_urls")
-
         auth_endpoint: str = self._http_config.urls["auth"][self._method]
 
         auth_url = self._fqdn + auth_endpoint
@@ -137,22 +138,15 @@ class Auth:
         Returns:
             bool: True if token is within the buffer period, False otherwise.
         """
-        self._logger.debug("FUNCTION: check_token_in_buffer")
-
-        self._logger.debug("Expiry time: %s", self.token_expiry)
-
         now = round(datetime.datetime.now(datetime.timezone.utc).timestamp(), TIME_ROUNDING_DECIMAL_COUNT)
-
-        self._logger.debug("Now: %s", now)
-
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_DECIMAL_COUNT)
         buffer_secs = self._buffer_secs()
 
-        self._logger.debug("Token buffer: %s sec(s)", buffer_secs)
-        self._logger.debug("Expiry delta: %s sec(s)", expiry_delta_secs)
+        self._logger.debug("Token expires in %s s; refresh buffer is %s s", expiry_delta_secs, buffer_secs)
 
         if expiry_delta_secs < buffer_secs:
-            self._logger.warning("Token in buffer")
+            # DEBUG, not WARNING: refreshing inside the buffer is the routine path, nothing for anyone to act on.
+            self._logger.debug("Token in buffer")
             return True
 
         self._logger.debug("Token not in buffer")
@@ -166,12 +160,11 @@ class Auth:
         Returns:
             bool: True if the token has expired, False otherwise.
         """
-        self._logger.debug("FUNCTION: check_token_is_expired")
-
         now = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         if now >= self.token_expiry:
-            self._logger.warning("Token expired")
+            # DEBUG for the same reason as "Token in buffer": an expired token is simply fetched again.
+            self._logger.debug("Token expired")
             return True
 
         self._logger.debug("Token not expired")
@@ -183,8 +176,6 @@ class Auth:
         Proccess of checking and refreshing token
         Occurs before every request to ensure no usage of old tokens
         """
-        self._logger.debug("FUNCTION: check_token")
-
         if self._token_str is None:
             # The first fetch is routine under lazy auth, so it is not reported as an expired token.
             self._logger.debug("No token yet; fetching one")
@@ -212,8 +203,6 @@ class Auth:
 
     def token(self) -> str:
         """Return a valid token, fetching one first if there is none yet or it is expired or inside the buffer."""
-        self._logger.debug("FUNCTION: token")
-
         # Double-checked so the common case (a valid token) never waits on the lock. A thread that sees a refresh
         # is due re-checks under the lock, because another thread may have refreshed while it waited.
         if self._refresh_needed():
@@ -243,19 +232,39 @@ class Auth:
                 "Authorization": f"Bearer {self._token_str}",
                 "User-Agent": self._user_agent,
             }
-            call = request(
-                method="POST",
-                url=url,
-                headers=headers,
-                timeout=self._timeout,
-                cert=self.cert_path,
-                verify=self.verify_path
+            return self._post(url, headers).ok
+
+
+    def _post(self, url: str, headers: Mapping[str, str], data: Mapping[str, str] | None = None) -> Response:
+        """Make one auth call (token, keep-alive or invalidate) and log it at DEBUG, redacted under ``safe_mode``.
+
+        Never retried. Logged at DEBUG only: these calls are routine, and the API's INFO line already shows each
+        request the token was fetched for.
+        """
+        started = time.monotonic()
+        call = request(
+            method="POST",
+            url=url,
+            headers=headers,
+            data=data,
+            timeout=self._timeout,
+            cert=self.cert_path,
+            verify=self.verify_path
+        )
+        if self._logger.isEnabledFor(logging.DEBUG):
+            duration_ms = round((time.monotonic() - started) * 1000)
+            fields: dict[str, object] = {"method": "POST", "url": url, "status": call.status_code, "duration_ms": duration_ms}
+            self._logger.debug("POST %s -> %d (%d ms)", url, call.status_code, duration_ms, extra=fields)
+            self._logger.debug(
+                "Request POST %s: headers=%s body=%s", url,
+                render_headers(call.request.headers, self._safe_mode), render_body(call.request.body, self._safe_mode),
+                extra=fields
             )
-
-            if call.ok:
-                return True
-
-            return False
+            self._logger.debug(
+                "Response POST %s -> %d: headers=%s body=%s", url, call.status_code,
+                render_headers(call.headers, self._safe_mode), render_body(call.content, self._safe_mode), extra=fields
+            )
+        return call
 
 
 class OAuth(Auth):
@@ -276,7 +285,7 @@ class OAuth(Auth):
             cert_path: str | None = None,
             verify_path: str | None = None,
             timeout: Timeout = DEFAULT_TIMEOUT,
-
+            safe_mode: bool = True,
     ) -> None:
 
         super().__init__(
@@ -288,6 +297,7 @@ class OAuth(Auth):
             cert_path=cert_path,
             verify_path=verify_path,
             timeout=timeout,
+            safe_mode=safe_mode,
         )
 
         self._oauth_cid = client_id
@@ -302,9 +312,11 @@ class OAuth(Auth):
     # methods
 
     def set_new_token(self) -> None:
-        """Requests and sets a new OAuth token."""
-        self._logger.debug("FUNCTION: set_new_token")
+        """Requests and sets a new OAuth token.
 
+        Raises ``JamfAuthError(message, response, text)`` when the token endpoint refuses; ``text`` is the response
+        body, always redacted (whatever ``safe_mode`` says), because exception messages end up in crash reports.
+        """
         # A new dict: the configured header set is shared and must not carry per-call values.
         headers = {**self._http_config.headers["auth"]["oauth"], "User-Agent": self._user_agent}
         data = {
@@ -314,18 +326,10 @@ class OAuth(Auth):
         }
 
         with self._lock:
-            call = request(
-                method="POST",
-                url=self._auth_url,
-                headers=headers,
-                data=data,
-                timeout=self._timeout,
-                cert=self.cert_path,
-                verify=self.verify_path
-            )
+            call = self._post(self._auth_url, headers, data)
 
             if not call.ok:
-                raise JamfAuthError("Error getting token.", call, call.text)
+                raise JamfAuthError("Error getting token.", call, redact(call.text))
 
             call_json = call.json()
             self._token_str = call_json["access_token"]
@@ -333,8 +337,6 @@ class OAuth(Auth):
             expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
             self.token_expiry = round(expiry, TIME_ROUNDING_DECIMAL_COUNT)
             self._record_token_lifetime(call_json["expires_in"])
-
-        self._logger.debug("Token set successfully")
 
 
 
@@ -362,6 +364,7 @@ class BasicAuth(Auth):
             cert_path: str | None = None,
             verify_path: str | None = None,
             timeout: Timeout = DEFAULT_TIMEOUT,
+            safe_mode: bool = True,
     ) -> None:
 
         super().__init__(
@@ -373,6 +376,7 @@ class BasicAuth(Auth):
             cert_path=cert_path,
             verify_path=verify_path,
             timeout=timeout,
+            safe_mode=safe_mode,
         )
 
         self.username = username
@@ -393,7 +397,6 @@ class BasicAuth(Auth):
     # Private
     def _init_auth(self) -> None:
         """Initializes the authentication by setting the basic auth token."""
-        self._logger.debug("FUNCTION: _init_auth")
         if self.username and self.password:
             credstring = f"{self.username}:{self.password}"
             self.basic_auth_token = b64encode(bytes(credstring, encoding="UTF-8")).decode()
@@ -401,8 +404,6 @@ class BasicAuth(Auth):
 
     def _keep_alive_token(self) -> None:
         """Keeps the current Bearer token alive and updates its expiration time."""
-        self._logger.debug("_keep_alive_token starting")
-
         url = self._fqdn + self._http_config.urls["auth"]["keep-alive"]
 
         with self._lock:
@@ -413,14 +414,7 @@ class BasicAuth(Auth):
                 "User-Agent": self._user_agent,
             }
 
-            call = request(
-                method="POST",
-                url=url,
-                headers=headers,
-                timeout=self._timeout,
-                cert=self.cert_path,
-                verify=self.verify_path
-            )
+            call = self._post(url, headers)
 
             if not call.ok:
                 raise JamfAuthError("Error keeping token alive")
@@ -430,14 +424,10 @@ class BasicAuth(Auth):
             self.token_expiry = _parse_jamf_expiry(call_json["expires"])
             self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())
 
-        self._logger.debug("_keep_alive_token complete")
-
 
     # Public
     def set_new_token(self) -> None:
         """Requests and sets a new Bearer token using stored credentials."""
-
-        self._logger.debug("FUNCTION: set_new_token")
         url = self._fqdn + self._http_config.urls["auth"]["bearer"]
 
         headers = {
@@ -447,14 +437,7 @@ class BasicAuth(Auth):
         }
 
         with self._lock:
-            call = request(
-                method="POST",
-                url=url,
-                headers=headers,
-                timeout=self._timeout,
-                cert=self.cert_path,
-                verify=self.verify_path
-            )
+            call = self._post(url, headers)
 
             if not call.ok:
                 raise JamfAuthError("Error getting new token", call.status_code, call)

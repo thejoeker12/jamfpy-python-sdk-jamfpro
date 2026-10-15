@@ -26,6 +26,14 @@ class Tenant:
 
     ``retries`` sets how API requests are retried (``None`` turns retries off); auth calls are never retried.
     ``hooks`` holds the request hooks both APIs fire on every API request attempt.
+
+    ``log_level`` sets the tenant's three loggers (``jamfpy.{tenant}-auth``, ``-pro`` and ``-clc``); call
+    ``jamfpy.configure_logging()`` to see their output. ``safe_mode`` (the default) redacts every logged header set
+    and body: the values of the ``Authorization`` (its Bearer or Basic scheme is kept), ``Proxy-Authorization``,
+    ``X-Auth-Token``, ``Cookie`` and ``Set-Cookie`` headers, and of the ``password``, ``client_secret``,
+    ``client_id``, ``access_token`` and ``token`` keys in JSON, form, XML and raw text. It does not touch URLs
+    (query strings included) or other key names such as ``pin``. ``safe_mode=False`` logs everything in full and
+    is for a dev tenant only.
     """
 
     def __init__(
@@ -65,6 +73,7 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             timeout=timeout,
+            safe_mode=safe_mode,
         )
 
         # One registry for both APIs, so a hook sees every request whichever API sends it.
@@ -129,6 +138,7 @@ class Tenant:
             log_level: int,
             http_config: HTTPConfig,
             timeout: Timeout,
+            safe_mode: bool,
     ) -> OAuth | BasicAuth:
         """
         Method to validate the supplied configuration of auth credentials
@@ -156,6 +166,7 @@ class Tenant:
                     cert_path=self.cert_path,
                     verify_path=self.verify_path,
                     timeout=timeout,
+                    safe_mode=safe_mode,
                 )
 
             case "basic":
@@ -173,6 +184,7 @@ class Tenant:
                     cert_path=self.cert_path,
                     verify_path=self.verify_path,
                     timeout=timeout,
+                    safe_mode=safe_mode,
                 )
 
             case _:
