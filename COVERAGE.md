@@ -77,16 +77,16 @@ the same change — this is a line item in `AGENTS.md` → *Definition of done*.
 | SDK accessor | API | Min | Max | Notes |
 |---|---|:-:|:-:|---|
 | `classic.categories` | Classic | ✅ | ✅ | |
-| `classic.buildings` | Classic | ✅ | ✅ | |
+| `classic.buildings` | Classic | ✅ | ✅ | Classic building is id + name only; address fields sent, not echo-asserted |
 | `classic.departments` | Classic | ✅ | ✅ | Name-only resource — min ≡ max |
 | `classic.sites` | Classic | ✅ | ✅ | Name-only resource — min ≡ max |
-| `classic.scripts` | Classic | ✅ | ✅ | |
+| `classic.scripts` | Classic | ✅ | ✅ | `filename` sent without `.sh` and `script_contents` without a trailing newline (server strips both) |
 | `classic.packages` | Classic | ✅ | ✅ | Metadata only — no file upload |
 | `classic.computer_extension_attributes` | Classic | ✅ | ✅ | Text Field input type |
 | `classic.computer_groups` | Classic | ✅ | ✅ | Min = static, max = smart; `criteria` sent, not echo-asserted |
 | `classic.mobile_device_groups` | Classic | ✅ | ✅ | Min = static, max = smart; `criteria` sent, not echo-asserted |
 | `classic.policies` | Classic | ✅ | ✅ | Created disabled, no scope |
-| `classic.configuration_profiles` | Classic | ✅ | ✅ | Minimal plist; `payloads` sent, not echo-asserted |
+| `classic.configuration_profiles` | Classic | ✅ | ✅ | Minimal plist; `payloads` sent, not echo-asserted; `level` sent as `System` (server stores `computer` that way) |
 | `classic.computer_searches` | Classic | ✅ | ✅ | `criteria`/`display_fields` sent, not echo-asserted |
 | `classic.computers` | Classic | ✅ | ✅ | Fabricated inventory record |
 | `classic.mobile_devices` | Classic | ✅ | ✅ | Fabricated udid/serial |

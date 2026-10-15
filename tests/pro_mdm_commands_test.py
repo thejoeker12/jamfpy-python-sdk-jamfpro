@@ -89,11 +89,12 @@ def test_delete_user_maps_kwargs():
     assert data["deleteAllUsers"] is False
 
 
-def test_restart_device_uses_misspelled_kernel_cache_key():
-    # KNOWN QUIRK: the API kwarg is 'rebuildKernalCache' (typo preserved).
+def test_restart_device_uses_schema_kernel_cache_key():
+    # RestartDeviceCommand in pro.json spells it rebuildKernelCache.
     req = _send("restart_device", ["m1"])
     data = req.json["commandData"]
-    assert data["rebuildKernalCache"] is True
+    assert data["rebuildKernelCache"] is True
+    assert "rebuildKernalCache" not in data
     assert data["kextPaths"] == []
     assert data["notifyUser"] is True
 

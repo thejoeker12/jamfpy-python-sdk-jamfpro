@@ -76,6 +76,8 @@ SPECS = [
             "zipPostalCode": "TE5 7ST",
             "country": "United Kingdom",
         },
+        # Classic's building is id + name only: the address fields are accepted on write but never read back.
+        "unassertable": ("streetAddress1", "streetAddress2", "city", "stateProvince", "zipPostalCode", "country"),
     },
     {
         # Departments only have a name — min and max are legitimately identical.
@@ -100,13 +102,13 @@ SPECS = [
         "min": lambda n: {"name": n},
         "max": lambda n: {
             "name": n,
-            "filename": f"{n}.sh",
+            "filename": n,  # the server strips a trailing .sh from filename, so send it bare
             "info": f"info for {n}",
             "notes": f"notes for {n}",
             "priority": "After",
             "parameters": {f"parameter{i}": f"{n}-p{i}" for i in range(4, 12)},
             "os_requirements": "15",
-            "script_contents": f'#!/bin/bash\necho "{n}"\n',
+            "script_contents": f'#!/bin/bash\necho "{n}"',  # the server trims a trailing newline, so send none
         },
     },
     {
@@ -179,7 +181,7 @@ SPECS = [
             "description": f"description for {n}",
             "distribution_method": "Install Automatically",
             "user_removable": False,
-            "level": "computer",
+            "level": "System",  # the server stores computer-level profiles as "System", so send that spelling
             "payloads": _plist(n),
         }},
         "unassertable": ("payloads",),  # server normalizes the plist on read-back

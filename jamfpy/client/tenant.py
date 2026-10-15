@@ -4,7 +4,6 @@
 
 # External
 from pathlib import Path
-from typing import cast
 
 # This Lib
 from .client import ProAPI, ClassicAPI
@@ -36,16 +35,8 @@ class Tenant:
     ) -> None:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
-        # _validate_path swaps a supplied str for a Path.
-        self.cert_path: str | Path | None = cert_path
-        self.verify_path: str | Path | None = verify_path
-
-
-        self._validate_path(
-            cert_path=self.cert_path,
-            verify_path=self.verify_path
-        )
-
+        self.cert_path = cert_path
+        self.verify_path = verify_path
 
         self._validate_path(
             cert_path=cert_path,
@@ -90,7 +81,8 @@ class Tenant:
                 raise JamfpyConfigError(f"Cert Path: {cert_path_obj} does not exist")
             if cert_path_obj.is_dir():
                 raise JamfpyConfigError(f"{cert_path_obj} is a directory")
-            self.cert_path = cert_path_obj
+            # Stored as str: requests and every downstream signature take str paths.
+            self.cert_path = str(cert_path_obj)
 
         if verify_path is not None:
             verify_path_obj = Path(verify_path)
@@ -98,7 +90,7 @@ class Tenant:
                 raise JamfpyConfigError(f"Verify Path: {verify_path_obj} does not exist")
             if verify_path_obj.is_dir():
                 raise JamfpyConfigError(f"{verify_path_obj} is a directory")
-            self.verify_path = verify_path_obj
+            self.verify_path = str(verify_path_obj)
 
     def _init_validate_auth(
             self,
@@ -121,11 +113,6 @@ class Tenant:
         if auth_method not in VALID_AUTH_METHODS:
             raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
 
-        # Auth and the APIs hint str because requests only accepts str, while _validate_path stores a Path
-        # on the Tenant; the cast bridges the two without changing what callers see.
-        cert_path = cast(str | None, self.cert_path)
-        verify_path = cast(str | None, self.verify_path)
-
         match auth_method:
 
             case "oauth2":
@@ -139,8 +126,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=cert_path,
-                    verify_path=verify_path
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case "basic":
@@ -155,8 +142,8 @@ class Tenant:
                     token_exp_thold_mins=self.token_exp_threshold_mins,
                     log_level=log_level,
                     http_config=http_config,
-                    cert_path=cert_path,
-                    verify_path=verify_path
+                    cert_path=self.cert_path,
+                    verify_path=self.verify_path
                 )
 
             case _:
@@ -172,18 +159,14 @@ class Tenant:
             http_config: HTTPConfig,
             safe_mode: bool,
     ) -> None:
-        # Same Path-vs-str gap as in _init_validate_auth; see the note there.
-        cert_path = cast(str | None, self.cert_path)
-        verify_path = cast(str | None, self.verify_path)
-
         self.pro = ProAPI(
             fqdn=fqdn,
             auth=auth,
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
-            cert_path=cert_path,
-            verify_path=verify_path
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )
 
         self.classic = ClassicAPI(
@@ -192,6 +175,6 @@ class Tenant:
             log_level=log_level,
             http_config=http_config,
             safe_mode=safe_mode,
-            cert_path=cert_path,
-            verify_path=verify_path
+            cert_path=self.cert_path,
+            verify_path=self.verify_path
         )

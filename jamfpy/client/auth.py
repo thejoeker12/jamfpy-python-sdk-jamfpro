@@ -11,7 +11,7 @@ from requests import request
 from .logger import new_logger
 from .http_config import HTTPConfig
 from .exceptions import JamfAuthError
-from .utility import fix_jamf_time_to_iso, extract_cloud_tenant_name_from_url
+from .utility import extract_cloud_tenant_name_from_url
 
 from .constants import (
     DEFAULT_LOG_LEVEL,
@@ -21,12 +21,19 @@ from .constants import (
 )
 
 
+def _parse_jamf_expiry(expires: str) -> float:
+    """Convert a Jamf token ``expires`` timestamp (e.g. ``2026-10-15T14:34:41.571Z``) to a UTC epoch timestamp."""
+    # Jamf varies the number of fractional digits; fromisoformat takes any count plus a trailing Z on Python 3.11+.
+    return datetime.datetime.fromisoformat(expires).timestamp()
+
+
 class Auth:
     """Base authentication class providing token management and validation for Jamf Pro API."""
 
     _token_str: str
     _method: str
     _logger: Logger
+    _token_lifetime_secs: float | None
 
     token_expiry: float
 
@@ -48,6 +55,8 @@ class Auth:
         self.token_exp_thold_mins = token_exp_thold_mins
         self.cert_path = cert_path
         self.verify_path = verify_path
+        self._token_lifetime_secs = None
+        self._buffer_clamp_warned = False
 
 
     def set_new_token(self) -> None:
@@ -78,14 +87,37 @@ class Auth:
         return auth_url
 
 
+    def _record_token_lifetime(self, lifetime_secs: float) -> None:
+        """Store the lifetime of the token just issued and warn, once per instance, if the buffer covers all of it."""
+        self._token_lifetime_secs = lifetime_secs
+
+        # Only a buffer covering the whole lifetime is a misconfiguration (it used to raise); halving a buffer that
+        # merely exceeds half the lifetime is routine for short-lived API client tokens, so that stays silent.
+        if self.token_exp_thold_mins * 60 >= lifetime_secs and not self._buffer_clamp_warned:
+            self._buffer_clamp_warned = True
+            self._logger.warning(
+                "Configured token buffer of %s min is not shorter than the token lifetime of %.0f s; using a %.0f s buffer instead",
+                self.token_exp_thold_mins, lifetime_secs, self._buffer_secs()
+            )
+
+
+    def _buffer_secs(self) -> float:
+        """Effective refresh buffer: the configured minutes, capped at half the current token's lifetime (floor 0)."""
+        configured_secs = float(self.token_exp_thold_mins * 60)
+        if self._token_lifetime_secs is None:
+            return configured_secs
+
+        # API clients can issue tokens shorter than the configured buffer; uncapped, every fresh token would
+        # already sit inside it. At half the lifetime a new token always starts outside the buffer.
+        return max(0.0, min(configured_secs, self._token_lifetime_secs / 2))
+
+
     def check_token_in_buffer(self) -> bool:
         """
         Checks if token is within the buffer period.
 
-        example:
-        self.token_exp_thold_mins = 2
-        now = 10:30am
-        self.token_expiry = 10:31
+        The buffer is token_exp_thold_mins, capped at half the token's lifetime when the token is shorter-lived.
+
         Returns:
             bool: True if token is within the buffer period, False otherwise.
         """
@@ -98,12 +130,12 @@ class Auth:
         self._logger.debug("Now: %s", now)
 
         expiry_delta_secs = round(self.token_expiry - now, TIME_ROUNDING_DECIMAL_COUNT)
-        expiry_delta_mins = round(expiry_delta_secs / 60, TIME_ROUNDING_DECIMAL_COUNT)
+        buffer_secs = self._buffer_secs()
 
-        self._logger.debug("Token buffer: %s min(s)", self.token_exp_thold_mins)
-        self._logger.debug("Expiry Delta mins/secs: %s/%s", expiry_delta_mins, expiry_delta_secs)
+        self._logger.debug("Token buffer: %s sec(s)", buffer_secs)
+        self._logger.debug("Expiry delta: %s sec(s)", expiry_delta_secs)
 
-        if expiry_delta_mins < self.token_exp_thold_mins:
+        if expiry_delta_secs < buffer_secs:
             self._logger.warning("Token in buffer")
             return True
 
@@ -140,18 +172,12 @@ class Auth:
         if self.check_token_is_expired():
             self.set_new_token()
 
-            if self.check_token_in_buffer():
-                raise JamfAuthError("Buffer longer than token lifetime")
-
         elif self.check_token_in_buffer():
-            if self. _method == "bearer":
+            if self._method == "bearer":
                 self._keep_alive_token()
 
             elif self._method == "oauth":
                 self.set_new_token()
-
-            if self.check_token_in_buffer():
-                raise JamfAuthError("Buffer longer than token lifetime")
 
 
     def token(self) -> str:
@@ -165,7 +191,7 @@ class Auth:
         """
         invalidates token
         """
-        url = self._http_config.urls["auth"]["invalidate-token"]
+        url = self._fqdn + self._http_config.urls["auth"]["invalidate-token"]
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {self._token_str}"
@@ -255,6 +281,7 @@ class OAuth(Auth):
         now = datetime.datetime.now(datetime.timezone.utc)
         self.token_expiry = (now + datetime.timedelta(seconds=call_json["expires_in"])).timestamp()
         self.token_expiry = round(self.token_expiry, TIME_ROUNDING_DECIMAL_COUNT)
+        self._record_token_lifetime(call_json["expires_in"])
 
         self._logger.debug("Token set successfully")
 
@@ -344,8 +371,8 @@ class BasicAuth(Auth):
 
         call_json = call.json()
         self._token_str = call_json["token"]
-        expiry_str = call_json["expires"]
-        self.token_expiry = datetime.datetime.fromisoformat(expiry_str.replace('Z', '+00:00')).timestamp()
+        self.token_expiry = _parse_jamf_expiry(call_json["expires"])
+        self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())
         self._logger.debug("_keep_alive_token complete")
 
 
@@ -376,6 +403,5 @@ class BasicAuth(Auth):
 
         call_json = call.json()
         self._token_str = call_json["token"]
-        expiry_str = call_json["expires"]
-        fixed_expiry_str = fix_jamf_time_to_iso(expiry_str)
-        self.token_expiry = datetime.datetime.fromisoformat(fixed_expiry_str).timestamp()
+        self.token_expiry = _parse_jamf_expiry(call_json["expires"])
+        self._record_token_lifetime(self.token_expiry - datetime.datetime.now(datetime.timezone.utc).timestamp())

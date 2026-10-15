@@ -7,7 +7,6 @@ import pytest
 
 from jamfpy.client.utility import (
     extract_cloud_tenant_name_from_url,
-    fix_jamf_time_to_iso,
     compare_dict_keys,
     format_jamf_datetime,
     create_single_file_payload,
@@ -22,29 +21,6 @@ def test_extract_tenant_name_from_cloud_url():
 def test_extract_tenant_name_requires_double_slash():
     with pytest.raises(IndexError):
         extract_cloud_tenant_name_from_url("acme.jamfcloud.com")
-
-
-def test_fix_jamf_time_pads_milliseconds_to_three_digits():
-    # Two-digit fractional seconds get right-padded to three.
-    assert fix_jamf_time_to_iso("2024-01-01T12:00:00.12+0000") == "2024-01-01T12:00:00.120+0000"
-
-
-def test_fix_jamf_time_leaves_full_millisecond_string_unchanged():
-    assert fix_jamf_time_to_iso("2024-01-01T12:00:00.120+0000") == "2024-01-01T12:00:00.120+0000"
-
-
-def test_fix_jamf_time_replace_is_a_noop_quirk():
-    # KNOWN QUIRK: line `time.replace("Z", ...)` discards its result, so a
-    # trailing Z is never converted. A string whose length falls outside
-    # [26, 27, 28] skips the reformat branch and returns verbatim, Z intact.
-    assert fix_jamf_time_to_iso("2024-01-01T12:00:00Z") == "2024-01-01T12:00:00Z"
-
-
-def test_fix_jamf_time_z_suffix_in_length_branch_raises():
-    # KNOWN QUIRK: a Z-suffixed string that DOES hit the reformat branch has no
-    # "+" to split on, so indexing s_tz_split[1] raises IndexError.
-    with pytest.raises(IndexError):
-        fix_jamf_time_to_iso("2024-01-01T12:00:00.000000Z")
 
 
 def test_compare_dict_keys_returns_intersection():

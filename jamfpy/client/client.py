@@ -82,7 +82,6 @@ class ClassicAPI(API):
         self.mobile_devices = MobileDevices(self)
         self.sites = Sites(self)
         self.departments = Departments(self)
-        self.policies = Policies(self)
         self.accounts = Accounts(self)
         self.restricted_software = RestrictedSoftware(self)
 
