@@ -58,8 +58,19 @@ What to fill in afterwards:
   `lambda n: pytest.fail("fill in the builders")`, so `make test-integration` fails on it until you
   write them: `min` with the required fields from `make schema-path`, `max` with every writable one,
   as the existing specs do. For Classic, check `root` too: it starts as the `_name`, but it is the XML
-  root element of one record (`printer`, not `printers`). A Pro action, or a partial CRUD without
-  `create`/`get_by_id`/`update_by_id`/`delete_by_id`, gets no spec: give it an N/A row in COVERAGE.md.
+  root element of one record (`printer`, not `printers`). A Pro action, a partial CRUD without
+  `create`/`get_by_id`/`update_by_id`/`delete_by_id`, and a Classic composite's parent (its children get
+  specs) get no spec: add the accessor and the reason to `LIVE_NOT_COVERED` next to `SPECS`, as
+  `pro_resources_live_test.py` does for `pro.mdm`
+  (`"mdm": "Verb endpoint (send-command) with no CRUD surface to lifecycle-test"`); COVERAGE.md shows it
+  as an N/A row. `make coverage-doc` refuses an endpoint with neither a spec nor a reason, and the
+  scaffolder's `next:` line for these endpoints says so and gives the key.
+- **COVERAGE.md.** It is generated: run `make coverage-doc` and commit the result, never edit it by hand. It
+  adds the endpoint's covered row (path, version, methods and the paths and verbs those methods send, recorded by
+  calling each with dummy arguments) and live row, and drops its
+  resource from *Not yet covered*; a spec whose builders are still the scaffolded placeholder shows as ❌.
+  `make coverage-doc-check` (in `make check` and CI) fails while the file is stale. See `AGENTS.md` →
+  *How to add an endpoint* → *COVERAGE.md*.
 - **`_name`.** The scaffolder uses the path's snake_case slug (the snake_case of `NAME=` for Pro) unless the
   Classic schema names the JSON top-level key (it currently never does). Keep it aligned with Jamf's key, as
   Variant A says.
@@ -799,14 +810,16 @@ There is no allowlist. A failure reads
 endpoint offers a method the API doesn't have, so fix the endpoint (compose only the mixins for the
 verbs listed, or correct the URL), not the test. The one edit the test needs is bumping
 `EXPECTED_ENDPOINT_COUNT` when you wire an endpoint (`make scaffold` does it); a parameter type it can't fill raises
-`TypeError` naming the parameter, so teach `dummy_value` that type.
+`TypeError` naming the parameter, so teach `dummy_value` (in `tools/introspect.py`, which the
+COVERAGE.md generator shares) that type.
 
 ---
 
 ## Definition of done
 
 - [ ] Scaffolded with `make scaffold API=… PATH=…` (or written by hand for a shape it refuses), its
-      `_name` and docstrings reviewed, and its live builders filled in.
+      `_name` and docstrings reviewed, and its live builders filled in (or, with no spec, a
+      `LIVE_NOT_COVERED` reason added).
 - [ ] Class added, with a docstring on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` /
       `ClassicAPI.__init__` (alias the import if the name clashes across APIs).
@@ -822,5 +835,8 @@ verbs listed, or correct the URL), not the test. The one edit the test needs is 
       `EXPECTED_ENDPOINT_COUNT` (`make scaffold` does).
 - [ ] Lint passes: `make lint`.
 - [ ] Type check passes: `make typecheck` (every new parameter and return hinted).
+- [ ] COVERAGE.md regenerated with `make coverage-doc` and committed (never edited by hand): the endpoint
+      has a covered row and a live row, and `make coverage-doc-check` passes (`make check` runs it with
+      the other gates).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.
 - [ ] If committing: Conventional Commit (`feat:` for a new endpoint).

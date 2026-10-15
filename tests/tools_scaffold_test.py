@@ -763,6 +763,27 @@ def test_no_live_spec_without_the_full_lifecycle(tree, capsys, key):
     assert "next: no live spec (the lifecycle needs create, get_by_id, update_by_id, delete_by_id)" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(("api", "key", "line"), [
+    # A Pro action has no CRUD to drive the lifecycle runner with, so it gets no spec and the generator wants a reason.
+    ("pro", "/v2/actions/run",
+     'next: make coverage-doc will refuse pro.actions_run until it has a reason: add "actions_run": "<why it has no live spec>" '
+     "to LIVE_NOT_COVERED in tests/integration/pro_resources_live_test.py"),
+    # A composite's children get specs; the parent, which only has get_all, does not.
+    ("classic", "/teams",
+     'next: make coverage-doc will refuse classic.teams (the parent; only its children get live specs) until it has a reason: '
+     'add "teams": "<why it has no live spec>" to LIVE_NOT_COVERED in tests/integration/clc_resources_live_test.py'),
+])
+def test_an_endpoint_with_no_live_spec_says_coverage_doc_wants_a_reason(tree, capsys, api, key, line):
+    assert run(tree, api, key, "--dry-run") == 0
+    assert capsys.readouterr().out.splitlines().count(line) == 1
+
+
+@pytest.mark.parametrize(("api", "key"), [("pro", "/v1/widgets"), ("classic", "/printers")])
+def test_an_endpoint_with_a_live_spec_gets_no_reason_line(tree, capsys, api, key):
+    assert run(tree, api, key, "--dry-run") == 0
+    assert "LIVE_NOT_COVERED" not in capsys.readouterr().out
+
+
 def load_module(file, name, monkeypatch):
     spec = importlib.util.spec_from_file_location(name, file)
     module = importlib.util.module_from_spec(spec)

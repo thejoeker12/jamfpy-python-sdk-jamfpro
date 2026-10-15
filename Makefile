@@ -19,7 +19,7 @@ endif
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path scaffold
+.PHONY: help setup lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path scaffold coverage-doc coverage-doc-check
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,7 +43,7 @@ test-integration: ## Run the live suite against a real tenant (reads .env when p
 	@uv run $(UV_ENV) python -c 'import os, sys; m = [k for k in sys.argv[1:] if not os.environ.get(k)]; sys.exit("test-integration: missing or empty env vars: " + ", ".join(m) + " (set them, or copy .env.example to .env)" if m else 0)' $(INTEGRATION_ENV)
 	uv run $(UV_ENV) pytest -m integration tests/integration -v
 
-check: lint typecheck coverage ## Run every gate CI runs
+check: lint typecheck coverage coverage-doc-check ## Run every gate CI runs
 
 check-matrix: ## Run check once per interpreter in PYTHON_VERSIONS, each in its own .venv-<version>
 	@for v in $(PYTHON_VERSIONS); do \
@@ -65,3 +65,9 @@ schema-path: ## Show one path's methods, params and resolved request body: make 
 scaffold: ## Generate an endpoint, its wiring, tests and live spec from the schema: make scaffold API=pro PATH=/v1/things [NAME=Things] [DRY_RUN=1]
 	@test -n "$(API)" -a -n "$(SCHEMA_PATH)" || { echo "usage: make scaffold API=<pro|classic> PATH=<path> [NAME=<ClassName>] [DRY_RUN=1]" >&2; exit 2; }
 	@uv run python -m tools.scaffold --api '$(API)' --path '$(SCHEMA_PATH)' $(if $(NAME),--name '$(NAME)') $(if $(DRY_RUN),--dry-run)
+
+coverage-doc: ## Regenerate COVERAGE.md from the wired endpoints, the schemas and the live specs (never hand-edit it)
+	uv run python -m tools.coverage_doc
+
+coverage-doc-check: ## Fail with a diff when COVERAGE.md differs from what make coverage-doc would write
+	uv run python -m tools.coverage_doc --check

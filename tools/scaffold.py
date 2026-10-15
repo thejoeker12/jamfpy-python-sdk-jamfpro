@@ -133,6 +133,13 @@ class Plan:
             lines = [f"next: fill in the live builders in {LIVE_TESTS[self.api]}; review _name ({self.name!r}) and the docstrings"]
         else:
             lines = [f"next: no live spec (the lifecycle needs {', '.join(LIFECYCLE_METHODS)}); review _name ({self.name!r}) and the docstrings"]
+        # The endpoints that get no spec: a composite's parent (only its children get one) and anything the lifecycle runners can't drive.
+        if self.children or not self.has_lifecycle:
+            who = f"{self.api}.{self.attr}" + (" (the parent; only its children get live specs)" if self.children else "")
+            lines.append(
+                f'next: make coverage-doc will refuse {who} until it has a reason: add "{self.attr}": "<why it has no live spec>" '
+                f"to LIVE_NOT_COVERED in {LIVE_TESTS[self.api]}"
+            )
         if self.unpaginated:
             lines.append(f"next: GET {self.path} is not paginated (an array or another shape), so there is no get_all; write one by hand if needed")
         if self.children:

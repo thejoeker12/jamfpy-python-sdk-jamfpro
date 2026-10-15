@@ -7,7 +7,9 @@ real content, not just the name. Keys the server reshapes on read-back (e.g.
 ``criteria`` dicts that come back as lists) are listed in ``unassertable`` —
 they are still sent, just not echo-asserted.
 
-Coverage tracker: COVERAGE.md → *Live integration test coverage*.
+COVERAGE.md's live table is generated from ``SPECS`` (and a spec's optional
+``notes``) and ``LIVE_NOT_COVERED``, which gives the reason for each wired
+endpoint with no spec; ``make coverage-doc`` refuses an endpoint with neither.
 """
 # pylint: disable=redefined-outer-name
 import uuid
@@ -66,6 +68,7 @@ SPECS = [
         "id": "buildings",
         "accessor": "buildings",
         "root": "building",
+        "notes": "Classic building is id + name only; address fields sent, not echo-asserted",
         "min": lambda n: {"name": n},
         "max": lambda n: {
             "name": n,
@@ -84,6 +87,7 @@ SPECS = [
         "id": "departments",
         "accessor": "departments",
         "root": "department",
+        "notes": "Name-only resource; min ≡ max",
         "min": lambda n: {"name": n},
         "max": lambda n: {"name": n},
     },
@@ -92,6 +96,7 @@ SPECS = [
         "id": "sites",
         "accessor": "sites",
         "root": "site",
+        "notes": "Name-only resource; min ≡ max",
         "min": lambda n: {"name": n},
         "max": lambda n: {"name": n},
     },
@@ -99,6 +104,7 @@ SPECS = [
         "id": "scripts",
         "accessor": "scripts",
         "root": "script",
+        "notes": "`filename` sent without `.sh` and `script_contents` without a trailing newline (server strips both)",
         "min": lambda n: {"name": n},
         "max": lambda n: {
             "name": n,
@@ -115,6 +121,7 @@ SPECS = [
         "id": "packages",
         "accessor": "packages",
         "root": "package",
+        "notes": "Metadata only, no file upload",
         "min": lambda n: {"name": n, "filename": f"{n}.pkg"},
         "max": lambda n: {
             "name": n,
@@ -131,6 +138,7 @@ SPECS = [
         "id": "computer_extension_attributes",
         "accessor": "computer_extension_attributes",
         "root": "computer_extension_attribute",
+        "notes": "Text Field input type",
         "min": lambda n: {"name": n, "input_type": {"type": "Text Field"}},
         "max": lambda n: {
             "name": n,
@@ -144,6 +152,7 @@ SPECS = [
         "id": "computer_groups",
         "accessor": "computer_groups",
         "root": "computer_group",
+        "notes": "Min = static, max = smart; `criteria` sent, not echo-asserted",
         "min": lambda n: {"name": n, "is_smart": False},
         "max": lambda n: {"name": n, "is_smart": True, "criteria": _computer_criteria(n)},
         "unassertable": ("criteria",),  # reads back as a list, not the sent dict
@@ -152,6 +161,7 @@ SPECS = [
         "id": "mobile_device_groups",
         "accessor": "mobile_device_groups",
         "root": "mobile_device_group",
+        "notes": "Min = static, max = smart; `criteria` sent, not echo-asserted",
         "min": lambda n: {"name": n, "is_smart": False},
         "max": lambda n: {"name": n, "is_smart": True, "criteria": {"criterion": {
             "name": "Display Name", "priority": 0, "and_or": "and",
@@ -163,6 +173,7 @@ SPECS = [
         "id": "policies",
         "accessor": "policies",
         "root": "policy",
+        "notes": "Created disabled, no scope",
         "min": lambda n: {"general": {"name": n}},
         "max": lambda n: {"general": {
             "name": n,
@@ -175,6 +186,7 @@ SPECS = [
         "id": "configuration_profiles",
         "accessor": "configuration_profiles",
         "root": "os_x_configuration_profile",
+        "notes": "Minimal plist; `payloads` sent, not echo-asserted; `level` sent as `System` (the server stores `computer` that way)",
         "min": lambda n: {"general": {"name": n, "payloads": _plist(n)}},
         "max": lambda n: {"general": {
             "name": n,
@@ -190,6 +202,7 @@ SPECS = [
         "id": "computer_searches",
         "accessor": "computer_searches",
         "root": "advanced_computer_search",
+        "notes": "`criteria`/`display_fields` sent, not echo-asserted",
         "min": lambda n: {"name": n},
         "max": lambda n: {
             "name": n,
@@ -203,6 +216,7 @@ SPECS = [
         "id": "computers",
         "accessor": "computers",
         "root": "computer",
+        "notes": "Fabricated inventory record",
         "min": lambda n: {"general": {"name": n}},
         "max": lambda n: {
             "general": {
@@ -224,6 +238,7 @@ SPECS = [
         "id": "mobile_devices",
         "accessor": "mobile_devices",
         "root": "mobile_device",
+        "notes": "Fabricated udid/serial",
         "min": lambda n: {"general": {
             "name": n,
             "udid": str(uuid.uuid5(uuid.NAMESPACE_DNS, n.removesuffix("-upd"))).upper(),
@@ -255,6 +270,7 @@ SPECS = [
         "id": "account_users",
         "accessor": "accounts.users",
         "root": "account",
+        "notes": "Creates a real Custom, zero-privilege account; generated password, never echo-asserted",
         "min": lambda n: {
             "name": n,
             "password": _password(n),
@@ -276,6 +292,7 @@ SPECS = [
         "id": "account_groups",
         "accessor": "accounts.groups",
         "root": "group",
+        "notes": "`privileges` sent, not echo-asserted",
         "min": lambda n: {
             "name": n,
             "access_level": "Full Access",
@@ -290,6 +307,11 @@ SPECS = [
         "unassertable": ("privileges",),  # reads back as lists
     },
 ]
+
+# Wired endpoints with no spec, and why; COVERAGE.md shows them as N/A rows.
+LIVE_NOT_COVERED: dict[str, str] = {
+    "accounts": "Parent only exposes `get_all` (the whole `/accounts` payload); `users` and `groups` have specs",
+}
 
 
 def _params():

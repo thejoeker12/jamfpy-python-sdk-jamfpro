@@ -60,3 +60,17 @@ jobs:
       - run: uv python install ${{ matrix.python-version }}
       - run: uv sync --frozen
       - run: make coverage
+
+  coverage-doc:
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.13"
+      UV_FROZEN: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --frozen
+      - run: make coverage-doc-check
