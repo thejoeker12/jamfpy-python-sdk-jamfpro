@@ -22,6 +22,8 @@ dev = [
     "responses",
     "pylint",
     "mypy",
+    "pyyaml",
+    "types-pyyaml",
 ]
 
 [tool.setuptools.packages.find]

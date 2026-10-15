@@ -8,14 +8,17 @@
   },
   "basePath": "/JSSResource/",
   "produces": [
-    "application/json",
-    "application/xml"
+    "application/xml",
+    "application/json"
   ],
   "consumes": [
-    "application/json",
-    "application/xml"
+    "application/xml",
+    "application/json"
   ],
   "security": [
+    {
+      "Bearer": []
+    },
     {
       "basicAuth": []
     }
@@ -277,6 +280,8 @@
         ],
         "operationId": "findactivationcode",
         "summary": "Finds the Jamf Pro activation code",
+        "deprecated": true,
+        "x-deprecation-date": "2026-07-14"
       },
       "put": {
         "responses": {
@@ -288,7 +293,9 @@
           "activationcode"
         ],
         "operationId": "updateActivationCode",
-        "summary": "Updates the Jamf Pro activation code"
+        "summary": "Updates the Jamf Pro activation code",
+        "deprecated": true,
+        "x-deprecation-date": "2026-07-14"
       }
     },
     "/advancedcomputersearches": {
@@ -1596,40 +1603,9 @@
         "tags": [
           "computercommands"
         ],
-        "description": "Command and computer list specified in an XML file.UnlockUserAccount and DeleteUser require a user_name that reflects a local account that is to be unlocked or removed. Command uuid and date_sent are set by Jamf Pro.",
+        "description": "Command and computer list specified in an XML file.  UnlockUserAccount requires a user_name that reflects a local account that is to be unlocked. Command uuid and date_sent are set by Jamf Pro.",
         "operationId": "createComputerCommandByCommand",
-        "summary": "Creates a new computer command.  Commands supported: UnmanageDevice, BlankPush, UnlockUserAccount, DeleteUser, EnableRemoteDesktop (macOS 10.14.4 and later), DisableRemoteDesktop (macOS 10.14.4 and later), ScheduleOSUpdate."
-      }
-    },
-    "/computercommands/command/{command}/action/{action}/id/{id}": {
-      "post": {
-        "parameters": [
-          {
-            "description": "Id of computer,or computers if a comma-separated list, to which to send the command",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "description": "Command specific action.  For example, for a ScheduleOSUpdate command, users can set the action to 'install' to automatically attempt to install updates.",
-            "in": "path",
-            "name": "action",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "No response was specified"
-          }
-        },
-        "tags": [
-          "computercommands"
-        ],
-        "description": "Command uuid and date_sent are set by Jamf Pro. Id is used to specify a single computer, or multiple computers separated by commas, such as id/33 or id/33,34.",
-        "operationId": "createComputerCommandByCommandAndAction",
-        "summary": "Creates a new computer command with a command specific action.  Commands supported:  ScheduleOSUpdate."
+        "summary": "Creates a new computer command. Commands supported: UnlockUserAccount(UnlockUserAccount deprecated on 2025-07-07), EnableRemoteDesktop (macOS 10.14.4 and later) (EnableRemoteDesktop Deprecated on 2025-07-10), DisableRemoteDesktop (macOS 10.14.4 and later), (DisableRemoteDesktop Deprecated on 2025-07-10)"
       }
     },
     "/computercommands/command/{command}/id/{id}": {
@@ -1653,7 +1629,7 @@
         ],
         "description": "Command uuid and date_sent are set by Jamf Pro. Id is used to specify a single computer, or multiple computers separated by commas, such as id/33 or id/33,34",
         "operationId": "createComputerCommandByCommandShortcut1",
-        "summary": "Creates a new computer command.  Commands supported:  UnmanageDevice, BlankPush, EnableRemoteDesktop (macOS 10.14.4 and later), DisableRemoteDesktop (macOS 10.14.4 and later), ScheduleOSUpdate."
+        "summary": "Creates a new computer command. Commands supported: EnableRemoteDesktop (macOS 10.14.4 and later) (EnableRemoteDesktop Deprecated on 2025-07-10), DisableRemoteDesktop (macOS 10.14.4 and later) (DisableRemoteDesktop Deprecated on 2025-07-10)"
       }
     },
     "/computercommands/name/{name}": {
@@ -2861,29 +2837,6 @@
         "summary": "Finds all computers",
         "deprecated": true,
         "x-deprecation-date": "2025-02-11"
-      }
-    },
-    "/computers/extensionattributedataflush/id/{id}": {
-      "delete": {
-        "parameters": [
-          {
-            "description": "ID of the computer extension attribute data to be deleted",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "No response was specified"
-          }
-        },
-        "tags": [
-          "computers"
-        ],
-        "operationId": "flushComputerExtensionAttributeData",
-        "summary": "Deletes data collected by an extension attribute"
       }
     },
     "/computers/id/{id}": {
@@ -4173,7 +4126,7 @@
             "type": "string"
           },
           {
-            "description": "MDM command to for rule to trigger. Valid values are 'EraseDevice', 'DeviceLock', 'ClearPasscode', 'EnableLostMode', and 'DisableLostMode'",
+            "description": "MDM command to for rule to trigger. Valid values are 'EraseDevice', 'DeviceLock', and 'EnableLostMode'",
             "in": "path",
             "name": "mdm_command",
             "required": true,
@@ -4223,7 +4176,7 @@
             "type": "string"
           },
           {
-            "description": "MDM command to for rule to trigger. Valid values are 'EraseDevice', 'DeviceLock', 'ClearPasscode', 'EnableLostMode', and 'DisableLostMode'",
+            "description": "MDM command to for rule to trigger. Valid values are 'EraseDevice', 'DeviceLock', and 'EnableLostMode'",
             "in": "path",
             "name": "mdm_command",
             "required": true,
@@ -5370,7 +5323,7 @@
             }
           },
           {
-            "description": "Device name to set (required for DeviceName command)",
+            "description": "Device name to set (required for DeviceName command) (DeviceName Deprecated on 2024-06-27)",
             "in": "body",
             "name": "device_name",
             "required": false,
@@ -5520,7 +5473,7 @@
           "mobiledevicecommands"
         ],
         "operationId": "createMobileDeviceCommand",
-        "summary": "Creates a new mobile device command. Command and mobile device list specified in an XML file. Commands supported: Settings, ClearPasscode, UnmanageDevice, UpdateInventory, ClearRestrictionsPassword, SettingsEnableDataRoaming, SettingsDisableDataRoaming, SettingsEnableVoiceRoaming, SettingsDisableVoiceRoaming, SettingsEnableAppAnalytics, SettingsDisableAppAnalytics, SettingsEnableDiagnosticSubmission, SettingsDisableDiagnosticSubmission,  SettingsEnablePersonalHotspot, SettingsDisablePersonalHotspot, BlankPush, Wallpaper (supervised only), DeviceName (supervised only), ShutDownDevice (supervised only), RestartDevice (supervised only), PasscodeLockGracePeriod (shared iPad only), EnableLostMode (supervised only), DisableLostMode (supervised and in lost mode only), DeviceLocation (supervised and in lost mode only), PlayLostModeSound (supervised and in lost mode only), ScheduleOSUpdate (iOS 9 - 10.2, enrolled via a Prestage enrollment; and/or iOS 10.3 or later; tvOS 12 or later), RefreshCellularPlans"
+        "summary": "Creates a new mobile device command. Command and mobile device list specified in an XML file.  Commands supported: UpdateInventory(Update Inventory Deprecated on 2026-03-13), Wallpaper (supervised only) (Wallpaper Deprecated on 2026-03-13), PasscodeLockGracePeriod (shared iPad only) (PasscodeLockGracePeriod Deprecated on 2025-06-26), EnableLostMode (supervised only), DeviceLocation (supervised and in lost mode only)(DeviceLocation Deprecated on 2025-06-12), PlayLostModeSound (supervised and in lost mode only)(PlayLostModeSound Deprecated on 2025-06-12), RefreshCellularPlans(RefreshCellularPlans deprecated on 2025-07-15)"
       }
     },
     "/mobiledevicecommands/command/DeviceName/{device_name}/id/{id_list}": {
@@ -5553,7 +5506,7 @@
         ],
         "description": "Example: JSSResource/mobiledevicecommands/command/DeviceName/NewName/id/13 -X POST ",
         "operationId": "createMobileDeviceNameCommandURL",
-        "summary": "Creates a new command to set the name of a mobile device.  Command and mobile device list specified in URL.  Command fails when another DeviceName command is pending. Use of a list of devices is generally not advised."
+        "summary": "Creates a new command to set the name of a mobile device.  Command and mobile device list specified in URL.  Command fails when another DeviceName command is pending. Use of a list of devices is generally not advised. (DeviceName Deprecated on 2024-06-27)"
       }
     },
     "/mobiledevicecommands/command/ScheduleOSUpdate/{install_action}/id/{id_list}": {
@@ -5586,7 +5539,7 @@
         ],
         "description": "Example: JSSResource/mobiledevicecommands/command/ScheduleOSUpdate/2/id/13 -X POST",
         "operationId": "createMobileScheduleOSUpdateCommandURL",
-        "summary": "Creates a new command to request that a mobile device update its OS. Command and mobile device list specified in URL. Device will be updated to the latest OS version based on device eligibility."
+        "summary": "Creates a new command to request that a mobile device update its OS. Command and mobile device list specified in URL. Device will be updated to the latest OS version based on device eligibility. (Deprecated 2022-10-17)"
       }
     },
     "/mobiledevicecommands/command/ScheduleOSUpdate/{install_action}/{product_version}/id/{id_list}": {
@@ -5628,7 +5581,7 @@
         ],
         "description": "Example: JSSResource/mobiledevicecommands/command/ScheduleOSUpdate/1/12.3.1/id/13 -X POST",
         "operationId": "createMobileScheduleOSUpdateCommandWithProductVersionURL",
-        "summary": "Creates a new command to request that a mobile device update its OS. Command and mobile device list specified in URL. Mixing iOS and tvOS devices in ID list is not advised, as product version is specific to OS type."
+        "summary": "Creates a new command to request that a mobile device update its OS. Command and mobile device list specified in URL. Mixing iOS and tvOS devices in ID list is not advised, as product version is specific to OS type. (Deprecated 2022-10-17)"
       }
     },
     "/mobiledevicecommands/command/{command}": {
@@ -5664,7 +5617,7 @@
             "type": "string"
           },
           {
-            "description": "Device name to set (required for DeviceName command)",
+            "description": "Device name to set (required for DeviceName command)(DeviceName Deprecated on 2024-06-27)",
             "in": "body",
             "name": "device_name",
             "required": false,
@@ -5749,51 +5702,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "description": "'true' if the data plan should be preserved when wiping a device",
-            "in": "body",
-            "name": "preserve_data_plan",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "If true, on the next reboot Proximity Setup is not allowed and the pane in Setup Assistant will be skipped. Defaults to false.",
-            "in": "body",
-            "name": "disallow_proximity_setup",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Will attempt to clear the activation lock if the device has it enabled. Accepts true, defaults to false.",
-            "in": "body",
-            "name": "clear_activation_lock",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Specify the behavior of the install. Possible integer values are: 1 (Download the update for users to install), 2 (Download and install the update, and restart devices after installation).",
-            "in": "body",
-            "name": "install_action",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Specify the OS version of the update.  Updating to a specific iOS version requires devices with iOS 11.3 or later. Updating to a specific tvOS version requires devices with tvOS 12.2 or later. install_action required by the ScheduleOSUpdate command if product_version is specified.",
-            "in": "body",
-            "name": "product_version",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -5805,7 +5713,7 @@
           "mobiledevicecommands"
         ],
         "operationId": "createMobileDeviceCommandByCommand",
-        "summary": "Creates a new mobile device command using command name. Command and mobile device list specified in an XML file.  Commands supported:  Settings, ClearPasscode, UnmanageDevice, UpdateInventory, ClearRestrictionsPassword, SettingsEnableDataRoaming, SettingsDisableDataRoaming, SettingsEnableVoiceRoaming, SettingsDisableVoiceRoaming, SettingsEnableAppAnalytics, SettingsDisableAppAnalytics, SettingsEnableDiagnosticSubmission, SettingsDisableDiagnosticSubmission, SettingsEnablePersonalHotspot, SettingsDisablePersonalHotspot, BlankPush, Wallpaper (supervised only), DeviceName (supervised only), ShutDownDevice (supervised only), RestartDevice (supervised only), PasscodeLockGracePeriod (shared iPad only), EnableLostMode (supervised only), DisableLostMode (supervised and in lost mode only), DeviceLocation (supervised and in lost mode only), PlayLostModeSound (supervised and in lost mode only), ScheduleOSUpdate (iOS 9 - 10.2, enrolled via a Prestage enrollment; and/or iOS 10.3 or later; tvOS 12 or later)"
+        "summary": "Creates a new mobile device command using command name. Command and mobile device list specified in an XML file.  Commands supported: UpdateInventory(Update Inventory Deprecated on 2026-03-13), Wallpaper (supervised only) (Wallpaper Deprecated on 2026-03-13), PasscodeLockGracePeriod (shared iPad only) (PasscodeLockGracePeriod Deprecated on 2025-06-26), EnableLostMode (supervised only), DeviceLocation (supervised and in lost mode only)(DeviceLocation Deprecated on 2025-06-12), PlayLostModeSound (supervised and in lost mode only)(PlayLostModeSound Deprecated on 2025-06-12)"
       }
     },
     "/mobiledevicecommands/command/{command}/id/{id_list}": {
@@ -5868,24 +5776,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "description": "'true' if the data plan should be preserved when wiping a device",
-            "in": "body",
-            "name": "preserve_data_plan",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "If true, on the next reboot Proximity Setup is not allowed and the pane in Setup Assistant will be skipped. Defaults to false.",
-            "in": "body",
-            "name": "disallow_proximity_setup",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "responses": {
@@ -5898,7 +5788,7 @@
         ],
         "description": "Example: JSSResource/mobiledevicecommands/command/UpdateInventory/id/13 -X POST ",
         "operationId": "createMobileDeviceCommandURL",
-        "summary": "Creates a new mobile device command.  Command and mobile device list specified in URL.  Commands supported:  Settings, ClearPasscode, UnmanageDevice, UpdateInventory, ClearRestrictionsPassword, SettingsEnableDataRoaming, SettingsDisableDataRoaming, SettingsEnableVoiceRoaming, SettingsDisableVoiceRoaming, SettingsEnableAppAnalytics, SettingsDisableAppAnalytics, SettingsEnableDiagnosticSubmission, SettingsDisableDiagnosticSubmission, SettingsEnablePersonalHotspot, SettingsDisablePersonalHotspot, BlankPush, ShutDownDevice (supervised only), RestartDevice (supervised only), PasscodeLockGracePeriod (shared iPad only), EnableLostMode (supervised only), DisableLostMode (supervised and in lost mode only), DeviceLocation (supervised and in lost mode only), PlayLostModeSound (supervised and in lost mode only)"
+        "summary": "Creates a new mobile device command.  Command and mobile device list specified in URL.  Commands supported: UpdateInventory(Update Inventory Deprecated on 2026-03-13), Wallpaper (supervised only) (Wallpaper Deprecated on 2026-03-13), PasscodeLockGracePeriod (shared iPad only) (PasscodeLockGracePeriod Deprecated on 2025-06-26), EnableLostMode (supervised only), DeviceLocation (supervised and in lost mode only)(DeviceLocation Deprecated on 2025-06-12), PlayLostModeSound (supervised and in lost mode only)(PlayLostModeSound Deprecated on 2025-06-12)"
       }
     },
     "/mobiledevicecommands/name/{name}": {
@@ -7688,7 +7578,7 @@
           "patches"
         ],
         "operationId": "findPatches",
-        "summary": "Finds all patches (Deprecated)"
+        "summary": "Finds all patches (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations\"."
       }
     },
     "/patches/id/{id}": {
@@ -7713,7 +7603,7 @@
         ],
         "description": "You can DELETE using the resource URLs with parameters of {name}.",
         "operationId": "deleteSoftwareTitlesById",
-        "summary": "Deletes a Patch Software Title by ID (Deprecated)"
+        "summary": "Deletes a Patch Software Title by ID (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       },
       "get": {
         "parameters": [
@@ -7735,7 +7625,7 @@
           "patches"
         ],
         "operationId": "findPatchesById",
-        "summary": "Finds patches by ID (Deprecated)"
+        "summary": "Finds patches by ID (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       },
       "post": {
         "parameters": [
@@ -7757,7 +7647,7 @@
           "patches"
         ],
         "operationId": "createPatchesById",
-        "summary": "Creates new patches by ID (Deprecated)"
+        "summary": "Creates new patches by ID (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations\"."
       },
       "put": {
         "parameters": [
@@ -7780,7 +7670,7 @@
         ],
         "description": "You can PUT using the resource URLs with parameters of {id}.",
         "operationId": "updateSoftwareTitlesById",
-        "summary": "Updates a Patch Software Title by ID (Deprecated)"
+        "summary": "Updates a Patch Software Title by ID (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       }
     },
     "/patches/id/{id}/version/{version}": {
@@ -7812,7 +7702,7 @@
         ],
         "description": "Displays information specified with the {version} parameter for a patch specified with the {id} parameter. Lookup by name is also supported.  For example, /patches/id/3/version/45.0.2 or /patches/name/Mozilla Firefox/version/45.0.2. A version number of 'Latest' and 'Unknown' will also work.",
         "operationId": "findComputersByTitleVersion",
-        "summary": "Display computers on a specific version (Deprecated)"
+        "summary": "Display computers on a specific version (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}/definitions\"."
       }
     },
     "/patches/name/{name}": {
@@ -7835,7 +7725,7 @@
           "patches"
         ],
         "operationId": "findPatchesByName",
-        "summary": "Finds the first patch with the name provided (Deprecated)"
+        "summary": "Finds the first patch with the name provided (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       }
     },
     "/patchexternalsources": {
@@ -7853,7 +7743,7 @@
       }
     },
     "/patchexternalsources/id/{id}": {
-      " delete": {
+      "delete": {
         "parameters": [
           {
             "description": "Id value to filter by",
@@ -8038,7 +7928,7 @@
           "patchpolicies"
         ],
         "operationId": "findPatchPolicies",
-        "summary": "Finds all patch policies"
+        "summary": "Finds all patch policies. (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-policies\"."
       }
     },
     "/patchpolicies/id/{id}": {
@@ -8165,7 +8055,7 @@
           "patchpolicies"
         ],
         "operationId": "findPatchPoliciesBySoftwareTitleConfigId",
-        "summary": "Finds all patch policy by software title configuration id"
+        "summary": "Finds all patch policy by software title configuration id. (Deprecated). Please transition use to Jamf Pro API endpoint \"/v2/patch-policies\"."
       },
       "post": {
         "parameters": [
@@ -8211,7 +8101,7 @@
           "patchreports"
         ],
         "operationId": "findPatchReportsByPatchSoftwareTitleId",
-        "summary": "Finds patch reports by patch software title id"
+        "summary": "Finds patch reports by patch software title id. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}/patch-report\"."
       }
     },
     "/patchreports/patchsoftwaretitleid/{id}/version/{version}": {
@@ -8244,7 +8134,7 @@
         ],
         "description": "Displays report information specified with the {version} parameter for a patch software title specified with the {id} parameter. Lookup by name is not support due to the ability for software titles from different sources to share a common name. For example, /patches/id/3/version/45.0.2. A version number of 'Latest' and 'Unknown' will also work.",
         "operationId": "findComputersByTitleVersion",
-        "summary": "Display computers for a specific version of a patch report"
+        "summary": "Display computers for a specific version of a patch report. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}/patch-report\"."
       }
     },
     "/patchsoftwaretitles": {
@@ -8258,7 +8148,7 @@
           "patchsoftwaretitles"
         ],
         "operationId": "findPatchSoftwareTitles",
-        "summary": "Finds all patch software titles"
+        "summary": "Finds all patch software titles. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations\"."
       }
     },
     "/patchsoftwaretitles/id/{id}": {
@@ -8283,7 +8173,7 @@
         ],
         "description": "You can DELETE using the resource URLs with parameters of {name}.",
         "operationId": "deletePatchSoftwareTitlesById",
-        "summary": "Deletes a patch software title by id"
+        "summary": "Deletes a patch software title by id. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       },
       "get": {
         "parameters": [
@@ -8305,7 +8195,7 @@
           "patchsoftwaretitles"
         ],
         "operationId": "findPatchSoftwareTitlesById",
-        "summary": "Finds patch software titles by id"
+        "summary": "Finds patch software titles by id. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       },
       "post": {
         "parameters": [
@@ -8328,7 +8218,7 @@
         ],
         "description": "While doing a POST the patch source <source_id> and patch software title <name_id> nodes are required.",
         "operationId": "createPatchSoftwareTitleById",
-        "summary": "Creates new patch software title by id"
+        "summary": "Creates new patch software title by id. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       },
       "put": {
         "parameters": [
@@ -8351,7 +8241,7 @@
         ],
         "description": "You can PUT using the resource URLs with parameters of {id}.",
         "operationId": "updatePatchSoftwareTitlesById",
-        "summary": "Updates a patch software title by id"
+        "summary": "Updates a patch software title by id. (Deprecated) Please transition use to Jamf Pro API endpoint \"/v2/patch-software-title-configurations/{id}\"."
       }
     },
     "/peripherals": {
@@ -10610,6 +10500,17 @@
         }
       }
     },
+    "BYOProfile": {
+      "properties": {
+        "id": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
     "Building": {
       "properties": {
         "id": {
@@ -11435,6 +11336,11 @@
     }
   },
   "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "in": "header",
+      "name": "Authorization"
+    },
     "basicAuth": {
       "type": "basic"
     }

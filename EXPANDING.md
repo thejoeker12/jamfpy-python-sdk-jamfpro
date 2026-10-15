@@ -114,47 +114,82 @@ differences baked into `ProEndpoint`):
 
 ## Querying the API schemas
 
-`api_schemas/pro.json` is **~1.9 MB** and `classic.json` is **~330 KB** — never read either
-whole; it wastes context. Query them. Run the one-liners with `uv run python` from the repo
-root. Human-readable docs, if the schema isn't enough:
-<https://developer.jamf.com/jamf-pro/reference> (also in `api_schemas/api-reference-url.txt`).
+`api_schemas/pro.json` is **~2.1 MB** and `classic.json` is **~330 KB** — never read either
+whole; it wastes context. Query them with the two make targets below. Both go through
+`tools/schemas.py`, the one reader of those files: it merges the probed
+`api_schemas/pro-supplement.json` into Pro and normalises Classic's verb keys. Human-readable
+docs, if the schema isn't enough: <https://developer.jamf.com/jamf-pro/reference> (also in
+`api_schemas/api-reference-url.txt`). How the files are refreshed is in `AGENTS.md` → *Schemas*.
 
-### Pro (`pro.json` — OpenAPI 3, 525 paths, versions v1–v4)
-
-```bash
-# 1. Find the path(s) for your resource. The /v1, /v2... prefix IS the string url() needs.
-uv run python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
-# -> ['/v1/scripts', '/v1/scripts/{id}', '/v1/scripts/{id}/download', ...]
-
-# 2. Read one path's methods / params / request body reference.
-uv run python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
-
-# 3. A POST/PUT body is usually a $ref into components.schemas. Resolve it for the field names.
-uv run python -c "import json; d=json.load(open('api_schemas/pro.json')); s=d['components']['schemas']['Script']; print('props:', list(s['properties'])); print('required:', s.get('required'))"
-# -> props: ['id', 'name', 'info', 'notes', 'priority', ...]
-# -> required: ['name']
-```
-
-`/v1/scripts` → pass `"1"` to `url()`. `/v2/mdm/commands` → pass `"2"`. Simple.
-
-### Classic (`classic.json` — Swagger 2.0, basePath `/JSSResource/`)
-
-**`classic.json` has trailing commas and is NOT valid JSON — `json.load` raises.** Two ways
-to query it:
+### 1. Find the paths with `make schema-paths`
 
 ```bash
-# Option 1 — grep for the paths of a resource (fast, no parsing).
-grep -o '"/[^"]*buildings[^"]*"' api_schemas/classic.json | sort -u
-# -> "/buildings"  "/buildings/id/{id}"  "/buildings/name/{name}"
-
-# Option 2 — strip the trailing commas, then parse to inspect methods per path.
-uv run python -c "import re,json; t=re.sub(r',(\s*[}\]])', r'\1', open('api_schemas/classic.json').read()); d=json.loads(t); print('/buildings:', list(d['paths']['/buildings'])); print('/buildings/id/{id}:', list(d['paths']['/buildings/id/{id}']))"
-# -> /buildings: ['get']
-# -> /buildings/id/{id}: ['delete', 'get', 'post', 'put']
+make schema-paths API=pro MATCH=scripts
+# /v1/scripts                get post
+# /v1/scripts/{id}           delete get put
+# /v1/scripts/{id}/download  get
+# /v1/scripts/{id}/history   get post
 ```
 
-The `/id/{id}` and `/name/{name}` path shapes confirm a resource fits **Variant A**. If a
+`MATCH` is a case-insensitive substring (leave it off to list every path); verbs are lower-case
+and sorted. **The `/v1`, `/v2`... prefix on a Pro path IS the string `url()` needs**:
+`/v1/scripts` → `"1"`, `/v2/mdm/commands` → `"2"`. A path Jamf's schema leaves out but the tenant
+serves comes from the supplement and is marked, e.g.
+`/v1/app-installers/deployments  get post  [options-probe]`.
+
+`API=classic` works the same way (Swagger 2.0, basePath `/JSSResource/`). `/id/{id}` and
+`/name/{name}` path shapes (`make schema-paths API=classic MATCH=buildings` lists `/buildings`,
+`/buildings/id/{id}`, `/buildings/name/{name}`) confirm a resource fits **Variant A**. If a
 resource's sub-paths look like `/accounts/userid/{id}` instead, it's **Variant B**.
+
+### 2. Read one path with `make schema-path`
+
+```bash
+make schema-path API=pro PATH=/v1/scripts
+```
+
+It prints JSON: for each verb, the summary-level fields, `parameters` (path-level ones merged in)
+and, when the verb takes a body, `requestBody` with `required`, `contentTypes` and the body's
+`schema`, with every `$ref` resolved in place (`x-jamfpy-ref` keeps the reference, so `Script`
+below is `components.schemas.Script`). Trimmed to the POST and three of its properties:
+
+```json
+{
+  "api": "pro",
+  "path": "/v1/scripts",
+  "methods": {
+    "post": {
+      "summary": "Create a Script\n",
+      "x-required-privileges": ["Create Scripts"],
+      "parameters": [],
+      "requestBody": {
+        "required": true,
+        "contentTypes": ["application/json"],
+        "schema": {
+          "x-jamfpy-ref": "#/components/schemas/Script",
+          "required": ["name"],
+          "type": "object",
+          "properties": {
+            "id": {"minLength": 1, "type": "string", "readOnly": true, "example": "1"},
+            "name": {"type": "string", "example": "Install Developer Utils Script"},
+            "priority": {"type": "string", "example": "AFTER", "enum": ["BEFORE", "AFTER", "AT_REBOOT"]}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+`required` lists the fields a min payload needs; `readOnly` ones never go in a body. Classic works
+the same way (`make schema-path API=classic PATH=/mobiledevicecommands/command`; braces in a path such as
+`/buildings/id/{id}` need no quoting, and that one declares no body, so none of its verbs has a `requestBody`).
+`requestBody` always has the shape `{"required", "contentTypes", "schema"}`. Swagger 2's `in: body`
+parameter gives its schema as it is; where Classic declares several `in: body` parameters on one
+operation (16 on `POST /mobiledevicecommands/command`, one per XML element), none is dropped: `schema`
+is a synthesised object schema whose `properties` map each parameter's name to its resolved schema,
+whose `required` lists the parameters marked required, and whose `x-jamfpy-note` says `<N> in: body
+parameters merged into one object schema`. An unknown path fails with the closest matches.
 
 ---
 
@@ -600,8 +635,8 @@ Run the suite from the repo root: `make test`.
 - [ ] Class added, with a docstring on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` /
       `ClassicAPI.__init__` (alias the import if the name clashes across APIs).
-- [ ] Path, version, and body shape verified against the schema (the queries above — not a
-      full read).
+- [ ] Path, version, and body shape verified against the schema (`make schema-paths` /
+      `make schema-path` — not a full read).
 - [ ] A `tests/<module>_test.py` covers the request(s) it sends (mock only, via `responses` and the
       `tests/conftest.py` fixtures).
 - [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
