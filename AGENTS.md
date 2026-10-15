@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is intentionally empty; this file is the source of truth for how the codebase is put together and how to change it safely.
+Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is the user-facing guide (and the PyPI long description); this file is the source of truth for how the codebase is put together and how to change it safely.
 
 **Route by task:**
 

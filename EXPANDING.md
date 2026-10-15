@@ -3,7 +3,8 @@
 A worked, copy-pasteable guide to adding an endpoint to **jamfpy**. `AGENTS.md` is the
 source of truth for architecture, auth, and the quality gates — read its
 **Architecture & request lifecycle** section if you're unsure how a request flows. This file
-zooms in on one job: **adding an endpoint of each of the four shapes the SDK actually uses.**
+zooms in on one job: **adding an endpoint of each of the four shapes the SDK actually uses.** Start with
+the scaffolder; write an endpoint by hand only for a shape it refuses.
 
 Everything below is verified against the current code. Match the surrounding file, not your
 instincts about "how a client should look" — this SDK is a thin, explicit wrapper that hands
@@ -11,9 +12,7 @@ back the raw `requests.Response`.
 
 ---
 
-## Pick your variant
-
-### Scaffold first
+## Scaffold first
 
 `make scaffold` reads the path from the schema, picks the variant for you and writes everything a
 new endpoint needs. Preview it with `DRY_RUN=1` (writes nothing):
@@ -75,10 +74,9 @@ What to fill in afterwards:
   Classic schema names the JSON top-level key (it currently never does). Keep it aligned with Jamf's key, as
   Variant A says.
 - **The names.** A Classic path that runs its words together gives a one-word class and attribute
-  (`Advancedmobiledevicesearches`); the `next:` line says so. Undo the run and repeat it with
-  `NAME=<PascalCaseName>`: the attribute is its snake_case, a Pro module and `_name` or a composite's module
-  follow it, `_uri` stays the path. The same `NAME=` scaffolds a second version beside the first (`/v2/groups` after
-  `/v1/groups` is refused for its attribute and says to pass `NAME=`).
+  (`Advancedmobiledevicesearches`), and the `next:` line says so: undo the run and repeat it with `NAME=`, as
+  above (what else follows the name is in `AGENTS.md` → *Scaffold first*). The same `NAME=` scaffolds a second
+  version beside the first (`/v2/groups` after `/v1/groups` is refused for its attribute and says to pass `NAME=`).
 - **A missing `get_all`.** A Pro collection GET that is not paginated (no `page`/`page-size` parameters and no
   `totalCount`/`results` response, e.g. a bare array as `/v1/static-user-groups`) gets no `ProGetAll`, because
   `get_all` would page a URL that does not page. The class docstring and a `next:` line say so; write `get_all`
@@ -93,7 +91,9 @@ What to fill in afterwards:
 The four variants below stay the reference for what the scaffolder writes and for writing an
 endpoint by hand when it refuses one.
 
-### The four variants
+---
+
+## Pick your variant
 
 The SDK has two APIs (Classic = XML writes under `/JSSResource`; Pro = JSON under
 `/api/v{n}`) and four concrete endpoint shapes across them. Find your row, then jump to that
@@ -210,7 +210,7 @@ whole; it wastes context. Query them with the two make targets below. Both go th
 docs, if the schema isn't enough: <https://developer.jamf.com/jamf-pro/reference> (also in
 `api_schemas/api-reference-url.txt`). How the files are refreshed is in `AGENTS.md` → *Schemas*.
 
-### 1. Find the paths with `make schema-paths`
+### Find the paths with `make schema-paths`
 
 ```bash
 make schema-paths API=pro MATCH=scripts
@@ -231,7 +231,7 @@ serves comes from the supplement and is marked, e.g.
 `/buildings/id/{id}`, `/buildings/name/{name}`) confirm a resource fits **Variant A**. If a
 resource's sub-paths look like `/accounts/userid/{id}` instead, it's **Variant B**.
 
-### 2. Read one path with `make schema-path`
+### Read one path with `make schema-path`
 
 ```bash
 make schema-path API=pro PATH=/v1/scripts
@@ -282,7 +282,7 @@ parameters merged into one object schema`. An unknown path fails with the closes
 
 ---
 
-## Variant A — Classic simple (inherits CRUD for free)
+## Variant A (Classic simple)
 
 The canonical, most-common case. Subclass `ClassicEndpoint`, set `_uri` and `_name`, and you
 inherit `get_all`, `get_by_id`, `update_by_id`, `create`, `delete_by_id`, `name` — no methods
@@ -339,7 +339,7 @@ Note: Classic **create posts to `/id/0`**, and **delete sets no headers of its o
 
 ---
 
-## Variant B — Classic composite (sub-resources, accounts pattern)
+## Variant B (Classic composite)
 
 Use this when a single Classic resource exposes **child sub-endpoints whose IDs don't follow
 the `/id/{id}` convention** — e.g. `/accounts` splits into users
@@ -453,7 +453,7 @@ tenant.classic.accounts.groups.get_all()     # payload sliced to just groups
 
 ---
 
-## Variant C — Pro CRUD (inherit `ProEndpoint`, or compose the mixins)
+## Variant C (Pro CRUD)
 
 Pro CRUD comes from five **capability mixins** in `models.py`, each contributing exactly one method
 (`ProGetAll`, `ProGetById`, `ProCreate`, `ProUpdateById`, `ProDeleteById`, all on `ProBase`).
@@ -468,7 +468,7 @@ make schema-paths API=pro MATCH=dock-items
 All five verbs → **C1**, inherit `ProEndpoint`. Fewer → **C2**, compose exactly the mixins for the
 verbs listed, so the endpoint never offers a method the server can only reject.
 
-### C1 — full CRUD: inherit `ProEndpoint`
+### C1 (full CRUD)
 
 A simple Pro resource is just a subclass that sets `_uri`, `_name`, and `_version` — no methods of
 your own. Reference: `jamfpy/endpoints/pro_scripts.py` and `pro_app_installers.py`.
@@ -492,13 +492,10 @@ inherited methods do (differs from Classic — see the idiom table above):
   the `/v{n}` prefix from the schema for *your* path (scripts = `"1"`, mdm/commands = `"2"`).
 - **ID path is `{_uri}/{id}`**, no `/id/` segment. **Create POSTs to `{_uri}`** (the collection).
 - **Bodies are dicts passed with `json=`**; write headers use `["json"]`.
-- **`get_all(page_size=None, sort=None)` paginates**: it fetches page 0 (default page size 100),
-  then, when the body carries a `totalCount`, the remaining pages in parallel on up to
-  `parallelism` worker threads, and returns **one** aggregated `Response` whose body is
-  `{"totalCount": N, "results": [...all pages...]}` (built via `Endpoint._repackage_response`).
-  A page that isn't `ok` is returned raw instead (the lowest page number when several fail); it
-  never raises on a status. Callers check `.ok`, then read `.json()["results"]`. See
-  [Pagination](#pagination--inherited-dont-hand-roll).
+- **`get_all(page_size=None, sort=None)` paginates** (default page size 100) and returns **one**
+  aggregated `Response` whose body is `{"totalCount": N, "results": [...all pages...]}` (built via
+  `Endpoint._repackage_response`), or a page that isn't `ok`, raw; it never raises on a status.
+  Callers check `.ok`, then read `.json()["results"]`. See [Pagination](#pagination).
 - **`update_by_id` uses PUT** as a best-effort default — override if your resource needs PATCH.
 
 For reference, exactly what you inherit (one method per mixin, `models.py`):
@@ -511,7 +508,7 @@ def update_by_id(self, target_id: int, payload: dict[str, Any]) -> Response:    
 def delete_by_id(self, target_id: int) -> Response:                                    # ProDeleteById: DELETE ...+/{id}, delete json header
 ```
 
-### C2 — partial CRUD: compose the mixins the schema supports
+### C2 (partial CRUD)
 
 When the schema has only some of the verbs, subclass exactly those mixins instead of
 `ProEndpoint`. Reference: `jamfpy/endpoints/pro_dock_items.py` — `/v1/dock-items` takes POST only
@@ -537,7 +534,17 @@ Each mixin's method is identical to the one `ProEndpoint` has, and every mixin b
 in the class docstring which verbs are missing and why. Test that the missing method is absent
 (`assert not hasattr(DockItems, "get_all")`) next to the usual request tests.
 
-### Either way
+### Pagination
+
+Pro list endpoints paginate with `page`/`page-size` and return `{"totalCount": N, "results": [...]}`.
+`ProGetAll.get_all` (in every `ProEndpoint`) handles this centrally, fetching pages in parallel on up to
+`Tenant(parallelism=5)` worker threads: do **not** hand-roll a paging loop in your endpoint. Set
+`_uri`/`_name`/`_version` and call `endpoint.get_all()`, passing `page_size=` / `sort=` to tune it. How it
+fetches, stops on a failed page and aggregates is in AGENTS.md → **Concurrency**. If a resource paginates
+differently, override `get_all` and still return a single `Response` (aggregate via
+`Endpoint._repackage_response`), returning a failed page raw rather than raising.
+
+### Hand-rolling and wiring
 
 **When to hand-roll:** only when a resource deviates from this shape — a nested path, a query
 param the base doesn't build, or a non-JSON body. In that case override just the method that
@@ -559,7 +566,7 @@ Wire it: import in `client.py` (alias if the name clashes with a Classic class �
 
 ---
 
-## Variant D — Pro action + convenience wrappers
+## Variant D (Pro action)
 
 For endpoints that are **verbs, not CRUD** — sending commands to devices, etc. Reference:
 `jamfpy/endpoints/pro_mdm_commands.py`. Pattern: **one core worker method** that builds the
@@ -569,6 +576,8 @@ snake_case Python args to Jamf's camelCase payload keys.
 **Subclass the bare `Endpoint`, not `ProEndpoint` or any Pro mixin** — an action endpoint has no
 `/{id}` CRUD to inherit, and pulling in `get_all`/`get_by_id`/… would just expose meaningless
 methods. (Same reason the composite Classic `Accounts` parent subclasses bare `Endpoint`.)
+
+Trimmed from the real module to two of its wrappers, and `erase_device` to some of its arguments:
 
 ```python
 from typing import Any
@@ -626,23 +635,6 @@ Wire it: `self.mdm = MDMCommands(self)` in `ProAPI.__init__`.
 
 ---
 
-## Pagination — inherited, don't hand-roll
-
-Pro list endpoints paginate with `page`/`page-size` and return `{"totalCount": N, "results": [...]}`.
-`ProGetAll.get_all` (in every `ProEndpoint`) handles this centrally — do **not** hand-roll a paging
-loop in your endpoint. It fetches page 0; when that carries a `totalCount` it fetches the remaining
-pages in parallel, on up to `Tenant(parallelism=5)` worker threads (one at a time at
-`parallelism=1`), and reads them in page order. Without a `totalCount` it walks one page at a time
-until a short or empty page. A page that isn't `ok` is returned raw (the lowest page number wins);
-a page repeating page 0's results means the server ignores `page`, so it stops there with a WARNING.
-Otherwise it returns **one** aggregated `Response`. Just set `_uri`/`_name`/`_version` and call
-`endpoint.get_all()` — pass `page_size=` / `sort=` to tune it. The full algorithm is in AGENTS.md →
-**Concurrency**. If a resource paginates differently, override `get_all` and still return a single
-`Response` (aggregate via `Endpoint._repackage_response`), returning a failed page raw rather than
-raising.
-
----
-
 ## Writing the test
 
 Unit tests are **fully offline** (the sanctioned live suite is `tests/integration/` —
@@ -653,6 +645,13 @@ and `responses` answers the request and records it. An unregistered URL raises
 `ConnectionError`, so a wrong URL fails the test and nothing leaves the process. One
 `tests/<module>_test.py` per source module (note the non-default `*_test.py` naming, set in
 `pyproject.toml`).
+
+`make scaffold` writes these tests for you: for a Pro endpoint one test per method in the shape of the
+Pro test below (plus a check of the methods it has and lacks, and `name()`); for a Classic composite
+the same for the parent's `get_all` and each child's methods, parametrised over the children; for a
+Classic simple endpoint, which inherits everything, a row in `CLASSIC_ENDPOINTS` and an entry in
+`EXPECTED_ATTRS` in `tests/clc_endpoints_test.py`, whose parametrised tests cover every Classic endpoint.
+Write them yourself for anything hand-written.
 
 What `tests/conftest.py` gives you:
 - `mocked_responses` — an active `responses.RequestsMock`. Register what the endpoint should
@@ -701,9 +700,6 @@ don't care about retries can use a status that isn't retried (400, 404).
 
 ### Classic test
 
-(For a Classic simple endpoint the scaffolder adds rows to `tests/clc_endpoints_test.py` instead of
-writing this file; a composite gets a file like it.)
-
 ```python
 """Unit tests for the Buildings endpoint."""
 # pylint: disable=missing-function-docstring
@@ -733,9 +729,6 @@ def test_create_posts_xml_to_id_zero(classic_api, mocked_responses):
 ```
 
 ### Pro test
-
-(The scaffolder writes this file, one test per composed method, for every Pro CRUD endpoint; an
-action gets a single `send` test.)
 
 ```python
 """Unit tests for the Pro Things endpoint."""
@@ -778,13 +771,9 @@ Test-file conventions:
 
 Run the suite from the repo root: `make test`.
 
-`make scaffold` writes these tests for you: for a Pro endpoint one test per method in the shape of the
-Pro test below (plus a check of the methods it has and lacks, and `name()`); for a Classic composite
-the same for the parent's `get_all` and each child's methods, parametrised over the children; for a
-Classic simple endpoint, which inherits everything, a row in `CLASSIC_ENDPOINTS` and an entry in
-`EXPECTED_ATTRS` in `tests/clc_endpoints_test.py`, whose parametrised tests cover every Classic endpoint.
+---
 
-### The contract test
+## The contract test
 
 `tests/contract_test.py` checks every endpoint against the schemas, and you don't add anything
 to it for a new endpoint. At collection it builds a throwaway `Tenant` (which sends nothing) and
@@ -828,8 +817,7 @@ COVERAGE.md generator shares) that type.
       verbs listed.
 - [ ] A `tests/<module>_test.py` covers the request(s) it sends (mock only, via `responses` and the
       `tests/conftest.py` fixtures).
-- [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
-- [ ] Tests pass: `make test`.
+- [ ] Tests pass: `make test` (every test imports the package, so this is the import smoke test too).
 - [ ] The contract test passes for the new endpoint (`tests/contract_test.py`, part of `make test`): it
       finds the endpoint through its `client.py` attribute and tests every public method; bump its
       `EXPECTED_ENDPOINT_COUNT` (`make scaffold` does).
