@@ -7,19 +7,19 @@ INTEGRATION_ENV := JAMFPRO_INSTANCE_FQDN JAMFPRO_CLIENT_ID JAMFPRO_CLIENT_SECRET
 ENV_FILE := $(wildcard .env)
 UV_ENV := $(if $(ENV_FILE),--env-file $(ENV_FILE),)
 
-# `make schema-path PATH=/v1/scripts` sets make's own PATH, which make then exports to every recipe, hiding uv. Keep
-# the value as the schema path and restore the PATH make inherited. GNU make 4.4+ passes the command-line PATH to
-# $(shell) as well, so there the inherited one can't be recovered: that case stops with a usage line instead.
+# `make schema-path PATH=/v1/scripts` (and `make scaffold ... PATH=...`) sets make's own PATH, which make then exports to
+# every recipe, hiding uv. Keep the value as the schema path and restore the PATH make inherited. GNU make 4.4+ passes the
+# command-line PATH to $(shell) as well, so there the inherited one can't be recovered: that case stops with a usage line.
 ifeq ($(origin PATH),command line)
 SCHEMA_PATH := $(PATH)
 override PATH := $(shell /usr/bin/printenv PATH)
 ifeq ($(PATH),$(SCHEMA_PATH))
-$(error this make can't restore PATH after PATH=$(SCHEMA_PATH); run make schema-path API=<api> SCHEMA_PATH=<path> instead)
+$(error this make can't restore PATH after PATH=$(SCHEMA_PATH); pass SCHEMA_PATH=<path> instead of PATH=<path>)
 endif
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path
+.PHONY: help setup lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path scaffold
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -61,3 +61,7 @@ schema-paths: ## List schema paths and their verbs: make schema-paths API=pro MA
 schema-path: ## Show one path's methods, params and resolved request body: make schema-path API=pro PATH=/v1/scripts
 	@test -n "$(API)" -a -n "$(SCHEMA_PATH)" || { echo "usage: make schema-path API=<pro|classic> PATH=<path>" >&2; exit 2; }
 	@uv run python -m tools.schemas path --api '$(API)' '$(SCHEMA_PATH)'
+
+scaffold: ## Generate an endpoint, its wiring, tests and live spec from the schema: make scaffold API=pro PATH=/v1/things [NAME=Things] [DRY_RUN=1]
+	@test -n "$(API)" -a -n "$(SCHEMA_PATH)" || { echo "usage: make scaffold API=<pro|classic> PATH=<path> [NAME=<ClassName>] [DRY_RUN=1]" >&2; exit 2; }
+	@uv run python -m tools.scaffold --api '$(API)' --path '$(SCHEMA_PATH)' $(if $(NAME),--name '$(NAME)') $(if $(DRY_RUN),--dry-run)
