@@ -72,10 +72,14 @@ class AccountUsers(AccountChild):
     _by_name_uri = _uri + "/username"
 
     def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
-        """Returns a Response object with its JSON content modified to only include users."""
+        """Returns a Response object with its JSON content modified to only include users.
+
+        A non-ok ``/accounts`` Response is returned as-is.
+        """
         # Drops the base's xml_response argument; restoring it would change this public signature.
         original_response: Response = super().get_all(suffix=None)
-        original_response.raise_for_status()
+        if not original_response.ok:
+            return original_response
         original_json = original_response.json()
 
         users_data = {self._name : original_json.get('accounts', {}).get('users', [])}
@@ -93,10 +97,14 @@ class AccountGroups(AccountChild):
     _by_name_uri = _uri + "/groupname"
 
     def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
-        """ Returns all group objects under /accounts, packaged in a Response object. """
+        """Returns all group objects under /accounts, packaged in a Response object.
+
+        A non-ok ``/accounts`` Response is returned as-is.
+        """
         # Drops the base's xml_response argument; restoring it would change this public signature.
         original_response: Response = super().get_all(suffix=None)
-        original_response.raise_for_status()
+        if not original_response.ok:
+            return original_response
         original_json = original_response.json()
 
         groups_data = {self._name : original_json.get('accounts', {}).get('groups', [])}

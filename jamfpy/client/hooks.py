@@ -6,8 +6,9 @@ its status, including one about to be retried) or nothing, when the send raised.
 ``on_retry`` fires after that, before the sleep, with the response or exception as ``reason``. Return values
 are ignored and mutating the arguments is unsupported. A hook that raises is logged at WARNING with its
 ``__qualname__`` and the request carries on. Hooks may be called from several threads at once and must be
-thread-safe. The prepared request carries the real ``Authorization`` header; a consumer that persists
-requests redacts it itself.
+thread-safe: from concurrent callers, and from the worker threads a Pro ``get_all`` fetches pages 1..N on,
+whose hook calls may interleave (``ctx.attempt`` counts the attempts of one page's request). The prepared
+request carries the real ``Authorization`` header; a consumer that persists requests redacts it itself.
 """
 
 import threading

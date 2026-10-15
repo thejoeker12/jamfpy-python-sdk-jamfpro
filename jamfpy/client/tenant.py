@@ -11,7 +11,7 @@ from .auth import OAuth, BasicAuth
 from .hooks import Hooks
 from .http_config import HTTPConfig
 from .retry import RetryConfig
-from .constants import DEFAULT_LOG_LEVEL, DEFAULT_TIMEOUT, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS, Timeout
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS, Timeout
 from .exceptions import JamfpyConfigError
 
 
@@ -26,6 +26,11 @@ class Tenant:
 
     ``retries`` sets how API requests are retried (``None`` turns retries off); auth calls are never retried.
     ``hooks`` holds the request hooks both APIs fire on every API request attempt.
+
+    ``parallelism`` (default 5, Jamf's recommended ceiling on concurrent connections from one client) caps the
+    requests the SDK runs at once for one operation it fans out, today the page fetches of a Pro ``get_all``; ``1``
+    makes them sequential. It is not a rate limiter: requests the caller makes concurrently are never throttled,
+    queued or serialised. Less than 1 raises ``ValueError``.
 
     ``log_level`` sets the tenant's three loggers (``jamfpy.{tenant}-auth``, ``-pro`` and ``-clc``); call
     ``jamfpy.configure_logging()`` to see their output. ``safe_mode`` (the default) redacts every logged header set
@@ -53,6 +58,7 @@ class Tenant:
       verify_path: str | None = None,
       timeout: Timeout = DEFAULT_TIMEOUT,
       retries: RetryConfig | None = RetryConfig(),
+      parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
@@ -87,6 +93,7 @@ class Tenant:
             safe_mode=safe_mode,
             timeout=timeout,
             retries=retries,
+            parallelism=parallelism,
         )
 
     def authenticate(self) -> None:
@@ -201,6 +208,7 @@ class Tenant:
             safe_mode: bool,
             timeout: Timeout,
             retries: RetryConfig | None,
+            parallelism: int,
     ) -> None:
         self.pro = ProAPI(
             fqdn=fqdn,
@@ -213,6 +221,7 @@ class Tenant:
             timeout=timeout,
             retries=retries,
             hooks=self.hooks,
+            parallelism=parallelism,
         )
 
         self.classic = ClassicAPI(
@@ -226,4 +235,5 @@ class Tenant:
             timeout=timeout,
             retries=retries,
             hooks=self.hooks,
+            parallelism=parallelism,
         )

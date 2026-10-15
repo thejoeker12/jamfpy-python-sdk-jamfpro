@@ -10,6 +10,11 @@ DEFAULT_TOKEN_BUFFER = 20
 Timeout = float | tuple[float, float]
 DEFAULT_TIMEOUT: Timeout = 30.0
 
+# Most requests the SDK runs at once for one operation it fans out (today, ProEndpoint.get_all's page fetches). Five is
+# Jamf's ceiling for concurrent connections from one client:
+# https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-scalability-best-practices
+DEFAULT_PARALLELISM = 5
+
 TIME_ROUNDING_DECIMAL_COUNT = 3
 
 VALID_AUTH_METHODS = ("oauth2", "basic")

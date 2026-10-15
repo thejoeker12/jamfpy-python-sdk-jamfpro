@@ -21,12 +21,13 @@ section.
 |---|---|---|---|---|
 | Classic resource, normal `/id/{id}` CRUD | yes | **A. Classic simple** | `ClassicEndpoint` | `clc_endpoints.py` |
 | Classic resource with sub-resources / non-`/id/` paths | no | **B. Classic composite** | `Endpoint` + `ClassicEndpoint` children | `clc_endpoints_accounts.py` |
-| Pro resource, CRUD (+ paginated list) | yes | **C. Pro simple** | `ProEndpoint` | `pro_scripts.py`, `pro_app_installers.py` |
+| Pro resource, CRUD (+ paginated list) | all five verbs, or some | **C. Pro CRUD** | `ProEndpoint`, or just the capability mixins the schema supports | `pro_scripts.py`, `pro_app_installers.py`, `pro_dock_items.py` |
 | Pro action / command endpoint (verbs, not CRUD) | n/a | **D. Pro action + wrappers** | `Endpoint` | `pro_mdm_commands.py` |
 
 **By far the most common job is Variant A** — a Classic resource that gets full CRUD for free.
-Start there unless your target clearly doesn't fit. **Variant C is now its Pro twin**: `ProEndpoint`
-gives Pro resources the same inherit-everything CRUD (with a paginating `get_all`).
+Start there unless your target clearly doesn't fit. **Variant C is its Pro twin**: `ProEndpoint`
+gives Pro resources the same inherit-everything CRUD (with a paginating `get_all`), and a resource
+whose schema has only some of the verbs composes just those capability mixins.
 
 Whichever variant you pick, wiring is the same three steps (detailed per-variant below):
 
@@ -94,11 +95,17 @@ endpoint that POSTs needs no special handling.
 ```python
 class Endpoint:                 # stores self._api; class attrs _uri, _name; _repackage_response helper
 class ClassicEndpoint(Endpoint) # full CRUD: get_all, get_by_id, update_by_id, create, delete_by_id, name
-class ProEndpoint(Endpoint)     # full CRUD (Pro idioms): same method set, + a paginating get_all; class attrs _version="1", _page_size=100
+class ProBase(Endpoint)         # base of the Pro capability mixins: class attrs _version="1", _page_size=100; name()
+class ProGetAll(ProBase)        # get_all: paginates, fetching pages in parallel (see Pagination)
+class ProGetById(ProBase)       # get_by_id
+class ProCreate(ProBase)        # create
+class ProUpdateById(ProBase)    # update_by_id
+class ProDeleteById(ProBase)    # delete_by_id
+class ProEndpoint(ProGetAll, ProGetById, ProCreate, ProUpdateById, ProDeleteById)   # full CRUD (Pro idioms)
 ```
 
-Classic vs Pro idioms at a glance (both base classes implement the same method set — these are the
-differences baked into `ProEndpoint`):
+Classic vs Pro idioms at a glance (`ClassicEndpoint` and `ProEndpoint` implement the same method set —
+these are the differences baked into the Pro mixins):
 
 | Aspect | Classic (`ClassicEndpoint`) | Pro (`ProEndpoint`) |
 |---|---|---|
@@ -107,7 +114,7 @@ differences baked into `ProEndpoint`):
 | Create path | `self._uri + "/id/0"` | `self._uri` (POST to the collection) |
 | Write body | XML string via `data=` | dict via `json=` |
 | Write headers | `header("create-update")["xml"]` | `header("create-update")["json"]` |
-| `get_all` | one GET, one Response (Classic isn't paginated) | walks `page`/`page-size`, aggregates every page into one Response `{"totalCount", "results"}` |
+| `get_all` | one GET, one Response (Classic isn't paginated) | fetches page 0, then the rest in parallel (up to `parallelism`), and aggregates every page into one Response `{"totalCount", "results"}`; a failed page comes back raw |
 | `update_by_id` | PUT | PUT (best-effort default — some resources need PATCH or are read-only) |
 
 ---
@@ -311,7 +318,8 @@ class AccountUsers(AccountChild):
     def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """Get all users, sliced out of the shared /accounts payload."""
         original = super().get_all(suffix=None)      # hits /accounts
-        original.raise_for_status()
+        if not original.ok:                          # never raise: a failed read goes back raw
+            return original
         users = {self._name: original.json().get("accounts", {}).get("users", [])}
         return self._repackage_response(original, users)
 
@@ -363,10 +371,24 @@ tenant.classic.accounts.groups.get_all()     # payload sliced to just groups
 
 ---
 
-## Variant C — Pro simple (inherits CRUD for free)
+## Variant C — Pro CRUD (inherit `ProEndpoint`, or compose the mixins)
 
-`ProEndpoint` mirrors `ClassicEndpoint`: it implements the full method set with Pro idioms, so a
-simple Pro resource is just a subclass that sets `_uri`, `_name`, and `_version` — no methods of
+Pro CRUD comes from five **capability mixins** in `models.py`, each contributing exactly one method
+(`ProGetAll`, `ProGetById`, `ProCreate`, `ProUpdateById`, `ProDeleteById`, all on `ProBase`).
+`ProEndpoint` composes all five and mirrors `ClassicEndpoint`. Check the verbs first:
+
+```bash
+make schema-paths API=pro MATCH=dock-items
+# /v1/dock-items       post                 <- collection: get -> get_all, post -> create
+# /v1/dock-items/{id}  delete get put       <- by id: get -> get_by_id, put -> update_by_id, delete -> delete_by_id
+```
+
+All five verbs → **C1**, inherit `ProEndpoint`. Fewer → **C2**, compose exactly the mixins for the
+verbs listed, so the endpoint never offers a method the server can only reject.
+
+### C1 — full CRUD: inherit `ProEndpoint`
+
+A simple Pro resource is just a subclass that sets `_uri`, `_name`, and `_version` — no methods of
 your own. Reference: `jamfpy/endpoints/pro_scripts.py` and `pro_app_installers.py`.
 
 **1. Add the class** in a `jamfpy/endpoints/pro_<thing>.py` module:
@@ -388,21 +410,52 @@ inherited methods do (differs from Classic — see the idiom table above):
   the `/v{n}` prefix from the schema for *your* path (scripts = `"1"`, mdm/commands = `"2"`).
 - **ID path is `{_uri}/{id}`**, no `/id/` segment. **Create POSTs to `{_uri}`** (the collection).
 - **Bodies are dicts passed with `json=`**; write headers use `["json"]`.
-- **`get_all(page_size=None, sort=None)` paginates**: it walks the `page`/`page-size` cursor
-  (default page size 100), stops on `totalCount`/a short page, raises `JamfAPIError` on a non-`ok`
-  response, and returns **one** aggregated `Response` whose body is `{"totalCount": N, "results":
-  [...all pages...]}` (built via `Endpoint._repackage_response`). Callers read `.json()["results"]`.
+- **`get_all(page_size=None, sort=None)` paginates**: it fetches page 0 (default page size 100),
+  then, when the body carries a `totalCount`, the remaining pages in parallel on up to
+  `parallelism` worker threads, and returns **one** aggregated `Response` whose body is
+  `{"totalCount": N, "results": [...all pages...]}` (built via `Endpoint._repackage_response`).
+  A page that isn't `ok` is returned raw instead (the lowest page number when several fail); it
+  never raises on a status. Callers check `.ok`, then read `.json()["results"]`. See
+  [Pagination](#pagination--inherited-dont-hand-roll).
 - **`update_by_id` uses PUT** as a best-effort default — override if your resource needs PATCH.
 
-For reference, exactly what you inherit (from `ProEndpoint`, `models.py`):
+For reference, exactly what you inherit (one method per mixin, `models.py`):
 
 ```python
-def get_all(self, page_size: int | None = None, sort: str | None = None) -> Response:  # paginates -> one aggregated Response
-def get_by_id(self, target_id: int) -> Response:                                       # GET  url(_version)+_uri+/{id}
-def create(self, payload: dict[str, Any]) -> Response:                                 # POST url(_version)+_uri, json=<dict>
-def update_by_id(self, target_id: int, payload: dict[str, Any]) -> Response:           # PUT  ...+/{id}, json=<dict>
-def delete_by_id(self, target_id: int) -> Response:                                    # DELETE ...+/{id}, delete json header
+def get_all(self, page_size: int | None = None, sort: str | None = None) -> Response:  # ProGetAll: paginates -> one aggregated Response
+def get_by_id(self, target_id: int) -> Response:                                       # ProGetById: GET  url(_version)+_uri+/{id}
+def create(self, payload: dict[str, Any]) -> Response:                                 # ProCreate: POST url(_version)+_uri, json=<dict>
+def update_by_id(self, target_id: int, payload: dict[str, Any]) -> Response:           # ProUpdateById: PUT  ...+/{id}, json=<dict>
+def delete_by_id(self, target_id: int) -> Response:                                    # ProDeleteById: DELETE ...+/{id}, delete json header
 ```
+
+### C2 — partial CRUD: compose the mixins the schema supports
+
+When the schema has only some of the verbs, subclass exactly those mixins instead of
+`ProEndpoint`. Reference: `jamfpy/endpoints/pro_dock_items.py` — `/v1/dock-items` takes POST only
+(no collection GET), so `DockItems` has no `get_all`:
+
+```python
+from .models import ProCreate, ProDeleteById, ProGetById, ProUpdateById
+
+
+class DockItems(ProGetById, ProCreate, ProUpdateById, ProDeleteById):
+    """Endpoint for managing dock items in the modern Jamf Pro API (v1+).
+
+    Composes the four verbs the schema has: ``/v1/dock-items`` takes only POST, so there is no ``get_all``.
+    """
+    _uri = "/dock-items"
+    _name = "dock_items"
+    _version = "1"
+```
+
+Each mixin's method is identical to the one `ProEndpoint` has, and every mixin brings `ProBase`
+(`_version`, `_page_size`, `name()`), so any combination works. List the mixins in the order
+`ProEndpoint` does (`ProGetAll`, `ProGetById`, `ProCreate`, `ProUpdateById`, `ProDeleteById`) and say
+in the class docstring which verbs are missing and why. Test that the missing method is absent
+(`assert not hasattr(DockItems, "get_all")`) next to the usual request tests.
+
+### Either way
 
 **When to hand-roll:** only when a resource deviates from this shape — a nested path, a query
 param the base doesn't build, or a non-JSON body. In that case override just the method that
@@ -431,8 +484,8 @@ For endpoints that are **verbs, not CRUD** — sending commands to devices, etc.
 JSON payload and POSTs, plus **many thin named wrappers** that fix the command string and map
 snake_case Python args to Jamf's camelCase payload keys.
 
-**Subclass the bare `Endpoint`, not `ProEndpoint`** — an action endpoint has no `/{id}` CRUD to
-inherit, and pulling in `ProEndpoint`'s `get_all`/`get_by_id`/… would just expose meaningless
+**Subclass the bare `Endpoint`, not `ProEndpoint` or any Pro mixin** — an action endpoint has no
+`/{id}` CRUD to inherit, and pulling in `get_all`/`get_by_id`/… would just expose meaningless
 methods. (Same reason the composite Classic `Accounts` parent subclasses bare `Endpoint`.)
 
 ```python
@@ -494,12 +547,17 @@ Wire it: `self.mdm = MDMCommands(self)` in `ProAPI.__init__`.
 ## Pagination — inherited, don't hand-roll
 
 Pro list endpoints paginate with `page`/`page-size` and return `{"totalCount": N, "results": [...]}`.
-`ProEndpoint.get_all` handles this centrally — do **not** hand-roll a paging loop in your endpoint.
-It walks the cursor from page 0, stops when `totalCount` is reached or a short/empty page arrives
-(with a defensive guard against a server that ignores `page`), raises `JamfAPIError` on a non-`ok`
-response, and returns **one** aggregated `Response`. Just set `_uri`/`_name`/`_version` and call
-`endpoint.get_all()` — pass `page_size=` / `sort=` to tune it. If a resource paginates differently,
-override `get_all` and still return a single `Response` (aggregate via `Endpoint._repackage_response`).
+`ProGetAll.get_all` (in every `ProEndpoint`) handles this centrally — do **not** hand-roll a paging
+loop in your endpoint. It fetches page 0; when that carries a `totalCount` it fetches the remaining
+pages in parallel, on up to `Tenant(parallelism=5)` worker threads (one at a time at
+`parallelism=1`), and reads them in page order. Without a `totalCount` it walks one page at a time
+until a short or empty page. A page that isn't `ok` is returned raw (the lowest page number wins);
+a page repeating page 0's results means the server ignores `page`, so it stops there with a WARNING.
+Otherwise it returns **one** aggregated `Response`. Just set `_uri`/`_name`/`_version` and call
+`endpoint.get_all()` — pass `page_size=` / `sort=` to tune it. The full algorithm is in AGENTS.md →
+**Concurrency**. If a resource paginates differently, override `get_all` and still return a single
+`Response` (aggregate via `Endpoint._repackage_response`), returning a failed page raw rather than
+raising.
 
 ---
 
@@ -527,7 +585,11 @@ What `tests/conftest.py` gives you:
   `Authorization: Bearer` header, so every endpoint test checks it without asserting it.
 - `response_registry` — the registry class behind `mocked_responses`. A module whose endpoint
   may request the same URL repeatedly (a paginated `get_all`) overrides it to return
-  `responses.registries.OrderedRegistry`, as `tests/models_test.py` does.
+  `responses.registries.OrderedRegistry`, as `tests/models_test.py` does. `OrderedRegistry` is one
+  FIFO for the whole mock, so it only suits requests sent in a known order: a `get_all` with three
+  or more pages fetches pages 1..N in parallel, in any order. Such a test keeps the default
+  registry (`TestParallelGetAll` in `tests/models_test.py` puts it back) and registers each page
+  under its own `page=` URL, or builds its API with `parallelism=1`.
 - `with_bearer(header_set)` — every header `API.do()` sends for a config header set: requests'
   session defaults with the jamfpy `User-Agent`, the set over them, and the
   `Authorization: Bearer <fake token>` header. Names are lower-cased to match `sent_headers`.
@@ -552,7 +614,7 @@ The `tenant` APIs keep the default `RetryConfig`, so a retryable status (429, 50
 504) on a GET, PUT or DELETE is retried up to three times; the fixture swaps the backoff sleep for
 the `sleeps` list, so it costs no time. With the default registry one registration answers every
 attempt; under `OrderedRegistry` register the URL once per attempt (`RetryConfig().total + 1`
-times), as `test_pro_get_all_raises_on_error` in `tests/models_test.py` does. Error-path tests that
+times), as `test_pro_get_all_returns_a_failed_first_page_raw` in `tests/models_test.py` does. Error-path tests that
 don't care about retries can use a status that isn't retried (400, 404).
 
 ### Classic test
@@ -635,8 +697,9 @@ Run the suite from the repo root: `make test`.
 - [ ] Class added, with a docstring on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` /
       `ClassicAPI.__init__` (alias the import if the name clashes across APIs).
-- [ ] Path, version, and body shape verified against the schema (`make schema-paths` /
-      `make schema-path` — not a full read).
+- [ ] Path, version, verbs and body shape verified against the schema (`make schema-paths` /
+      `make schema-path` — not a full read); a Pro endpoint composes exactly the mixins for the
+      verbs listed.
 - [ ] A `tests/<module>_test.py` covers the request(s) it sends (mock only, via `responses` and the
       `tests/conftest.py` fixtures).
 - [ ] Smoke test: `uv run python -c "import jamfpy; print(jamfpy.Tenant)"`.
