@@ -1,20 +1,21 @@
 """Unit tests for jamfpy.client.client (endpoint wiring on ClassicAPI / ProAPI).
 
-Construction does no network: the session is a mock and auth is never called.
+Builds a real ``Tenant`` with the token endpoint answered by ``mocked_responses``.
 """
 # pylint: disable=missing-function-docstring
-from unittest.mock import MagicMock, patch
+import logging
+from unittest.mock import patch
 
-from conftest import FQDN
+from conftest import FQDN, register_oauth_token
 
-from jamfpy.client.client import ClassicAPI
-from jamfpy.client.http_config import HTTPConfig
+import jamfpy
 
 
-def test_classic_api_builds_policies_once(silent_logger):
+def test_classic_api_builds_policies_once(mocked_responses):
+    register_oauth_token(mocked_responses)
     with patch("jamfpy.client.client.Policies") as mock_policies:
-        api = ClassicAPI(fqdn=FQDN, auth=MagicMock(), http_config=HTTPConfig(),
-                         session=MagicMock(), logger=silent_logger)
+        tenant = jamfpy.Tenant(fqdn=FQDN, auth_method="oauth2", client_id="c", client_secret="s",
+                               log_level=logging.CRITICAL)
 
-    mock_policies.assert_called_once_with(api)
-    assert api.policies is mock_policies.return_value
+    mock_policies.assert_called_once_with(tenant.classic)
+    assert tenant.classic.policies is mock_policies.return_value

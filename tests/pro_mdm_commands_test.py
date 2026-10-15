@@ -1,28 +1,36 @@
 """Unit tests for the Pro MDM commands endpoint."""
-# pylint: disable=missing-function-docstring
-import pytest
-from conftest import FakeAPI, FQDN
+# pylint: disable=missing-function-docstring,redefined-outer-name
+import json
 
-from jamfpy.endpoints.pro_mdm_commands import MDMCommands
+import pytest
+from conftest import FQDN, sent_headers, with_bearer
+
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 
 URL = f"{FQDN}/api/v2/mdm/commands"
 
 
-def _send(method_name, *args, **kwargs):
-    api = FakeAPI()
-    getattr(MDMCommands(api), method_name)(*args, **kwargs)
-    return api.last_request
+@pytest.fixture
+def send(pro_api, mocked_responses):
+    """Call an MDMCommands method through the real ProAPI; returns the request sent and its decoded JSON body."""
+    mocked_responses.post(URL, status=201, json=[{"id": "1", "href": "/v2/mdm/commands/1"}])
+
+    def _send(method_name, *args, **kwargs):
+        getattr(pro_api.mdm, method_name)(*args, **kwargs)
+        req = mocked_responses.calls[-1].request
+        return req, json.loads(req.body)
+
+    return _send
 
 
-def test_send_command_builds_payload_and_targets_v2():
-    api = FakeAPI()
-    MDMCommands(api).send_command("DEVICE_LOCK", ["m1", "m2"], pin="1234", message="hi")
-    req = api.last_request
+def test_send_command_builds_payload_and_targets_v2(send):
+    req, payload = send("send_command", "DEVICE_LOCK", ["m1", "m2"], pin="1234", message="hi")
     assert req.method == "POST"
     assert req.url == URL
-    assert req.headers == H["crud"]["read"]["json"]
-    assert req.json == {
+    # Characterises current behaviour: send_command passes the read header set (no content-type);
+    # requests adds one for the json= body.
+    assert sent_headers(req) == with_bearer({**H["crud"]["read"]["json"], "Content-Type": "application/json"})
+    assert payload == {
         "clientData": [{"managementId": "m1"}, {"managementId": "m2"}],
         "commandData": {"commandType": "DEVICE_LOCK", "pin": "1234", "message": "hi"},
     }
@@ -46,61 +54,61 @@ NO_ARG_WRAPPERS = [
 
 
 @pytest.mark.parametrize("method_name,command_type", NO_ARG_WRAPPERS)
-def test_no_arg_wrapper_coerces_single_id(method_name, command_type):
-    req = _send(method_name, "m1")  # single string, not a list
+def test_no_arg_wrapper_coerces_single_id(send, method_name, command_type):
+    req, payload = send(method_name, "m1")  # single string, not a list
     assert req.url == URL
-    assert req.json["clientData"] == [{"managementId": "m1"}]
-    assert req.json["commandData"]["commandType"] == command_type
+    assert payload["clientData"] == [{"managementId": "m1"}]
+    assert payload["commandData"]["commandType"] == command_type
 
 
-def test_lock_device_maps_camel_case_kwargs():
-    req = _send("lock_device", ["m1"], message="locked", pin="9999", phone_number="+15550000")
-    data = req.json["commandData"]
+def test_lock_device_maps_camel_case_kwargs(send):
+    _, payload = send("lock_device", ["m1"], message="locked", pin="9999", phone_number="+15550000")
+    data = payload["commandData"]
     assert data["commandType"] == "DEVICE_LOCK"
     assert data["message"] == "locked"
     assert data["pin"] == "9999"
     assert data["phoneNumber"] == "+15550000"
 
 
-def test_erase_device_defaults_return_to_service():
-    req = _send("erase_device", ["m1"])
-    data = req.json["commandData"]
+def test_erase_device_defaults_return_to_service(send):
+    _, payload = send("erase_device", ["m1"])
+    data = payload["commandData"]
     assert data["commandType"] == "ERASE_DEVICE"
     assert data["returnToService"] == {"enabled": True}
     assert data["pin"] == "1234"
     assert data["obliterationBehavior"] == "Default"
 
 
-def test_disable_lost_mode_defaults_return_to_service():
-    req = _send("disable_lost_mode", ["m1"])
-    assert req.json["commandData"]["returnToService"] == {"enabled": True}
+def test_disable_lost_mode_defaults_return_to_service(send):
+    _, payload = send("disable_lost_mode", ["m1"])
+    assert payload["commandData"]["returnToService"] == {"enabled": True}
 
 
-def test_clear_passcode_maps_unlock_token():
-    req = _send("clear_passcode", ["m1"], unlock_token="tok")
-    assert req.json["commandData"]["unlockToken"] == "tok"
+def test_clear_passcode_maps_unlock_token(send):
+    _, payload = send("clear_passcode", ["m1"], unlock_token="tok")
+    assert payload["commandData"]["unlockToken"] == "tok"
 
 
-def test_delete_user_maps_kwargs():
-    req = _send("delete_user", ["m1"], user_name="bob", force_deletion=True, delete_all_users=False)
-    data = req.json["commandData"]
+def test_delete_user_maps_kwargs(send):
+    _, payload = send("delete_user", ["m1"], user_name="bob", force_deletion=True, delete_all_users=False)
+    data = payload["commandData"]
     assert data["userName"] == "bob"
     assert data["forceDeletion"] is True
     assert data["deleteAllUsers"] is False
 
 
-def test_restart_device_uses_schema_kernel_cache_key():
+def test_restart_device_uses_schema_kernel_cache_key(send):
     # RestartDeviceCommand in pro.json spells it rebuildKernelCache.
-    req = _send("restart_device", ["m1"])
-    data = req.json["commandData"]
+    _, payload = send("restart_device", ["m1"])
+    data = payload["commandData"]
     assert data["rebuildKernelCache"] is True
     assert "rebuildKernalCache" not in data
     assert data["kextPaths"] == []
     assert data["notifyUser"] is True
 
 
-def test_declerative_management_sends_declarative_command():
-    req = _send("declerative_management", ["m1"], data="payload")
-    data = req.json["commandData"]
+def test_declerative_management_sends_declarative_command(send):
+    _, payload = send("declerative_management", ["m1"], data="payload")
+    data = payload["commandData"]
     assert data["commandType"] == "DECLARATIVE_MANAGEMENT"
     assert data["data"] == "payload"

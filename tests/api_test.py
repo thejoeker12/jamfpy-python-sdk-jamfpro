@@ -1,25 +1,34 @@
 """Unit tests for the API base behaviour via ClassicAPI / ProAPI.
 
-The one wire call (``API.do`` -> ``session.send``) and the auth refresh are
-mocked; construction itself does no network.
+Most tests use the real ``classic_api`` / ``pro_api`` from the ``tenant`` fixture, so
+``API.do()`` runs against the real ``Auth`` and ``responses`` answers the wire. The TLS
+tests that assert the keyword arguments reaching the adapter (``verify``, ``cert``,
+``proxies``, ``timeout``) patch ``HTTPAdapter.send`` directly instead, with a stub Auth and
+no ``responses`` mock: the adapter is where ``verify=None`` used to become an unverified
+connection, so they pin exactly what it is called with.
 """
 # pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
 import logging
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from requests import Request, Session
+from requests import Request, Response, Session
 from requests.adapters import HTTPAdapter
-from conftest import FQDN, make_response
+from conftest import FAKE_TOKEN, FQDN, TOKEN_URL, register_oauth_token, sent_headers
 
-from jamfpy.client.client import ClassicAPI, ProAPI
+from jamfpy.client.client import ClassicAPI
 from jamfpy.client.http_config import HTTPConfig
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS
 from jamfpy.client.exceptions import JamfpyConfigError
 
+COMPUTERS_URL = f"{FQDN}/JSSResource/computers"
+INVALIDATE_URL = f"{FQDN}/api/v1/auth/invalidate-token"
+
 
 @pytest.fixture
 def mock_auth():
+    """Stub Auth for the adapter-patched TLS tests, which run without a ``responses`` mock."""
     auth = MagicMock()
     auth.token.return_value = "tok"
     return auth
@@ -43,80 +52,93 @@ def clean_env(monkeypatch):
         monkeypatch.delenv(var.lower(), raising=False)
 
 
-def _classic(auth, logger):
+def _classic_real_session(auth, logger, **kwargs):
     return ClassicAPI(fqdn=FQDN, auth=auth, http_config=HTTPConfig(),
-                      safe_mode=True, session=MagicMock(), logger=logger)
+                      safe_mode=True, session=None, logger=logger, **kwargs)
 
 
-def _pro(auth, logger):
-    return ProAPI(fqdn=FQDN, auth=auth, http_config=HTTPConfig(),
-                  safe_mode=True, session=MagicMock(), logger=logger)
+def test_classic_url_ignores_target(classic_api):
+    assert classic_api.url() == f"{FQDN}/JSSResource"
+    assert classic_api.url("2") == f"{FQDN}/JSSResource"
 
 
-def test_classic_url_ignores_target(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    assert api.url() == f"{FQDN}/JSSResource"
-    assert api.url("2") == f"{FQDN}/JSSResource"
+def test_pro_url_formats_version(pro_api):
+    assert pro_api.url("2") == f"{FQDN}/api/v2"
+    assert pro_api.url("1") == f"{FQDN}/api/v1"
 
 
-def test_pro_url_formats_version(mock_auth, silent_logger):
-    api = _pro(mock_auth, silent_logger)
-    assert api.url("2") == f"{FQDN}/api/v2"
-    assert api.url("1") == f"{FQDN}/api/v1"
-
-
-def test_url_raises_on_unknown_version(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    api._version = "weird"
+def test_url_raises_on_unknown_version(classic_api):
+    classic_api._version = "weird"
     with pytest.raises(JamfpyConfigError):
-        api.url()
+        classic_api.url()
 
 
-def test_header_returns_configured_set(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    assert api.header("read") == DEFAULT_HTTP_CONFIG_HEADERS["crud"]["read"]
+def test_header_returns_configured_set(classic_api):
+    assert classic_api.header("read") == DEFAULT_HTTP_CONFIG_HEADERS["crud"]["read"]
 
 
-def test_header_raises_on_bad_key(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
+def test_header_raises_on_bad_key(classic_api):
     with pytest.raises(KeyError):
-        api.header("does-not-exist")
+        classic_api.header("does-not-exist")
 
 
-def test_refresh_session_headers_sets_bearer(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    api._refresh_session_headers()
-    api._session.headers.clear.assert_called_once()
-    api._session.headers.update.assert_called_once_with({"Authorization": "Bearer tok"})
+def test_refresh_session_headers_sets_bearer(classic_api):
+    classic_api._session.headers["X-Stale"] = "1"
+    classic_api._refresh_session_headers()
+    # Cleared, then only the Bearer header from the real Auth.
+    assert dict(classic_api._session.headers) == {"Authorization": f"Bearer {FAKE_TOKEN}"}
 
 
-def test_do_prepares_and_sends(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    prepped = MagicMock()
-    api._session.prepare_request.return_value = prepped
-    sent_response = MagicMock(status_code=200, url=f"{FQDN}/x")
-    api._session.send.return_value = sent_response
+def test_do_prepares_and_sends(classic_api, mocked_responses):
+    mocked_responses.get(COMPUTERS_URL, json={"computers": []})
 
-    result = api.do(Request("GET", url=f"{FQDN}/JSSResource/computers"))
+    result = classic_api.do(Request("GET", url=COMPUTERS_URL, headers={"accept": "application/json"}))
 
-    assert result is sent_response
-    api._session.prepare_request.assert_called_once()
-    api._session.send.assert_called_once()
-    # Auth is refreshed before every send.
-    mock_auth.token.assert_called()
-
-
-def test_close_invalidates_and_marks_closed(mock_auth, silent_logger):
-    api = _classic(mock_auth, silent_logger)
-    mock_auth.invalidate.return_value = True
-    api.close()
-    mock_auth.invalidate.assert_called_once()
-    assert api._is_closed is True
+    assert result.status_code == 200
+    assert result.json() == {"computers": []}
+    assert len(mocked_responses.calls) == 1
+    req = mocked_responses.calls[-1].request
+    assert req.method == "GET"
+    assert req.url == COMPUTERS_URL
+    # Auth is applied before every send.
+    assert req.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+    assert req.headers["accept"] == "application/json"
 
 
-def test_close_warns_when_invalidation_fails(mock_auth, warning_logger, caplog):
-    api = _classic(mock_auth, warning_logger)
-    mock_auth.invalidate.return_value = False
+def test_do_drops_the_session_default_headers(classic_api, mocked_responses):
+    # Characterises current behaviour: _refresh_session_headers clears the session's requests defaults, so a request
+    # goes out with no User-Agent, Accept-Encoding, Accept or Connection header unless the endpoint sets one.
+    mocked_responses.get(COMPUTERS_URL, json={})
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+    assert sent_headers(mocked_responses.calls[-1].request) == {"Authorization": f"Bearer {FAKE_TOKEN}"}
+
+
+def test_do_fetches_a_new_token_when_expired(classic_api, mocked_responses):
+    token = register_oauth_token(mocked_responses, token="fresh-token")
+    mocked_responses.get(COMPUTERS_URL, json={"computers": []})
+    classic_api.auth.token_expiry = datetime.now(timezone.utc).timestamp() - 1
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert token.call_count == 1
+    assert [call.request.url for call in mocked_responses.calls] == [TOKEN_URL, COMPUTERS_URL]
+    assert mocked_responses.calls[-1].request.headers["Authorization"] == "Bearer fresh-token"
+
+
+def test_close_invalidates_and_marks_closed(classic_api, mocked_responses):
+    mocked_responses.post(INVALIDATE_URL, status=204)
+    classic_api.close()
+
+    req = mocked_responses.calls[-1].request
+    assert req.method == "POST"
+    assert req.url == INVALIDATE_URL
+    assert req.headers["Authorization"] == f"Bearer {FAKE_TOKEN}"
+    assert classic_api._is_closed is True
+
+
+def test_close_warns_when_invalidation_fails(classic_api, mocked_responses, warning_logger, caplog):
+    api = _classic_real_session(classic_api.auth, warning_logger)
+    mocked_responses.post(INVALIDATE_URL, status=401)
     api.close()
 
     warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -127,9 +149,9 @@ def test_close_warns_when_invalidation_fails(mock_auth, warning_logger, caplog):
     assert api._is_closed is True
 
 
-def test_close_is_quiet_when_invalidation_succeeds(mock_auth, warning_logger, caplog):
-    api = _classic(mock_auth, warning_logger)
-    mock_auth.invalidate.return_value = True
+def test_close_is_quiet_when_invalidation_succeeds(classic_api, mocked_responses, warning_logger, caplog):
+    api = _classic_real_session(classic_api.auth, warning_logger)
+    mocked_responses.post(INVALIDATE_URL, status=204)
     api.close()
 
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
@@ -137,38 +159,32 @@ def test_close_is_quiet_when_invalidation_succeeds(mock_auth, warning_logger, ca
 
 # --- TLS -------------------------------------------------------------------
 
-def _classic_real_session(auth, logger, **kwargs):
-    return ClassicAPI(fqdn=FQDN, auth=auth, http_config=HTTPConfig(),
-                      safe_mode=True, session=None, logger=logger, **kwargs)
+def test_default_session_verifies_tls(classic_api):
+    assert classic_api._session.verify is True
+    assert classic_api._session.cert is None
 
 
-def test_default_session_verifies_tls(mock_auth, silent_logger):
-    api = _classic_real_session(mock_auth, silent_logger)
-    assert api._session.verify is True
-    assert api._session.cert is None
-
-
-def test_verify_and_cert_paths_land_on_session(mock_auth, silent_logger, tmp_path):
+def test_verify_and_cert_paths_land_on_session(classic_api, silent_logger, tmp_path):
     ca_bundle = tmp_path / "ca.pem"
     client_cert = tmp_path / "client.pem"
     ca_bundle.write_text("ca")
     client_cert.write_text("cert")
 
-    api = _classic_real_session(mock_auth, silent_logger,
+    api = _classic_real_session(classic_api.auth, silent_logger,
                                 verify_path=str(ca_bundle), cert_path=str(client_cert))
 
     assert api._session.verify == str(ca_bundle)
     assert api._session.cert == str(client_cert)
 
 
-def test_caller_session_gets_tls_settings(mock_auth, silent_logger, tmp_path):
+def test_caller_session_gets_tls_settings(classic_api, silent_logger, tmp_path):
     ca_bundle = tmp_path / "ca.pem"
     client_cert = tmp_path / "client.pem"
     ca_bundle.write_text("ca")
     client_cert.write_text("cert")
     session = Session()
 
-    api = ClassicAPI(fqdn=FQDN, auth=mock_auth, http_config=HTTPConfig(), safe_mode=True, session=session,
+    api = ClassicAPI(fqdn=FQDN, auth=classic_api.auth, http_config=HTTPConfig(), safe_mode=True, session=session,
                      logger=silent_logger, verify_path=str(ca_bundle), cert_path=str(client_cert))
 
     assert api._session is session
@@ -176,21 +192,27 @@ def test_caller_session_gets_tls_settings(mock_auth, silent_logger, tmp_path):
     assert session.cert == str(client_cert)
 
 
-def test_caller_session_with_verification_off_is_verified(mock_auth, silent_logger):
+def test_caller_session_with_verification_off_is_verified(classic_api, silent_logger):
     session = Session()
     session.verify = False
 
-    ClassicAPI(fqdn=FQDN, auth=mock_auth, http_config=HTTPConfig(), safe_mode=True, session=session,
+    ClassicAPI(fqdn=FQDN, auth=classic_api.auth, http_config=HTTPConfig(), safe_mode=True, session=session,
                logger=silent_logger)
 
     assert session.verify is True
 
 
+def _ok_response():
+    resp = Response()
+    resp.status_code = 200
+    return resp
+
+
 def _send_kwargs(api, **do_kwargs):
-    """Run do() with Session.send patched out and return the kwargs send received."""
-    with patch.object(Session, "send", return_value=make_response({})) as mock_send:
-        api.do(Request("GET", url=f"{FQDN}/JSSResource/computers"), **do_kwargs)
-    return mock_send.call_args.kwargs
+    """Run do() with HTTPAdapter.send patched out and return the kwargs the adapter received."""
+    with patch.object(HTTPAdapter, "send", return_value=_ok_response()) as mock_adapter_send:
+        api.do(Request("GET", url=COMPUTERS_URL), **do_kwargs)
+    return mock_adapter_send.call_args.kwargs
 
 
 @pytest.mark.usefixtures("clean_env")
@@ -215,6 +237,13 @@ def test_do_verifies_by_default(mock_auth, silent_logger):
     assert kwargs["verify"] is True
     assert kwargs["cert"] is None
     assert kwargs["timeout"] == 7
+
+
+@pytest.mark.usefixtures("clean_env")
+def test_do_times_out_after_ten_seconds_by_default(mock_auth, silent_logger):
+    kwargs = _send_kwargs(_classic_real_session(mock_auth, silent_logger))
+
+    assert kwargs["timeout"] == 10
 
 
 @pytest.mark.usefixtures("clean_env")
@@ -275,8 +304,8 @@ def test_do_passes_cert_path_as_cert(mock_auth, silent_logger, tmp_path):
 def test_do_reaches_adapter_with_verification_on(mock_auth, silent_logger):
     # The adapter is where verify=None turned into an unverified connection, so assert what reaches it.
     api = _classic_real_session(mock_auth, silent_logger)
-    with patch.object(HTTPAdapter, "send", return_value=make_response({})) as mock_adapter_send:
-        api.do(Request("GET", url=f"{FQDN}/JSSResource/computers"))
+    with patch.object(HTTPAdapter, "send", return_value=_ok_response()) as mock_adapter_send:
+        api.do(Request("GET", url=COMPUTERS_URL))
 
     kwargs = mock_adapter_send.call_args.kwargs
     assert kwargs["verify"] is True
