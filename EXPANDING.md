@@ -13,6 +13,88 @@ back the raw `requests.Response`.
 
 ## Pick your variant
 
+### Scaffold first
+
+`make scaffold` reads the path from the schema, picks the variant for you and writes everything a
+new endpoint needs. Preview it with `DRY_RUN=1` (writes nothing):
+
+```bash
+make scaffold API=pro PATH=/v1/categories DRY_RUN=1
+# shape: Pro CRUD -> Categories(ProEndpoint): get_all, get_by_id, create, update_by_id, delete_by_id
+# would write:
+#   new      jamfpy/endpoints/pro_categories.py
+#   changed  jamfpy/client/client.py
+#   new      tests/pro_categories_test.py
+#   changed  tests/integration/pro_resources_live_test.py
+#   changed  tests/contract_test.py
+# next: fill in the live builders in tests/integration/pro_resources_live_test.py; review _name ('categories') and the docstrings
+# next: names come from the path alone (class Categories, attribute categories); for a multi-word resource use NAME=<PascalCaseName> instead (undo this run first if it wrote)
+# regenerate COVERAGE.md with make coverage-doc
+```
+
+For a Classic resource whose path runs its words together, pass `NAME=` (the jamfpy-dev skill should too), otherwise the
+class and attribute are one unreadable word:
+
+```bash
+make scaffold API=classic PATH=/advancedmobiledevicesearches NAME=AdvancedMobileDeviceSearches
+# class AdvancedMobileDeviceSearches, attribute advanced_mobile_device_searches; _uri and _name stay "/advancedmobiledevicesearches" / "advancedmobiledevicesearches"
+```
+
+Then drop `DRY_RUN=1` to write them. It produces Variant A (Classic simple), B (Classic composite),
+C (Pro CRUD, `ProEndpoint` or exactly the mixins the verbs back, `ProGetAll` only when the collection GET is
+paginated) or D (Pro action, a single
+`send(payload)` with no convenience wrappers), wires the endpoint in `client.py`, writes the unit tests
+from the templates in [Writing the test](#writing-the-test), appends a live spec whose builders fail
+until written, and bumps `EXPECTED_ENDPOINT_COUNT`. The shape rules, the names it derives and every
+refusal are in `AGENTS.md` → *How to add an endpoint* → *Scaffold first*. A path it can't classify
+(a Classic resource missing one of DELETE GET POST PUT by id, a non-`id` parameter, a multipart or
+non-JSON body, an endpoint that already exists, ...) is refused with a one-line reason and nothing is
+written.
+
+What to fill in afterwards:
+
+- **The live builders.** The new `SPECS` entry in `tests/integration/pro_resources_live_test.py` (or
+  `clc_resources_live_test.py`) has `"min"` and `"max"` set to
+  `lambda n: pytest.fail("fill in the builders")`, so `make test-integration` fails on it until you
+  write them: `min` with the required fields from `make schema-path`, `max` with every writable one,
+  as the existing specs do. For Classic, check `root` too: it starts as the `_name`, but it is the XML
+  root element of one record (`printer`, not `printers`). A Pro action, a partial CRUD without
+  `create`/`get_by_id`/`update_by_id`/`delete_by_id`, and a Classic composite's parent (its children get
+  specs) get no spec: add the accessor and the reason to `LIVE_NOT_COVERED` next to `SPECS`, as
+  `pro_resources_live_test.py` does for `pro.mdm`
+  (`"mdm": "Verb endpoint (send-command) with no CRUD surface to lifecycle-test"`); COVERAGE.md shows it
+  as an N/A row. `make coverage-doc` refuses an endpoint with neither a spec nor a reason, and the
+  scaffolder's `next:` line for these endpoints says so and gives the key.
+- **COVERAGE.md.** It is generated: run `make coverage-doc` and commit the result, never edit it by hand. It
+  adds the endpoint's covered row (path, version, methods and the paths and verbs those methods send, recorded by
+  calling each with dummy arguments) and live row, and drops its
+  resource from *Not yet covered*; a spec whose builders are still the scaffolded placeholder shows as ❌.
+  `make coverage-doc-check` (in `make check` and CI) fails while the file is stale. See `AGENTS.md` →
+  *How to add an endpoint* → *COVERAGE.md*.
+- **`_name`.** The scaffolder uses the path's snake_case slug (the snake_case of `NAME=` for Pro) unless the
+  Classic schema names the JSON top-level key (it currently never does). Keep it aligned with Jamf's key, as
+  Variant A says.
+- **The names.** A Classic path that runs its words together gives a one-word class and attribute
+  (`Advancedmobiledevicesearches`); the `next:` line says so. Undo the run and repeat it with
+  `NAME=<PascalCaseName>`: the attribute is its snake_case, a Pro module and `_name` or a composite's module
+  follow it, `_uri` stays the path. The same `NAME=` scaffolds a second version beside the first (`/v2/groups` after
+  `/v1/groups` is refused for its attribute and says to pass `NAME=`).
+- **A missing `get_all`.** A Pro collection GET that is not paginated (no `page`/`page-size` parameters and no
+  `totalCount`/`results` response, e.g. a bare array as `/v1/static-user-groups`) gets no `ProGetAll`, because
+  `get_all` would page a URL that does not page. The class docstring and a `next:` line say so; write `get_all`
+  by hand if you want one.
+- **A composite's `get_all`.** The children inherit `ClassicEndpoint.get_all`, which returns the whole
+  collection, not the sliced payload the hand-written `AccountUsers` returns. Override it as
+  `clc_endpoints_accounts.py` does if the resource needs slicing.
+- **Docstrings.** They are plain ("Endpoint for managing printers in Jamf Pro."). Say more where the
+  resource deserves it, e.g. why a Pro endpoint lacks a verb, or what a Pro action's payload holds.
+- **An action's wrappers.** Variant D's convenience wrappers are yours to add on top of `send`.
+
+The four variants below stay the reference for what the scaffolder writes and for writing an
+endpoint by hand when it refuses one.
+
+### The four variants
+
 The SDK has two APIs (Classic = XML writes under `/JSSResource`; Pro = JSON under
 `/api/v{n}`) and four concrete endpoint shapes across them. Find your row, then jump to that
 section.
@@ -29,7 +111,7 @@ Start there unless your target clearly doesn't fit. **Variant C is its Pro twin*
 gives Pro resources the same inherit-everything CRUD (with a paginating `get_all`), and a resource
 whose schema has only some of the verbs composes just those capability mixins.
 
-Whichever variant you pick, wiring is the same three steps (detailed per-variant below):
+Whichever variant you pick, wiring is the same three steps (detailed per-variant below; `make scaffold` does all three):
 
 1. Define the class in the right `jamfpy/endpoints/` module.
 2. Import it in `jamfpy/client/client.py`.
@@ -619,6 +701,9 @@ don't care about retries can use a status that isn't retried (400, 404).
 
 ### Classic test
 
+(For a Classic simple endpoint the scaffolder adds rows to `tests/clc_endpoints_test.py` instead of
+writing this file; a composite gets a file like it.)
+
 ```python
 """Unit tests for the Buildings endpoint."""
 # pylint: disable=missing-function-docstring
@@ -648,6 +733,9 @@ def test_create_posts_xml_to_id_zero(classic_api, mocked_responses):
 ```
 
 ### Pro test
+
+(The scaffolder writes this file, one test per composed method, for every Pro CRUD endpoint; an
+action gets a single `send` test.)
 
 ```python
 """Unit tests for the Pro Things endpoint."""
@@ -690,6 +778,12 @@ Test-file conventions:
 
 Run the suite from the repo root: `make test`.
 
+`make scaffold` writes these tests for you: for a Pro endpoint one test per method in the shape of the
+Pro test below (plus a check of the methods it has and lacks, and `name()`); for a Classic composite
+the same for the parent's `get_all` and each child's methods, parametrised over the children; for a
+Classic simple endpoint, which inherits everything, a row in `CLASSIC_ENDPOINTS` and an entry in
+`EXPECTED_ATTRS` in `tests/clc_endpoints_test.py`, whose parametrised tests cover every Classic endpoint.
+
 ### The contract test
 
 `tests/contract_test.py` checks every endpoint against the schemas, and you don't add anything
@@ -715,13 +809,17 @@ There is no allowlist. A failure reads
 `pro.things.get_all sent GET /v1/things, which the pro schema has only for ['post']`: the
 endpoint offers a method the API doesn't have, so fix the endpoint (compose only the mixins for the
 verbs listed, or correct the URL), not the test. The one edit the test needs is bumping
-`EXPECTED_ENDPOINT_COUNT` when you wire an endpoint; a parameter type it can't fill raises
-`TypeError` naming the parameter, so teach `dummy_value` that type.
+`EXPECTED_ENDPOINT_COUNT` when you wire an endpoint (`make scaffold` does it); a parameter type it can't fill raises
+`TypeError` naming the parameter, so teach `dummy_value` (in `tools/introspect.py`, which the
+COVERAGE.md generator shares) that type.
 
 ---
 
 ## Definition of done
 
+- [ ] Scaffolded with `make scaffold API=… PATH=…` (or written by hand for a shape it refuses), its
+      `_name` and docstrings reviewed, and its live builders filled in (or, with no spec, a
+      `LIVE_NOT_COVERED` reason added).
 - [ ] Class added, with a docstring on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` /
       `ClassicAPI.__init__` (alias the import if the name clashes across APIs).
@@ -734,8 +832,11 @@ verbs listed, or correct the URL), not the test. The one edit the test needs is 
 - [ ] Tests pass: `make test`.
 - [ ] The contract test passes for the new endpoint (`tests/contract_test.py`, part of `make test`): it
       finds the endpoint through its `client.py` attribute and tests every public method; bump its
-      `EXPECTED_ENDPOINT_COUNT`.
+      `EXPECTED_ENDPOINT_COUNT` (`make scaffold` does).
 - [ ] Lint passes: `make lint`.
 - [ ] Type check passes: `make typecheck` (every new parameter and return hinted).
+- [ ] COVERAGE.md regenerated with `make coverage-doc` and committed (never edited by hand): the endpoint
+      has a covered row and a live row, and `make coverage-doc-check` passes (`make check` runs it with
+      the other gates).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network); no edits to version/CHANGELOG.
 - [ ] If committing: Conventional Commit (`feat:` for a new endpoint).

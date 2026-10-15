@@ -3,9 +3,10 @@
 Same spec pattern as the Classic suite, JSON both ways. A spec may also have a
 ``setup``: a function of the ``ProAPI`` returning keyword arguments for its
 builders, for a payload that must name tenant state (``app_installers`` needs a
-catalog title id). A spec without a ``max`` builder runs only the min test. Not
-covered here (see COVERAGE.md → *Live integration test coverage*): ``pro.mdm``
-is a verb endpoint with no CRUD surface.
+catalog title id). A spec without a ``max`` builder runs only the min test, and
+its optional ``notes`` is the Notes cell of COVERAGE.md's live table. A wired
+endpoint with no spec has the reason in ``LIVE_NOT_COVERED`` instead (``pro.mdm``
+is a verb endpoint); ``make coverage-doc`` refuses an endpoint with neither.
 """
 # pylint: disable=redefined-outer-name
 import pytest
@@ -31,6 +32,7 @@ SPECS = [
     {
         "id": "scripts",
         "accessor": "scripts",
+        "notes": "categoryId/categoryName omitted (instance-state dependent)",
         "min": lambda n: {"name": n},
         "max": lambda n: {
             "name": n,
@@ -48,6 +50,7 @@ SPECS = [
         # (`contents` is readOnly) — min and max are legitimately identical.
         "id": "dock_items",
         "accessor": "dock_items",
+        "notes": "All fields required; min ≡ max",
         "min": lambda n: {
             "name": n,
             "type": "APP",
@@ -60,11 +63,16 @@ SPECS = [
         },
     },
     {
-        # The required fields are those a 400 on an empty body names: name, appTitleId, deploymentType and
-        # updateBehavior. /v1/app-installers is in no published schema (only pro-supplement.json, which has no
-        # bodies), so the writable fields are unknown and there is no max spec.
         "id": "app_installers",
         "accessor": "app_installers",
+        "notes": (
+            "No max: the body is in no published schema (`/v1/app-installers` is only in `pro-supplement.json`, which has "
+            "no bodies), so its writable fields are unknown. Min sends the four fields a 400 on `{}` names as required "
+            "(`name`, `appTitleId`, `deploymentType`, `updateBehavior`), with the first catalog title from "
+            "`GET /v1/app-installers/titles` (the spec's `setup`), `SELF_SERVICE` / `MANUAL`, and `enabled: false` so "
+            "nothing reaches a device. Best-effort: the resource is undocumented, so `get_all`'s pagination and the body "
+            "shapes are unverified beyond this lifecycle, which does not call `get_all`."
+        ),
         "setup": lambda pro: {"title_id": _first_catalog_title_id(pro)},
         "min": lambda n, title_id: {
             "name": n,
@@ -76,6 +84,11 @@ SPECS = [
         },
     },
 ]
+
+# Wired endpoints with no spec, and why; COVERAGE.md shows them as N/A rows.
+LIVE_NOT_COVERED: dict[str, str] = {
+    "mdm": "Verb endpoint (send-command) with no CRUD surface to lifecycle-test",
+}
 
 
 def _params(kind):
