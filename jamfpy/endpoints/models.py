@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class Endpoint:
     """Base class for all Jamf Pro API endpoints, providing common functionality and structure."""
     _uri: str
-    _name: str
+    _name: str | None = None
     def __init__(self, api: "API") -> None:
         """Initialize endpoint with API client instance."""
         self._api: API = api
@@ -104,7 +104,7 @@ class ClassicEndpoint(Endpoint):
         )
 
 
-    def name(self) -> str:
+    def name(self) -> str | None:
         """returns name for easy response browsing"""
         return self._name
 
@@ -197,6 +197,6 @@ class ProEndpoint(Endpoint):
             )
         )
 
-    def name(self) -> str:
+    def name(self) -> str | None:
         """returns name for easy response browsing"""
         return self._name

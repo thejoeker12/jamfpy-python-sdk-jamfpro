@@ -404,6 +404,8 @@ inherit, and pulling in `ProEndpoint`'s `get_all`/`get_by_id`/… would just exp
 methods. (Same reason the composite Classic `Accounts` parent subclasses bare `Endpoint`.)
 
 ```python
+from typing import Any
+
 from requests import Request, Response
 from .models import Endpoint
 
@@ -415,7 +417,7 @@ class MDMCommands(Endpoint):
 
     def send_command(self, command_type: str, management_ids: list[str], **kwargs: object) -> Response:
         """Build the command payload and POST it. All wrappers delegate here."""
-        payload = {
+        payload: dict[str, Any] = {
             "clientData": [{"managementId": mid} for mid in management_ids],
             "commandData": {"commandType": command_type, **kwargs},
         }

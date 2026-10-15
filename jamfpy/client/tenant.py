@@ -121,8 +121,8 @@ class Tenant:
         if auth_method not in VALID_AUTH_METHODS:
             raise JamfpyConfigError(f"invalid auth method supplied: {auth_method}")
 
-        # Auth hints str because requests only accepts str, but _validate_path may have stored a Path.
-        # A later correctness PR stores str there; these casts then become redundant and mypy flags them.
+        # Auth and the APIs hint str because requests only accepts str, while _validate_path stores a Path
+        # on the Tenant; the cast bridges the two without changing what callers see.
         cert_path = cast(str | None, self.cert_path)
         verify_path = cast(str | None, self.verify_path)
 

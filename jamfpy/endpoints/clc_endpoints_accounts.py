@@ -36,9 +36,9 @@ class AccountChild(ClassicEndpoint):
         return new_response
 
 
-    # Drops the base's xml_response argument; restoring it would change this public signature.
     def get_by_id(self, target_id: int) -> Response:  # type: ignore[override]
         """Get a single record by ID."""
+        # Drops the base's xml_response argument; restoring it would change this public signature.
 
         suffix = self._by_id_uri + f"/{target_id}"
         return self._api.do(
@@ -93,9 +93,9 @@ class AccountUsers(AccountChild):
     _by_id_uri = _uri + "/userid"
     _by_name_uri = _uri + "/username"
 
-    # Drops the base's xml_response argument; restoring it would change this public signature.
     def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """Returns a Response object with its JSON content modified to only include users."""
+        # Drops the base's xml_response argument; restoring it would change this public signature.
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
         original_json = original_response.json()
@@ -114,9 +114,9 @@ class AccountGroups(AccountChild):
     _by_id_uri = _uri + "/groupid"
     _by_name_uri = _uri + "/groupname"
 
-    # Drops the base's xml_response argument; restoring it would change this public signature.
     def get_all(self, suffix: str | None = None) -> Response:  # type: ignore[override]
         """ Returns all group objects under /accounts, packaged in a Response object. """
+        # Drops the base's xml_response argument; restoring it would change this public signature.
         original_response: Response = super().get_all(suffix=None)
         original_response.raise_for_status()
         original_json = original_response.json()
