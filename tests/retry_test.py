@@ -6,9 +6,10 @@ waits or depends on chance. ``responses`` answers every attempt; the ``OrderedRe
 attempt, in order, so a test states exactly what each attempt gets back, and an exception registered as
 a ``body`` is raised from the send as a real network failure would be.
 """
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name,too-many-lines
 import dataclasses
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from http import HTTPStatus
@@ -481,14 +482,20 @@ def test_a_retried_request_traces_every_attempt_at_debug(make_classic_api, mocke
     with caplog.at_level(logging.DEBUG, logger=warning_logger.name):
         _get(api)
 
-    def step(stage, attempt):
-        return f"{stage}: Method: GET at: {COMPUTERS_URL} with headers: [redacted] (attempt {attempt})"
+    def line(record):
+        # Durations vary and the headers/body tail is covered in api_test.py; the rest of each line is exact.
+        return re.sub(r"\(\d+ ms", "(N ms", record.getMessage().split(": headers=")[0])
 
-    traced = [r.getMessage() for r in caplog.records if r.name == warning_logger.name and r.levelno == logging.DEBUG]
-    # A 503 that is about to be retried is logged as a plain response, not a success.
+    traced = [(r.levelno, r.attempt, line(r)) for r in caplog.records if r.name == warning_logger.name]
+    # Every line carries its attempt; a 503 that is about to be retried is logged as a plain response, not a failure.
     assert traced == [
-        step("prepping", 1), step("sending", 1), f"Response: GET {COMPUTERS_URL} -> 503 (attempt 1)",
-        step("prepping", 2), step("sending", 2), f"Response: GET {COMPUTERS_URL} -> 200 (attempt 2)",
+        (logging.DEBUG, 1, f"Request GET {COMPUTERS_URL} (attempt 1)"),
+        (logging.INFO, 1, f"GET {COMPUTERS_URL} -> 503 (N ms)"),
+        (logging.DEBUG, 1, f"Response GET {COMPUTERS_URL} -> 503 (attempt 1)"),
+        (logging.WARNING, 1, f"Retrying GET {COMPUTERS_URL}: attempt 1 failed with HTTP 503; next attempt in 0.50 s"),
+        (logging.DEBUG, 2, f"Request GET {COMPUTERS_URL} (attempt 2)"),
+        (logging.INFO, 2, f"GET {COMPUTERS_URL} -> 200 (N ms, attempt 2)"),
+        (logging.DEBUG, 2, f"Response GET {COMPUTERS_URL} -> 200 (attempt 2)"),
     ]
 
 

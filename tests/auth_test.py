@@ -75,6 +75,16 @@ def warning_logger():
     return logger
 
 
+@pytest.fixture
+def debug_logger():
+    """A logger at DEBUG that propagates, so caplog sees every auth call's lines."""
+    logger = logging.getLogger("jamfpy-test-auth-debug")
+    logger.handlers.clear()
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = True
+    return logger
+
+
 # --- OAuth -----------------------------------------------------------------
 
 def test_oauth_set_new_token_parses_token_and_expiry(silent_logger, mocked_responses):
@@ -577,3 +587,150 @@ def test_long_lived_bearer_token_keeps_configured_buffer(warning_logger, caplog,
     assert len(mocked_responses.calls) == 2
     assert mocked_responses.calls[-1].request.url == KEEP_ALIVE_URL
     assert not _clamp_warnings(caplog)
+
+
+# --- logging and redaction -------------------------------------------------
+
+def _debug_messages(caplog, logger):
+    return [r.getMessage() for r in caplog.records if r.name == logger.name and r.levelno == logging.DEBUG]
+
+
+def _call_lines(caplog, logger):
+    """The summary, request and response lines one auth call logs, in that order."""
+    messages = _debug_messages(caplog, logger)
+    summary = next(i for i, m in enumerate(messages) if m.startswith("POST "))
+    return messages[summary:summary + 3]
+
+
+def test_auth_logs_through_its_jamfpy_child_logger():
+    auth = OAuth(fqdn=FQDN, client_id="cid", client_secret="secret", log_level=logging.DEBUG)
+    assert auth._logger is logging.getLogger("jamfpy.test-auth")
+    assert auth._logger.level == logging.DEBUG
+
+
+def test_a_caller_logger_is_used_as_is(silent_logger):
+    auth = _oauth(silent_logger, log_level=logging.DEBUG)
+    assert auth._logger is silent_logger
+    assert silent_logger.level == logging.CRITICAL
+
+
+@pytest.mark.parametrize("auth_class, credentials", [
+    (OAuth, {"client_id": "c", "client_secret": "s"}),
+    (BasicAuth, {"username": "u", "password": "p", "token_exp_thold_mins": 20}),
+])
+def test_safe_mode_defaults_on_and_is_a_keyword(auth_class, credentials):
+    assert auth_class(fqdn=FQDN, **credentials)._safe_mode is True
+    assert auth_class(fqdn=FQDN, safe_mode=False, **credentials)._safe_mode is False
+
+
+def test_oauth_token_fetch_is_logged_at_debug_with_secrets_redacted(debug_logger, caplog, mocked_responses):
+    mocked_responses.post(TOKEN_URL, json={"access_token": "tok-SECRET-1", "expires_in": 3600, "token_type": "Bearer"})
+
+    OAuth(fqdn=FQDN, client_id="cid-VALUE", client_secret="cs-SECRET", logger=debug_logger).set_new_token()
+
+    summary, request_line, response_line = _call_lines(caplog, debug_logger)
+    assert summary.startswith(f"POST {TOKEN_URL} -> 200 (") and summary.endswith(" ms)")
+    assert request_line.startswith(f"Request POST {TOKEN_URL}: headers=")
+    assert request_line.endswith(" body=client_id=[redacted]&client_secret=[redacted]&grant_type=client_credentials")
+    assert response_line.startswith(f"Response POST {TOKEN_URL} -> 200: headers=")
+    assert '"access_token": "[redacted]"' in response_line
+    assert '"token_type": "Bearer"' in response_line
+    for secret in ("tok-SECRET-1", "cid-VALUE", "cs-SECRET"):
+        assert not [r for r in caplog.records if secret in r.getMessage()]
+
+
+def test_auth_debug_records_carry_the_fields(debug_logger, caplog, mocked_responses):
+    _register_oauth(mocked_responses, 3600)
+
+    _oauth(debug_logger).set_new_token()
+
+    records = [r for r in caplog.records if r.name == debug_logger.name and hasattr(r, "url")]
+    assert len(records) == 3
+    for record in records:
+        assert (record.method, record.url, record.status) == ("POST", TOKEN_URL, 200)
+        assert isinstance(record.duration_ms, int)
+        assert not hasattr(record, "attempt")
+
+
+def test_basic_token_fetch_redacts_the_basic_credentials_and_token(debug_logger, caplog, mocked_responses):
+    _register_bearer(mocked_responses, BEARER_URL, 3600, "bearer-SECRET")
+    auth = _basic(debug_logger, username="user", password="pw-SECRET")
+
+    auth.set_new_token()
+
+    _, request_line, response_line = _call_lines(caplog, debug_logger)
+    assert '"Authorization": "Basic [redacted]"' in request_line
+    assert '"token": "[redacted]"' in response_line
+    for secret in ("bearer-SECRET", auth.basic_auth_token):
+        assert not [r for r in caplog.records if secret in r.getMessage()]
+
+
+@pytest.mark.parametrize("name, url", [("keep-alive", KEEP_ALIVE_URL), ("invalidate", INVALIDATE_URL)])
+def test_bearer_auth_calls_redact_the_current_token(debug_logger, caplog, mocked_responses, name, url):
+    auth, make_call = _auth_call(name, debug_logger, mocked_responses)
+    auth._token_str = "current-SECRET"
+
+    make_call()
+
+    summary, request_line, _ = _call_lines(caplog, debug_logger)
+    assert summary.startswith(f"POST {url} -> ")
+    assert '"Authorization": "Bearer [redacted]"' in request_line
+    assert not [r for r in caplog.records if "current-SECRET" in r.getMessage()]
+
+
+def test_safe_mode_off_logs_the_raw_token_request(debug_logger, caplog, mocked_responses):
+    _register_oauth(mocked_responses, 3600, token="raw-token")
+
+    _oauth(debug_logger, safe_mode=False).set_new_token()
+
+    _, request_line, response_line = _call_lines(caplog, debug_logger)
+    assert request_line.endswith(" body=client_id=cid&client_secret=secret&grant_type=client_credentials")
+    assert '"access_token": "raw-token"' in response_line
+
+
+def test_auth_calls_log_nothing_at_info(caplog, mocked_responses):
+    _register_oauth(mocked_responses, 3600)
+    auth = OAuth(fqdn=FQDN, client_id="cid", client_secret="secret", log_level=logging.INFO)
+
+    auth.token()
+
+    assert not [r for r in caplog.records if r.name == "jamfpy.test-auth"]
+
+
+@pytest.mark.parametrize("expiry_offset, message", [(-100, "Token expired"), (10 * 60, "Token in buffer")])
+def test_routine_refresh_logs_at_debug_not_warning(debug_logger, caplog, mocked_responses, expiry_offset, message):
+    _register_oauth(mocked_responses, 3600)
+    auth = _oauth(debug_logger)
+    auth._token_str = "old"
+    auth._token_lifetime_secs = 3600
+    auth.token_expiry = _now() + expiry_offset
+
+    assert auth.token() == "abc"
+
+    assert message in _debug_messages(caplog, debug_logger)
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+@pytest.mark.parametrize("safe_mode", [True, False])
+def test_oauth_auth_error_redacts_the_response_text(silent_logger, mocked_responses, safe_mode):
+    mocked_responses.post(TOKEN_URL, status=401, json={"error": "invalid_client", "access_token": "SECRET"})
+
+    with pytest.raises(JamfAuthError) as raised:
+        _oauth(silent_logger, safe_mode=safe_mode).set_new_token()
+
+    # Redacted whatever safe_mode says: an exception message travels into crash reports.
+    assert "[redacted]" in str(raised.value)
+    assert "SECRET" not in str(raised.value)
+    message, response, text = raised.value.args
+    assert message == "Error getting token."
+    assert response.status_code == 401
+    assert text == '{"error": "invalid_client", "access_token": "[redacted]"}'
+
+
+def test_oauth_auth_error_keeps_a_plain_text_body(silent_logger, mocked_responses):
+    mocked_responses.post(TOKEN_URL, status=401, body="invalid_client")
+
+    with pytest.raises(JamfAuthError) as raised:
+        _oauth(silent_logger).set_new_token()
+
+    assert raised.value.args[2] == "invalid_client"

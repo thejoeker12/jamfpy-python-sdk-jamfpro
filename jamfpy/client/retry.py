@@ -1,7 +1,7 @@
 """Retry policy for API requests: what ``API.do()`` retries, and how long it waits between attempts."""
 
 import datetime
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from logging import Logger
@@ -62,12 +62,15 @@ class RetryPolicy:
         self.sleep = sleep
         self._random_source = random_source
 
-    def delay(self, logger: Logger, prepped: PreparedRequest, outcome: Response | Exception, attempt: int) -> float | None:
+    def delay(
+            self, logger: Logger, prepped: PreparedRequest, outcome: Response | Exception, attempt: int,
+            *, extra: Mapping[str, object] | None = None,
+    ) -> float | None:
         """Seconds to wait before resending after ``attempt`` (1-based) ended in ``outcome``; ``None`` to stop.
 
         Stopping hands ``outcome`` back to the caller: a response is returned, an exception raised. Giving up on an
         outcome that was otherwise retryable (retries exhausted, or a ``Retry-After`` beyond ``max_backoff``) is
-        logged at ERROR.
+        logged at ERROR, with ``extra`` (the attempt's structured log fields) on the record.
         """
         # prepare_request always sets the method; requests only types it as optional.
         method = prepped.method or ""
@@ -75,7 +78,9 @@ class RetryPolicy:
             return None
 
         if attempt > self.config.total:
-            logger.error("Giving up on %s %s after %d attempt(s): %s", method, prepped.url, attempt, describe_outcome(outcome))
+            logger.error(
+                "Giving up on %s %s after %d attempt(s): %s", method, prepped.url, attempt, describe_outcome(outcome), extra=extra
+            )
             return None
 
         retry_after = None
@@ -88,7 +93,7 @@ class RetryPolicy:
             # Sleeping less than the server asked for would only earn another 429 or 503.
             logger.error(
                 "Giving up on %s %s at attempt %d: %s asked to retry after %.1f s, beyond max_backoff of %.1f s",
-                method, prepped.url, attempt, describe_outcome(outcome), retry_after, self.config.max_backoff
+                method, prepped.url, attempt, describe_outcome(outcome), retry_after, self.config.max_backoff, extra=extra
             )
             return None
         return retry_after

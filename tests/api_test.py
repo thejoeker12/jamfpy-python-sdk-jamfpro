@@ -11,7 +11,8 @@ The concurrency tests run ``do()`` from ``THREADS`` threads released together by
 (``run_together``); the token endpoint answers slowly, so without the ``Auth`` lock several
 threads would refresh.
 """
-# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name
+# pylint: disable=missing-function-docstring,protected-access,redefined-outer-name,too-many-lines
+import json
 import logging
 from datetime import datetime, timezone
 from importlib import metadata
@@ -20,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from requests import Request, Response, Session
 from requests.adapters import HTTPAdapter
+from requests.exceptions import ConnectTimeout
 from conftest import (
     FAKE_TOKEN, FQDN, THREADS, TOKEN_URL, register_oauth_token, register_slow_oauth_token, run_together, sent_headers,
     with_bearer,
@@ -29,9 +31,11 @@ from jamfpy.client.client import ClassicAPI
 from jamfpy.client.http_config import HTTPConfig
 from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS
 from jamfpy.client.exceptions import JamfpyConfigError
+from jamfpy.client.retry import RetryConfig
 
 COMPUTERS_URL = f"{FQDN}/JSSResource/computers"
 INVALIDATE_URL = f"{FQDN}/api/v1/auth/invalidate-token"
+CLASSIC_LOGGER = "jamfpy.test-clc"
 
 
 @pytest.fixture
@@ -395,3 +399,174 @@ def test_do_reaches_adapter_with_verification_on(mock_auth, silent_logger):
     kwargs = mock_adapter_send.call_args.kwargs
     assert kwargs["verify"] is True
     assert kwargs["cert"] is None
+
+
+# --- logging ---------------------------------------------------------------
+
+def _records(caplog, name=CLASSIC_LOGGER, level=None):
+    return [r for r in caplog.records if r.name == name and (level is None or r.levelno == level)]
+
+
+def _debug_lines(caplog, name=CLASSIC_LOGGER):
+    """The DEBUG request and response lines, keyed by their first word."""
+    return {r.getMessage().split(" ", 1)[0]: r.getMessage() for r in _records(caplog, name, logging.DEBUG)}
+
+
+def test_api_logs_through_its_jamfpy_child_logger(classic_api, pro_api):
+    assert classic_api._logger is logging.getLogger("jamfpy.test-clc")
+    assert pro_api._logger is logging.getLogger("jamfpy.test-pro")
+
+
+def test_a_caller_logger_is_used_as_is(make_classic_api):
+    mine = logging.getLogger("my-app.jamf")
+    mine.setLevel(logging.WARNING)
+
+    api = make_classic_api(logger=mine, log_level=logging.DEBUG)
+
+    assert api._logger is mine
+    assert mine.level == logging.WARNING
+
+
+def test_one_info_line_per_attempt_with_the_fields(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.INFO, logger=CLASSIC_LOGGER)
+    mocked_responses.get(COMPUTERS_URL, json={"computers": []})
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    [record] = _records(caplog, level=logging.INFO)
+    assert (record.method, record.url, record.status, record.attempt) == ("GET", COMPUTERS_URL, 200, 1)
+    assert isinstance(record.duration_ms, int)
+    assert record.duration_ms >= 0
+    assert record.getMessage() == f"GET {COMPUTERS_URL} -> 200 ({record.duration_ms} ms)"
+
+
+def test_a_clean_request_logs_nothing_above_info(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.DEBUG, logger=CLASSIC_LOGGER)
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert _records(caplog)
+    assert max(r.levelno for r in _records(caplog)) == logging.INFO
+
+
+def test_info_line_names_the_attempt_from_the_first_retry_on(make_classic_api, mocked_responses, caplog):
+    mocked_responses.get(COMPUTERS_URL, status=503)
+    mocked_responses.get(COMPUTERS_URL, json={})
+    api = make_classic_api(logger=None, log_level=logging.INFO, retries=RetryConfig(jitter=False))
+
+    api.do(Request("GET", url=COMPUTERS_URL))
+
+    first, second = _records(caplog, level=logging.INFO)
+    assert first.getMessage() == f"GET {COMPUTERS_URL} -> 503 ({first.duration_ms} ms)"
+    assert second.getMessage() == f"GET {COMPUTERS_URL} -> 200 ({second.duration_ms} ms, attempt 2)"
+    assert (first.status, first.attempt, second.status, second.attempt) == (503, 1, 200, 2)
+
+
+def test_info_line_for_a_send_that_raised_names_the_exception(make_classic_api, mocked_responses, caplog):
+    mocked_responses.get(COMPUTERS_URL, body=ConnectTimeout("connect timed out"))
+    api = make_classic_api(logger=None, log_level=logging.INFO, retries=None)
+
+    with pytest.raises(ConnectTimeout):
+        api.do(Request("GET", url=COMPUTERS_URL))
+
+    [record] = _records(caplog, level=logging.INFO)
+    assert record.getMessage() == f"GET {COMPUTERS_URL} -> ConnectTimeout ({record.duration_ms} ms)"
+    assert not hasattr(record, "status")
+    assert record.attempt == 1
+
+
+def test_warning_and_error_records_carry_the_fields(make_classic_api, mocked_responses, caplog):
+    mocked_responses.get(COMPUTERS_URL, status=503)
+    api = make_classic_api(logger=None, log_level=logging.INFO, retries=RetryConfig(total=2, jitter=False))
+
+    api.do(Request("GET", url=COMPUTERS_URL))
+
+    warnings = _records(caplog, level=logging.WARNING)
+    [error] = _records(caplog, level=logging.ERROR)
+    assert [r.attempt for r in warnings] == [1, 2]
+    assert error.attempt == 3
+    for record in [*warnings, error]:
+        assert (record.method, record.url, record.status) == ("GET", COMPUTERS_URL, 503)
+        assert isinstance(record.duration_ms, int)
+
+
+def test_debug_logs_headers_and_bodies_with_authorization_redacted(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.DEBUG, logger=CLASSIC_LOGGER)
+    mocked_responses.post(COMPUTERS_URL, body="<computer><id>1</id></computer>", headers={"X-Trace": "abc"})
+
+    classic_api.do(Request("POST", url=COMPUTERS_URL, data="<computer/>", headers={"content-type": "text/xml"}))
+
+    lines = _debug_lines(caplog)
+    assert lines["Request"].startswith(f"Request POST {COMPUTERS_URL} (attempt 1): headers={{")
+    assert '"Authorization": "Bearer [redacted]"' in lines["Request"]
+    assert '"content-type": "text/xml"' in lines["Request"]
+    assert lines["Request"].endswith(" body=<computer/>")
+    assert lines["Response"].startswith(f"Response POST {COMPUTERS_URL} -> 200 (attempt 1): headers={{")
+    assert '"X-Trace": "abc"' in lines["Response"]
+    assert lines["Response"].endswith(" body=<computer><id>1</id></computer>")
+    assert not [r for r in caplog.records if FAKE_TOKEN in r.getMessage()]
+
+
+def test_debug_records_carry_the_fields(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.DEBUG, logger=CLASSIC_LOGGER)
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    request_line, response_line = _records(caplog, level=logging.DEBUG)
+    assert (request_line.method, request_line.url, request_line.attempt) == ("GET", COMPUTERS_URL, 1)
+    assert not hasattr(request_line, "status")
+    assert (response_line.status, response_line.attempt) == (200, 1)
+    assert isinstance(response_line.duration_ms, int)
+
+
+def test_debug_truncates_long_bodies_at_1024_characters(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.DEBUG, logger=CLASSIC_LOGGER)
+    response_body = {"data": "y" * 3000}
+    mocked_responses.post(COMPUTERS_URL, json=response_body)
+
+    classic_api.do(Request("POST", url=COMPUTERS_URL, data="x" * 2000))
+
+    lines = _debug_lines(caplog)
+    assert lines["Request"].endswith(" body=" + "x" * 1024 + "… (truncated, 2000 chars)")
+    # Redacted (so re-serialised) before it is cut: the count is the redacted text's length.
+    rendered = json.dumps(response_body)
+    assert lines["Response"].endswith(f" body={rendered[:1024]}… (truncated, {len(rendered)} chars)")
+
+
+def test_debug_redacts_secrets_in_a_json_body(pro_api, mocked_responses, caplog):
+    caplog.set_level(logging.DEBUG, logger="jamfpy.test-pro")
+    url = f"{FQDN}/api/v2/mdm/commands"
+    mocked_responses.post(url, json={"id": "1", "token": "server-issued"})
+
+    pro_api.do(Request("POST", url=url, json={"commandData": {"commandType": "SET_RECOVERY_LOCK", "password": "hunter2"}}))
+
+    lines = _debug_lines(caplog, "jamfpy.test-pro")
+    assert '"password": "[redacted]"' in lines["Request"]
+    assert '"commandType": "SET_RECOVERY_LOCK"' in lines["Request"]
+    assert lines["Response"].endswith(' body={"id": "1", "token": "[redacted]"}')
+    assert not [r for r in caplog.records if "hunter2" in r.getMessage() or "server-issued" in r.getMessage()]
+
+
+def test_safe_mode_off_logs_the_raw_authorization_and_body(make_classic_api, mocked_responses, caplog):
+    mocked_responses.post(COMPUTERS_URL, body="ok")
+    api = make_classic_api(logger=None, log_level=logging.DEBUG, safe_mode=False)
+
+    api.do(Request("POST", url=COMPUTERS_URL, data="password=hunter2"))
+
+    lines = _debug_lines(caplog)
+    assert f'"Authorization": "Bearer {FAKE_TOKEN}"' in lines["Request"]
+    assert lines["Request"].endswith(" body=password=hunter2")
+
+
+def test_debug_rendering_is_skipped_unless_debug_is_on(classic_api, mocked_responses, caplog):
+    caplog.set_level(logging.INFO, logger=CLASSIC_LOGGER)
+    mocked_responses.get(COMPUTERS_URL, json={})
+
+    # Redacting and serialising a large body for a line nobody will see would be wasted work on every request.
+    with patch("jamfpy.client.api.render_body", side_effect=AssertionError("rendered at INFO")), \
+            patch("jamfpy.client.api.render_headers", side_effect=AssertionError("rendered at INFO")):
+        classic_api.do(Request("GET", url=COMPUTERS_URL))
+
+    assert len(_records(caplog, level=logging.INFO)) == 1

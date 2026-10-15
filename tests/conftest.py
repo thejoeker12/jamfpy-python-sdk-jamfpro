@@ -118,6 +118,29 @@ def _assert_every_api_call_authorised(calls):
     assert not unauthorised, f"requests sent without a Bearer token from Auth: {unauthorised}"
 
 
+def _jamfpy_loggers():
+    """The ``jamfpy`` logger and every child created so far, by name."""
+    return {
+        name: logger for name, logger in logging.Logger.manager.loggerDict.items()
+        if isinstance(logger, logging.Logger) and (name == "jamfpy" or name.startswith("jamfpy."))
+    }
+
+
+@pytest.fixture(autouse=True)
+def restore_jamfpy_logging():
+    """Put every jamfpy logger's level and handlers back after each test.
+
+    ``configure_logging()`` and ``Tenant(log_level=...)`` change process-wide logger state; without this a handler
+    one test installs (on a stream that is then closed) or a level it sets would leak into the tests after it.
+    """
+    saved = {name: (logger.level, list(logger.handlers)) for name, logger in _jamfpy_loggers().items()}
+    yield
+    for name, logger in _jamfpy_loggers().items():
+        level, handlers = saved.get(name, (logging.NOTSET, []))
+        logger.setLevel(level)
+        logger.handlers[:] = handlers
+
+
 @pytest.fixture
 def response_registry():
     """The ``responses`` registry class behind ``mocked_responses``.
