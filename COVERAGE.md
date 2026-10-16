@@ -88,8 +88,9 @@ only / with every writable field, then read → update → read → delete again
 or `pro_resources_live_test.py`: ✅ where the spec has that builder, ❌ where it has none or still has the
 placeholder `make scaffold` writes; *Notes* is the spec's `notes`. An N/A row comes from the module's
 `LIVE_NOT_COVERED`, with the reason the endpoint has no spec. Every wired endpoint has one or the other:
-`make coverage-doc` refuses an endpoint with neither. Behaviour that is not per resource (lazy auth, parallel
-pagination, hooks over a lifecycle, `close()` invalidating the token) is checked live in
+`make coverage-doc` refuses an endpoint with neither. Behaviour that is not per resource (lazy auth, one token
+for back-to-back calls with the buffer-clamp warning once, parallel pagination, `pro.app_installers.get_all`
+paging, hooks over a lifecycle, `close()` invalidating the token) is checked live in
 `tests/integration/sdk_behaviour_live_test.py`, which is not in this table.
 
 | SDK accessor | API | Min | Max | Notes |
@@ -112,7 +113,7 @@ pagination, hooks over a lifecycle, `close()` invalidating the token) is checked
 | `classic.restricted_software` | Classic | ✅ | ✅ |  |
 | `classic.scripts` | Classic | ✅ | ✅ | `filename` sent without `.sh` and `script_contents` without a trailing newline (server strips both) |
 | `classic.sites` | Classic | ✅ | ✅ | Name-only resource; min ≡ max |
-| `pro.app_installers` | Pro | ✅ | ❌ | No max: the body is in no published schema (`/v1/app-installers` is only in `pro-supplement.json`, which has no bodies), so its writable fields are unknown. Min sends the four fields a 400 on `{}` names as required (`name`, `appTitleId`, `deploymentType`, `updateBehavior`), with the first catalog title from `GET /v1/app-installers/titles` (the spec's `setup`), `SELF_SERVICE` / `MANUAL`, and `enabled: false` so nothing reaches a device. Best-effort: the resource is undocumented, so `get_all`'s pagination and the body shapes are unverified beyond this lifecycle, which does not call `get_all`. |
+| `pro.app_installers` | Pro | ✅ | ✅ | Undocumented by Jamf; the shapes are the probe's (`make schema-path API=pro PATH=/v1/app-installers/deployments`). Every deployment is `enabled: false`, so nothing reaches a device, and uses the first catalog title from `GET /v1/app-installers/titles` (the spec's `setup`). Min sends the four fields a 400 on `{}` names as required (`name`, `appTitleId`, `deploymentType`, `updateBehavior`). Max adds every other writable field the read-back has, with `updateBehavior: MANUAL` and the title's current version as `selectedVersion` (under `AUTOMATIC` the server blanks `selectedVersion`); `categoryId` and `siteId` are `-1`, the server's none. Left out: `smartGroupId` (the server takes `-1`, but a real group is tenant state the spec's `setup` cannot create and clean up), a non-empty `selfServiceSettings.categories` (the same), and the read-only `titleAvailableInAis`, `latestAvailableVersion` and `versionRemoved`. `get_all`'s pagination is proven live in `sdk_behaviour_live_test.py`. |
 | `pro.dock_items` | Pro | ✅ | ✅ | All fields required; min ≡ max |
 | `pro.mdm` | Pro | N/A | N/A | Verb endpoint (send-command) with no CRUD surface to lifecycle-test |
 | `pro.scripts` | Pro | ✅ | ✅ | categoryId/categoryName omitted (instance-state dependent) |

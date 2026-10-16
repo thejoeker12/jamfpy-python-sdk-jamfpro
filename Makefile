@@ -19,13 +19,16 @@ endif
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path scaffold coverage-doc coverage-doc-check
+.PHONY: help setup lock lint typecheck test coverage test-integration check check-matrix schemas schema-paths schema-path scaffold coverage-doc coverage-doc-check
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 setup: ## Create or refresh .venv from uv.lock
 	uv sync
+
+lock: ## Re-resolve uv.lock after a dependency change in pyproject.toml (commit both)
+	uv lock
 
 lint: ## Run pylint over every tracked Python file (fails under 9.0)
 	uv run pylint $$(git ls-files '*.py') --fail-under=9.0

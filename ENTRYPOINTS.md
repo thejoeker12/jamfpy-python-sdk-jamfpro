@@ -24,6 +24,8 @@ jamfpy is a library, so `import jamfpy` is its runtime entry. It needs Python 3.
 | `Hooks` | Registry of request hooks: `before_request`, `after_response`, `on_retry`, `remove` | `jamfpy/client/hooks.py` |
 | `RequestContext` | Frozen dataclass handed to every hook: `tenant`, `api`, `attempt`, `started` | `jamfpy/client/hooks.py` |
 
+`jamfpy.client.logger` also keeps `DEFAULT_FORMAT` (equal to `TEXT_FORMAT`) and `DEFAULT_LEVEL` (`logging.INFO`), public there on 2.x, as compatibility aliases. They are not in `__all__`.
+
 `Tenant` takes keyword arguments only: `fqdn` (a full URL such as `https://acme.jamfcloud.com`), `auth_method` (`"oauth2"` or `"basic"`), `client_id`, `client_secret`, `username`, `password`, `http_config`, `token_exp_threshold_mins`, `log_level`, `safe_mode`, `cert_path`, `verify_path`, `timeout`, `retries` and `parallelism`. Construction makes no network call. The request path is in [Architecture and request lifecycle](AGENTS.md#architecture--request-lifecycle).
 
 ### Exceptions
@@ -65,6 +67,7 @@ Retries, hooks, concurrency and logging: [Retries](AGENTS.md#retries), [Request 
 |---|---|---|---|---|
 | `help` | List the available targets | none | no | no |
 | `setup` | Create or refresh `.venv` from `uv.lock` (`uv sync`) | none | no | no (fetches packages) |
+| `lock` | Re-resolve `uv.lock` after a dependency change in `pyproject.toml` (`uv lock`); commit both | none | no | no (reads the package index) |
 | `lint` | pylint over every tracked Python file; fails under 9.0 | none | no | no |
 | `typecheck` | mypy, strict, over `jamfpy` and `tools` | none | no | no |
 | `test` | The offline unit suite | none | no | no |
@@ -72,7 +75,7 @@ Retries, hooks, concurrency and logging: [Retries](AGENTS.md#retries), [Request 
 | `test-integration` | The live suite: `pytest -m integration tests/integration -v` | none | yes, when `.env` exists | yes |
 | `check` | `lint typecheck coverage coverage-doc-check`: every gate CI runs, none live | none | no | no |
 | `check-matrix` | `check` once per interpreter, each in its own `.venv-<version>` | `PYTHON_VERSIONS` (default `3.15 3.14 3.13`) | no | no |
-| `schemas` | Pull both schemas and re-probe `pro-supplement.json`; writes all three files only if every step succeeds | none | yes, when `.env` exists | yes |
+| `schemas` | Pull both schemas and re-probe `pro-supplement.json` (verbs and observed shapes); writes all three files only if every step succeeds. Its probe creates and deletes one disabled App Installers deployment | none | yes, when `.env` exists | yes |
 | `schema-paths` | List schema paths and their verbs | `API=` (`pro` or `classic`, required), `MATCH=` (optional text) | no | no |
 | `schema-path` | Show one path's methods, parameters and resolved request body | `API=` (required), `PATH=` or `SCHEMA_PATH=` (required) | no | no |
 | `scaffold` | Generate an endpoint, its wiring, tests and live spec from the schema | `API=` (required), `PATH=` or `SCHEMA_PATH=` (required), `NAME=` (a PascalCase class name), `DRY_RUN=1` | no | no |
@@ -94,9 +97,9 @@ Reads and queries `api_schemas/`, and is the only code that parses those files. 
 
 | Subcommand | Arguments | Reads | Writes |
 |---|---|---|---|
-| `refresh` | none (`make schemas`) | The three `JAMFPRO_*` variables, optional source overrides, `pro-supplement.json`; fetches both schemas and probes the tenant | `api_schemas/pro.json`, `classic.json` and `pro-supplement.json`, all or none; prints each drift |
+| `refresh` | none (`make schemas`) | The three `JAMFPRO_*` variables, optional source overrides, `pro-supplement.json`; fetches both schemas and probes the tenant as `probe` does | `api_schemas/pro.json`, `classic.json` and `pro-supplement.json`, all or none; prints the probe's `probe:` lines, then each drift |
 | `pull` | `[--api {pro,classic}]` (default both) | `JAMFPRO_INSTANCE_FQDN` or the source override; fetches the schema | `pro.json` and/or `classic.json`; prints the drift |
-| `probe` | none | The three `JAMFPRO_*` variables, `pro-supplement.json`; probes the tenant | `pro-supplement.json`; prints the drift |
+| `probe` | none | The three `JAMFPRO_*` variables, `pro-supplement.json`; probes the tenant: OPTIONS per path, a GET and a `POST {}` per path without a `{param}`, and one disabled App Installers deployment created, read and deleted | `pro-supplement.json`; on the tenant, that one deployment (deleted again, or the run fails naming it); prints a `probe:` line for its create and delete, then the drift |
 | `drift` | `--api {pro,classic}` (required), `[--source URL-or-path]` | The committed schema and the source (default as `pull`) | nothing; prints the drift |
 | `paths` | `--api {pro,classic}` (required), `[--match TEXT]` (`make schema-paths`) | The committed schemas | nothing; prints paths and verbs |
 | `path` | `--api {pro,classic}` (required), `PATH` (`make schema-path`) | The committed schemas | nothing; prints one path as JSON, `$ref`s resolved |
@@ -144,10 +147,10 @@ The three `JAMFPRO_*` keys are the whole of `.env.example`. `jamfpy` itself read
 ## Inputs the project reads
 
 - `api_schemas/pro.json` and `classic.json`: Jamf's schemas as the tenant serves them. Only `make schemas` writes them. Only `tools/schemas.py` parses them; `make schema-paths`, `make schema-path`, `tools.scaffold`, `tools.coverage_doc` and `tests/contract_test.py` all go through it.
-- `api_schemas/pro-supplement.json`: Pro paths the tenant serves but `pro.json` leaves out, with the verbs an OPTIONS probe found. `make schemas` writes it; the only hand edit is adding or removing a path template. `tools.schemas` merges it into the Pro schema.
+- `api_schemas/pro-supplement.json`: Pro paths the tenant serves but `pro.json` leaves out, with the verbs an OPTIONS probe found and the shapes it observed (`x-jamfpy-observed`). `make schemas` writes it; the only hand edit is adding or removing a path template. `tools.schemas` merges it into the Pro schema.
 - `api_schemas/api-reference-url.txt`: a pointer for people to Jamf's reference; no code reads it.
 - `.env`: gitignored; `.env.example` is the tracked template. Read by `make test-integration` and `make schemas` only.
-- `uv.lock`: read by `uv sync` (`make setup`, and `uv sync --frozen` in CI). Only `uv lock` changes it, after an edit to `pyproject.toml`.
+- `uv.lock`: read by `uv sync` (`make setup`, and `uv sync --frozen` in CI). Only `make lock` (`uv lock`) changes it, after an edit to `pyproject.toml`.
 - `pyproject.toml` and `.pylintrc`: package metadata and the pytest, mypy and pylint configuration.
 
 The schema rules are in [Schemas](AGENTS.md#schemas).
@@ -162,7 +165,7 @@ All go to the `fqdn` you give `Tenant`. Certificate verification is always on: `
 - Classic: `GET`, `POST`, `PUT` and `DELETE` to `/JSSResource/...`, with XML bodies for writes.
 - Pro: the same verbs to `/api/v{n}/...`, with JSON bodies; the version is per endpoint.
 - Every API request carries `Authorization: Bearer <token>`. API and auth calls send `User-Agent: jamfpy/<installed version>`, or `jamfpy/unknown` when jamfpy is not installed as a distribution.
-- `tools.schemas` (not the SDK): unauthenticated `GET /api/schema/` and `GET /classicapi/doc/swagger.yaml` with requests' default User-Agent, or the URL in a source override; and, for the probe, an `OPTIONS` through the SDK to each path template in `pro-supplement.json`, with `0` for each `{param}`.
+- `tools.schemas` (not the SDK): unauthenticated `GET /api/schema/` and `GET /classicapi/doc/swagger.yaml` with requests' default User-Agent, or the URL in a source override; and, for the probe, through the SDK: an `OPTIONS` to each path template in `pro-supplement.json`, with `0` for each `{param}`; a `GET` and a `POST {}` (which fails validation, so creates nothing) to each template without a `{param}`; and its one write, `POST /api/v1/app-installers/deployments` creating a deployment with `enabled: false` named `jamfpy-schemas-probe-<8 hex>`, then `GET` and `DELETE` of that deployment and a `GET` that must answer 404.
 
 ### Log records
 
@@ -209,5 +212,7 @@ The live suite is opt-in: `make test-integration` or `integration-test.yml`. Eve
 - Creates, for each live spec in `tests/integration/*_resources_live_test.py`, a minimal record and, where the spec has a `max` builder, a maximal one, each taken through create, read, update, read, delete and a 404 read; and a few extra records for the SDK-behaviour checks in `sdk_behaviour_live_test.py`. The resources covered are in [COVERAGE.md](COVERAGE.md).
 - Every created record is named `jamfpy-it-{GITHUB_RUN_ID or local}-{8 hex characters}` (the `unique_name` fixture), so a leftover traces back to its run.
 - The `janitor` fixture holds every `(endpoint, id, ok_codes)` registered right after a create and deletes them at teardown, even when the test failed. A 404 counts as success; any other status fails the run with `cleanup failed for: ...`, and the surviving record keeps the `jamfpy-it-` prefix.
-- Reads existing records only where a test needs them (listing `categories`, `scripts`, the app installer catalog titles). It deletes only ids it registered.
+- Reads existing records only where a test needs them (listing `categories`, `scripts`, the app installer catalog titles and deployments). It deletes only ids it registered.
+- Every App Installers deployment it creates has `enabled: false`, so none reaches a device.
+- Outside the live suite, `make schemas` is the one other thing that writes to the tenant: its probe creates one disabled deployment named `jamfpy-schemas-probe-<8 hex>` and deletes it in the same run, or fails naming it (see [Schemas](AGENTS.md#schemas)).
 - Never sends an MDM command (`pro.mdm` has no live spec) and never changes tenant-wide settings: no live spec or test touches a settings path, and the app installers `global-settings` path is not wired in the SDK.

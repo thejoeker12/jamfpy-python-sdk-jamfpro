@@ -631,8 +631,9 @@ A Pro endpoint has only the methods its resource supports in Jamf's schema. `/v1
 for example, so `tenant.pro.dock_items` has no `get_all`.
 
 `tenant.pro.app_installers` is the exception: Jamf's published schema leaves out `/v1/app-installers`, so its verbs
-come from a probe of a live tenant (the repository's `pro-supplement.json`), not from Jamf's schema, and its
-pagination and body shapes are best-effort.
+and body shapes come from a probe of a live tenant (the repository's `pro-supplement.json`), not from Jamf's schema.
+Its pagination and a full create, read, update and delete are tested against a live tenant, but Jamf documents
+neither, so they can change without notice.
 
 Action endpoints send commands rather than manage records. `tenant.pro.mdm` sends MDM commands: it has wrappers for
 common commands, which map Python arguments to Jamf's field names, and `send_command` for any command type:

@@ -18,6 +18,9 @@ from .redaction import redact
 
 LOGGER_NAME = "jamfpy"
 TEXT_FORMAT = "%(asctime)s [%(levelname)s] (%(name)s): %(message)s"
+# Compatibility aliases: both names were public in this module on 2.x, so code that imported them keeps working.
+DEFAULT_FORMAT = TEXT_FORMAT
+DEFAULT_LEVEL = logging.INFO
 # The structured fields API.do() passes as ``extra=``; the JSON format emits each one only when a record has it.
 STRUCTURED_FIELDS = ("method", "url", "status", "duration_ms", "attempt")
 # Longest header or body rendering a DEBUG line carries, in characters.

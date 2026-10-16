@@ -227,7 +227,11 @@ make schema-paths API=pro MATCH=scripts
 and sorted. **The `/v1`, `/v2`... prefix on a Pro path IS the string `url()` needs**:
 `/v1/scripts` → `"1"`, `/v2/mdm/commands` → `"2"`. A path Jamf's schema leaves out but the tenant
 serves comes from the supplement and is marked, e.g.
-`/v1/app-installers/deployments  get post  [options-probe]`.
+`/v1/app-installers/deployments  get post  [options-probe]`. Such a path has no `requestBody`;
+`make schema-path` shows instead, in each verb the probe observed, an `x-jamfpy-observed` entry:
+the 200 body's shape for a GET, the `requiredFields` a `POST {}` was refused for, and for
+`/v1/app-installers/deployments/{id}` the read-back of a disabled deployment the probe creates
+and deletes (`AGENTS.md` → *Schemas*).
 
 `API=classic` works the same way (Swagger 2.0, basePath `/JSSResource/`). `/id/{id}` and
 `/name/{name}` path shapes (`make schema-paths API=classic MATCH=buildings` lists `/buildings`,

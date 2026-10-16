@@ -9,12 +9,15 @@ import copy
 import datetime as dt
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import requests
 import responses
+from responses.registries import OrderedRegistry
 from conftest import FAKE_TOKEN, FQDN, register_oauth_token
 
 from tools import schemas
@@ -490,12 +493,18 @@ PROBE_INPUT = {
 }
 
 
-def register_probe_answers(mocked_responses):
+APP_INSTALLERS_BODY = {"features": ["APP_INSTALLERS"], "cloudServicesEnabled": True}
+APP_INSTALLERS_SHAPE = {"cloudServicesEnabled": "boolean", "features": ["string"]}
+
+
+def register_probe_answers(mocked_responses, deployment_allow="PUT, GET, HEAD, DELETE, OPTIONS", body=None):
     base = f"{FQDN}/api/v1/app-installers"
     mocked_responses.add(responses.OPTIONS, base, headers={"Allow": "GET,HEAD,OPTIONS"})
-    mocked_responses.add(responses.OPTIONS, f"{base}/deployments/0", headers={"Allow": "PUT, GET, HEAD, DELETE, OPTIONS"})
+    mocked_responses.add(responses.OPTIONS, f"{base}/deployments/0", headers={"Allow": deployment_allow})
     # No Allow header at all, as the installation-retry route has answered before.
     mocked_responses.add(responses.OPTIONS, f"{base}/deployments/0/computers/installation-retry")
+    # The one path without a {param}, so the only one observed.
+    mocked_responses.get(base, json=APP_INSTALLERS_BODY if body is None else body)
 
 
 def test_probe_reads_verbs_from_the_allow_header(tenant, mocked_responses):
@@ -503,7 +512,13 @@ def test_probe_reads_verbs_from_the_allow_header(tenant, mocked_responses):
     probed = schemas.probe(PROBE_INPUT, tenant, now=NOW)
     id_param = [{"name": "id", "in": "path", "required": True, "schema": {"type": "string"}}]
     assert probed["paths"] == {
-        "/v1/app-installers": {"x-jamfpy-source": "options-probe", "get": {}},
+        "/v1/app-installers": {
+            "x-jamfpy-source": "options-probe",
+            "get": {},
+            "x-jamfpy-observed": {
+                "get": {"observedAt": "2026-10-15", "method": schemas.OBSERVE_METHODS["get"], "status": 200, "response": APP_INSTALLERS_SHAPE},
+            },
+        },
         "/v1/app-installers/deployments/{id}": {
             "x-jamfpy-source": "options-probe", "parameters": id_param, "get": {}, "put": {}, "delete": {},
         },
@@ -512,14 +527,17 @@ def test_probe_reads_verbs_from_the_allow_header(tenant, mocked_responses):
     generated = probed["x-jamfpy-generated"]
     assert generated["generatedAt"] == "2026-10-15T12:00:00+00:00"
     assert "Allow header" in generated["method"]
-    assert "verbs are always probed, never typed" in generated["note"]
+    assert "x-jamfpy-observed" in generated["method"]
+    assert "verbs and shapes are always probed, never typed" in generated["note"]
 
 
-def test_probe_sends_options_through_the_sdk_with_the_token(tenant, mocked_responses):
+def test_probe_sends_options_then_observes_through_the_sdk_with_the_token(tenant, mocked_responses):
     register_probe_answers(mocked_responses)
     schemas.probe(PROBE_INPUT, tenant, now=NOW)
     sent = [call.request for call in mocked_responses.calls]
-    assert [request.method for request in sent] == ["OPTIONS"] * 3
+    assert [request.method for request in sent] == ["OPTIONS"] * 3 + ["GET"]
+    # Nothing but OPTIONS reaches a path with a {param}.
+    assert sent[-1].url == f"{FQDN}/api/v1/app-installers"
     assert all(request.headers["Authorization"] == f"Bearer {FAKE_TOKEN}" for request in sent)
     assert all(request.headers["User-Agent"].startswith("jamfpy/") for request in sent)
 
@@ -541,16 +559,31 @@ def test_probe_moves_the_stamp_when_a_verb_or_a_path_changes(tenant, mocked_resp
     first = schemas.probe(PROBE_INPUT, tenant, now=NOW)
     later = NOW + dt.timedelta(hours=1)
     # A new verb on one path.
-    base = f"{FQDN}/api/v1/app-installers"
-    mocked_responses.add(responses.OPTIONS, base, headers={"Allow": "GET,POST,HEAD,OPTIONS"})
-    mocked_responses.add(responses.OPTIONS, f"{base}/deployments/0", headers={"Allow": "PUT, GET, HEAD, DELETE, OPTIONS"})
-    mocked_responses.add(responses.OPTIONS, f"{base}/deployments/0/computers/installation-retry")
+    register_probe_answers(mocked_responses, deployment_allow="PUT, GET, HEAD, DELETE, PATCH, OPTIONS")
     assert schemas.probe(first, tenant, now=later)["x-jamfpy-generated"]["generatedAt"] == "2026-10-15T13:00:00+00:00"
     # A path the probe never saw before.
     register_probe_answers(mocked_responses)
+    base = f"{FQDN}/api/v1/app-installers"
     mocked_responses.add(responses.OPTIONS, f"{base}/titles", headers={"Allow": "GET,HEAD,OPTIONS"})
+    mocked_responses.get(f"{base}/titles", json={"totalCount": 0, "results": []})
     grown = {"paths": {**first["paths"], "/v1/app-installers/titles": {}}, "x-jamfpy-generated": first["x-jamfpy-generated"]}
     assert schemas.probe(grown, tenant, now=later)["x-jamfpy-generated"]["generatedAt"] == "2026-10-15T13:00:00+00:00"
+
+
+def test_probe_keeps_observed_at_until_the_shape_changes(tenant, mocked_responses):
+    register_probe_answers(mocked_responses)
+    first = schemas.probe(PROBE_INPUT, tenant, now=NOW)
+    next_day = NOW + dt.timedelta(days=1)
+    register_probe_answers(mocked_responses, body={**APP_INSTALLERS_BODY, "cloudServicesEnabled": False})
+    same_shape = schemas.probe(first, tenant, now=next_day)
+    assert same_shape == first
+    # A new key is a new shape: the observation and the file's stamp both move.
+    register_probe_answers(mocked_responses, body={**APP_INSTALLERS_BODY, "region": "eu"})
+    grown = schemas.probe(first, tenant, now=next_day)
+    observed = grown["paths"]["/v1/app-installers"]["x-jamfpy-observed"]["get"]
+    assert observed["observedAt"] == "2026-10-16"
+    assert observed["response"] == {**APP_INSTALLERS_SHAPE, "region": "string"}
+    assert grown["x-jamfpy-generated"]["generatedAt"] == "2026-10-16T12:00:00+00:00"
 
 
 def test_probe_raises_on_an_error_status(tenant, mocked_responses):
@@ -568,6 +601,363 @@ def test_probe_raises_when_no_verbs_are_known(tenant, mocked_responses):
 def test_probe_raises_for_a_path_without_a_version(tenant):
     with pytest.raises(schemas.SchemaError, match="has no /v<n> version prefix"):
         schemas.probe({"paths": {"/app-installers": {"get": {}}}}, tenant)
+
+
+@pytest.mark.parametrize(("value", "shape"), [
+    ("x", "string"),
+    (1, "integer"),
+    (1.5, "number"),
+    (True, "boolean"),
+    (None, "null"),
+    ([], []),
+    ([{"b": 1, "a": None}, {"c": 2}], [{"a": "null", "b": "integer"}]),
+    ({"z": [], "a": {"y": False, "x": ["s"]}}, {"a": {"x": ["string"], "y": "boolean"}, "z": []}),
+])
+def test_json_shape(value, shape):
+    assert schemas.json_shape(value) == shape
+
+
+def test_json_shape_sorts_object_keys():
+    assert list(schemas.json_shape({"b": 1, "a": 1, "c": 1})) == ["a", "b", "c"]
+
+
+THINGS = {"paths": {"/v1/things": {"get": {}, "post": {}}, "/v1/things/{id}": {"get": {}, "delete": {}}}}
+VALIDATION_ERRORS = {"httpStatus": 400, "errors": [
+    {"code": "INVALID_FIELD", "field": "name", "description": "field is required", "id": None},
+    {"code": "INVALID_FIELD", "field": "kind", "description": "kind is missing or wrong value", "id": None},
+    {"code": "OTHER", "description": "not about a field", "id": None},
+]}
+
+
+def register_things(mocked_responses, post_status=400, post_body=None):
+    base = f"{FQDN}/api/v1/things"
+    mocked_responses.add(responses.OPTIONS, base, headers={"Allow": "GET,POST,HEAD,OPTIONS"})
+    mocked_responses.add(responses.OPTIONS, f"{base}/0", headers={"Allow": "GET,DELETE,HEAD,OPTIONS"})
+    mocked_responses.get(base, json={"totalCount": 1, "results": [{"id": "1", "name": "one", "on": True}]})
+    mocked_responses.post(base, status=post_status, json=VALIDATION_ERRORS if post_body is None else post_body)
+
+
+def test_probe_observes_get_and_post_on_paths_without_a_param(tenant, mocked_responses):
+    register_things(mocked_responses)
+    probed = schemas.probe(THINGS, tenant, now=NOW)
+
+    observed = probed["paths"]["/v1/things"]["x-jamfpy-observed"]
+    assert list(observed) == ["get", "post"]
+    assert observed["get"] == {
+        "observedAt": "2026-10-15", "method": schemas.OBSERVE_METHODS["get"], "status": 200,
+        "response": {"results": [{"id": "string", "name": "string", "on": "boolean"}], "totalCount": "integer"},
+    }
+    assert observed["post"] == {
+        "observedAt": "2026-10-15", "method": schemas.OBSERVE_METHODS["post"], "status": 400,
+        "requiredFields": [{"field": "kind", "code": "INVALID_FIELD"}, {"field": "name", "code": "INVALID_FIELD"}],
+    }
+    assert "x-jamfpy-observed" not in probed["paths"]["/v1/things/{id}"]
+    sent = [(call.request.method, call.request.url) for call in mocked_responses.calls]
+    assert sent[2:] == [("GET", f"{FQDN}/api/v1/things"), ("POST", f"{FQDN}/api/v1/things")]
+    post = mocked_responses.calls[-1].request
+    assert json.loads(post.body) == {}
+    assert post.headers["Content-Type"] == "application/json"
+
+
+@pytest.mark.parametrize(("status", "message"), [
+    (201, r"POST \{\} to .*/api/v1/things returned 201, so it may have created a record: check and delete it by hand"),
+    (403, r"POST \{\} to .*/api/v1/things returned 403, not the 400 validation answer the probe reads"),
+])
+def test_probe_refuses_a_post_that_does_not_fail_validation(tenant, mocked_responses, status, message):
+    register_things(mocked_responses, post_status=status, post_body={"id": "9"})
+    with pytest.raises(schemas.SchemaError, match=message):
+        schemas.probe(THINGS, tenant, now=NOW)
+
+
+def test_probe_raises_on_a_failed_get(tenant, mocked_responses):
+    base = f"{FQDN}/api/v1/app-installers"
+    mocked_responses.add(responses.OPTIONS, base, headers={"Allow": "GET,HEAD,OPTIONS"})
+    mocked_responses.get(base, status=403)
+    with pytest.raises(schemas.SchemaError, match=r"^GET .*/api/v1/app-installers returned 403$"):
+        schemas.probe({"paths": {"/v1/app-installers": {}}}, tenant, now=NOW)
+
+
+def test_probe_raises_on_a_body_that_is_not_json(tenant, mocked_responses):
+    base = f"{FQDN}/api/v1/app-installers"
+    mocked_responses.add(responses.OPTIONS, base, headers={"Allow": "GET,HEAD,OPTIONS"})
+    mocked_responses.get(base, body="<html>")
+    with pytest.raises(schemas.SchemaError, match=r"returned 200 with a body that is not JSON"):
+        schemas.probe({"paths": {"/v1/app-installers": {}}}, tenant, now=NOW)
+
+
+# The deployment the probe creates, reads and deletes.
+
+DEPLOYMENTS_URL = f"{FQDN}/api/v1/app-installers/deployments"
+LIFECYCLE_INPUT = {"paths": {
+    "/v1/app-installers/titles": {},
+    "/v1/app-installers/deployments": {},
+    "/v1/app-installers/deployments/{id}": {},
+}}
+DEPLOYMENT_BODY = {"id": "7", "name": "x", "enabled": False, "notificationSettings": {"deadline": None}, "selfServiceSettings": {"categories": []}}
+DEPLOYMENT_SHAPE = {"enabled": "boolean", "id": "string", "name": "string", "notificationSettings": {"deadline": "null"},
+                    "selfServiceSettings": {"categories": []}}
+LIST_ITEM = {"id": "7", "name": "x", "app": {"titleName": "t"}, "computerStatuses": {"total": 0}}
+LIST_SHAPE = {"results": [{"app": {"titleName": "string"}, "computerStatuses": {"total": "integer"}, "id": "string", "name": "string"}],
+              "totalCount": "integer"}
+
+
+def register_prelude(mocked_responses, existing=()):
+    """The answers up to the lifecycle's create, in the order the probe asks for them."""
+    titles = f"{FQDN}/api/v1/app-installers/titles"
+    allowed = {titles: "GET,HEAD,OPTIONS", DEPLOYMENTS_URL: "GET,POST,HEAD,OPTIONS", f"{DEPLOYMENTS_URL}/0": "GET,PUT,DELETE,HEAD,OPTIONS"}
+    for url, allow in allowed.items():
+        mocked_responses.add(responses.OPTIONS, url, headers={"Allow": allow})
+    # Then the observations' GET and POST {}, and the catalog title the create is built from.
+    catalog = {"totalCount": 2, "results": [{"id": "301", "titleName": "a"}, {"id": "302", "titleName": "b"}]}
+    mocked_responses.get(titles, json=catalog)
+    mocked_responses.get(DEPLOYMENTS_URL, json={"totalCount": len(existing), "results": list(existing)})
+    mocked_responses.post(DEPLOYMENTS_URL, status=400, json=VALIDATION_ERRORS)
+    # The ?page=0&page-size=1 request the create is built from; responses ignores a query string the registration lacks.
+    mocked_responses.get(titles, json=catalog)
+
+
+def register_lifecycle(mocked_responses, *, existing=(), deployment_id="7", create=(201, None), read_status=200, delete_status=204,
+                       gone_status=404):
+    """The tenant's answers for a probe of LIFECYCLE_INPUT: catalog titles, an empty deployment list, one deployment.
+
+    ``create`` is the create's ``(status, body)``: a ``None`` body is the deployment's id, a string is sent as it is and an
+    exception is raised by the request. ``gone_status=None`` leaves the GET after the delete unregistered.
+    Only the requests the probe gets to are registered, so ``mocked_responses`` still fails a test on an unused one.
+    """
+    one = f"{DEPLOYMENTS_URL}/{deployment_id}"
+    register_prelude(mocked_responses, existing)
+    # FirstMatchRegistry serves several registrations of one URL in turn: POST {} first, then the create.
+    create_status, create_body = create
+    if isinstance(create_body, Exception):
+        mocked_responses.post(DEPLOYMENTS_URL, body=create_body)
+        return
+    answer = {"body": create_body} if isinstance(create_body, str) else {"json": create_body or {"id": deployment_id, "href": one}}
+    mocked_responses.post(DEPLOYMENTS_URL, status=create_status, **answer)
+    if not 200 <= create_status < 300 or create_body is not None:
+        return
+    mocked_responses.get(one, status=read_status, json=DEPLOYMENT_BODY)
+    if not existing and read_status == 200:
+        mocked_responses.get(DEPLOYMENTS_URL, json={"totalCount": 1, "results": [LIST_ITEM]})
+    mocked_responses.delete(one, status=delete_status)
+    # Read before the delete or not, a delete that worked is followed by the GET that must answer 404.
+    if delete_status == 204 and gone_status is not None:
+        mocked_responses.get(one, status=gone_status)
+
+
+def test_probe_creates_reads_and_deletes_one_disabled_deployment(tenant, mocked_responses, capsys):
+    register_lifecycle(mocked_responses)
+    probed = schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+
+    sent = [(call.request.method, call.request.url.removeprefix(f"{FQDN}/api/v1/app-installers")) for call in mocked_responses.calls]
+    assert sent[3:] == [
+        ("GET", "/titles"), ("GET", "/deployments"), ("POST", "/deployments"),
+        ("GET", "/titles?page=0&page-size=1"), ("POST", "/deployments"),
+        ("GET", "/deployments/7"), ("GET", "/deployments"), ("DELETE", "/deployments/7"), ("GET", "/deployments/7"),
+    ]
+    created = json.loads(mocked_responses.calls[7].request.body)
+    assert created["name"].startswith("jamfpy-schemas-probe-") and len(created["name"]) == len("jamfpy-schemas-probe-") + 8
+    assert {key: value for key, value in created.items() if key != "name"} == {
+        "enabled": False, "appTitleId": "301", "deploymentType": "SELF_SERVICE", "updateBehavior": "MANUAL",
+    }
+    by_id = probed["paths"]["/v1/app-installers/deployments/{id}"]["x-jamfpy-observed"]
+    assert by_id == {"get": {
+        "source": "lifecycle", "observedAt": "2026-10-15", "method": schemas.OBSERVE_METHODS["read"], "status": 200,
+        "response": DEPLOYMENT_SHAPE,
+    }}
+    collection = probed["paths"]["/v1/app-installers/deployments"]["x-jamfpy-observed"]
+    assert collection["get"] == {
+        "source": "lifecycle", "observedAt": "2026-10-15", "method": schemas.OBSERVE_METHODS["list"], "status": 200, "response": LIST_SHAPE,
+    }
+    assert [field["field"] for field in collection["post"]["requiredFields"]] == ["kind", "name"]
+    out = capsys.readouterr().out.splitlines()
+    assert out == [
+        f"probe: created disabled deployment 7 ({created['name']}) to observe its shape; deleting it next",
+        "probe: deleted deployment 7; GET by id now answers 404",
+    ]
+
+
+def test_probe_lifecycle_is_byte_stable_across_runs(tenant, mocked_responses, tmp_path):
+    register_lifecycle(mocked_responses)
+    first = schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    # Another day, another deployment id: only shapes are recorded, so nothing moves.
+    register_lifecycle(mocked_responses, deployment_id="8")
+    again = schemas.probe(first, tenant, now=NOW + dt.timedelta(days=1))
+    schemas.save(first, tmp_path / "first.json")
+    schemas.save(again, tmp_path / "again.json")
+    assert (tmp_path / "again.json").read_bytes() == (tmp_path / "first.json").read_bytes()
+
+
+def test_probe_keeps_the_list_shape_it_read_when_the_tenant_has_deployments(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, existing=[{"id": "1", "name": "theirs"}])
+    probed = schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    collection = probed["paths"]["/v1/app-installers/deployments"]["x-jamfpy-observed"]["get"]
+    assert "source" not in collection
+    assert collection["response"] == {"results": [{"id": "string", "name": "string"}], "totalCount": "integer"}
+    assert [call.request.method for call in mocked_responses.calls].count("GET") == 5
+
+
+def test_probe_deletes_its_deployment_and_rechecks_the_404_when_a_later_step_fails(tenant, mocked_responses, capsys):
+    register_lifecycle(mocked_responses, read_status=403)
+    with pytest.raises(schemas.SchemaError, match=r"^GET .*/deployments/7 returned 403$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls[-2:]] == ["DELETE", "GET"]
+    assert capsys.readouterr().out.startswith("probe: created disabled deployment 7 ")
+
+
+@pytest.mark.parametrize("response_registry", [OrderedRegistry])
+def test_probe_cleanup_follows_the_create_read_failure_delete_and_404_in_order(tenant, mocked_responses):
+    one = f"{DEPLOYMENTS_URL}/7"
+    register_prelude(mocked_responses)
+    mocked_responses.post(DEPLOYMENTS_URL, status=201, json={"id": "7"})
+    # The failing step: the read answers 200 with a body that is not JSON.
+    mocked_responses.get(one, body="<html>")
+    mocked_responses.delete(one, status=204)
+    mocked_responses.get(one, status=404)
+    with pytest.raises(schemas.SchemaError, match=r"^GET .*/deployments/7 returned 200 with a body that is not JSON$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    # OrderedRegistry spends one registration per request, in order, and the fixture fails on an unused one.
+    assert [(call.request.method, call.request.url) for call in mocked_responses.calls[-4:]] == [
+        ("POST", DEPLOYMENTS_URL), ("GET", one), ("DELETE", one), ("GET", one),
+    ]
+
+
+def test_probe_fails_naming_the_deployment_when_the_cleanup_cannot_show_it_gone(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, read_status=403, gone_status=200)
+    message = (
+        r"^could not confirm the probe's deployment 7 \(jamfpy-schemas-probe-[0-9a-f]{8}\) is gone "
+        r"\(GET by id answered 200\): check it and delete it by hand$"
+    )
+    with pytest.raises(schemas.SchemaError, match=message):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls].count("DELETE") == 1
+
+
+def test_probe_deletes_its_deployment_when_the_line_after_the_create_fails(tenant, mocked_responses, monkeypatch):
+    # A stdout that has gone away (a closed pipe) must not leave the record behind.
+    one = f"{DEPLOYMENTS_URL}/7"
+    register_prelude(mocked_responses)
+    mocked_responses.post(DEPLOYMENTS_URL, status=201, json={"id": "7"})
+    mocked_responses.delete(one, status=204)
+    mocked_responses.get(one, status=404)
+
+    def closed_pipe(*_args, **_kwargs):
+        raise BrokenPipeError("stdout closed")
+
+    monkeypatch.setattr(schemas, "print", closed_pipe, raising=False)
+    with pytest.raises(BrokenPipeError):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls[-3:]] == ["POST", "DELETE", "GET"]
+
+
+def test_probe_names_the_deployment_it_could_not_delete(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, read_status=403, delete_status=403)
+    leftover = r"^could not delete the probe's deployment 7 \(jamfpy-schemas-probe-[0-9a-f]{8}\): delete it by hand$"
+    with pytest.raises(schemas.SchemaError, match=leftover):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+
+
+def test_probe_names_the_deployment_when_the_cleanup_delete_raises(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, read_status=403, delete_status=204, gone_status=None)
+    # Replace the DELETE answer: a connection error on every attempt, retries included.
+    mocked_responses.replace(responses.DELETE, f"{DEPLOYMENTS_URL}/7", body=requests.exceptions.ConnectionError("down"))
+    with pytest.raises(schemas.SchemaError, match=r"^could not delete the probe's deployment 7 "):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+
+
+def test_probe_fails_when_its_deployment_is_still_readable_after_the_delete(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, gone_status=200)
+    with pytest.raises(schemas.SchemaError, match=r"returned 200 after the probe deleted its deployment$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    # The delete itself answered 204, so the cleanup does not send another.
+    assert [call.request.method for call in mocked_responses.calls].count("DELETE") == 1
+
+
+def test_probe_fails_when_the_delete_does_not_answer_204(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, delete_status=403)
+    # The cleanup's DELETE works and the record is gone, so the error is the first one's.
+    mocked_responses.delete(f"{DEPLOYMENTS_URL}/7", status=204)
+    mocked_responses.get(f"{DEPLOYMENTS_URL}/7", status=404)
+    with pytest.raises(schemas.SchemaError, match=r"^DELETE .*/deployments/7 did not answer 204$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls].count("DELETE") == 2
+
+
+def test_probe_names_the_deployment_when_every_delete_fails(tenant, mocked_responses):
+    # 500 is retried, so each DELETE is four attempts; both the delete and the cleanup give up.
+    register_lifecycle(mocked_responses, delete_status=500)
+    leftover = r"^could not delete the probe's deployment 7 \(jamfpy-schemas-probe-[0-9a-f]{8}\): delete it by hand$"
+    with pytest.raises(schemas.SchemaError, match=leftover):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    # No GET follows a delete that did not work: there is nothing to confirm.
+    assert mocked_responses.calls[-1].request.method == "DELETE"
+
+
+def test_probe_does_not_create_without_a_catalog_title(tenant, mocked_responses):
+    titles = f"{FQDN}/api/v1/app-installers/titles"
+    for key in ("titles", "deployments", "deployments/0"):
+        mocked_responses.add(responses.OPTIONS, f"{FQDN}/api/v1/app-installers/{key}", headers={"Allow": "GET,POST,DELETE"})
+    mocked_responses.get(titles, json={"totalCount": 0, "results": []})
+    mocked_responses.post(titles, status=400, json=VALIDATION_ERRORS)
+    mocked_responses.get(DEPLOYMENTS_URL, json={"totalCount": 0, "results": []})
+    mocked_responses.post(DEPLOYMENTS_URL, status=400, json=VALIDATION_ERRORS)
+    with pytest.raises(schemas.SchemaError, match=r"no catalog title to create the probe's deployment from$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls].count("POST") == 2
+
+
+def test_probe_reports_a_refused_create(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, create=(403, {}))
+    with pytest.raises(schemas.SchemaError, match=r"returned 403; the probe could not create its deployment$"):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert mocked_responses.calls[-1].request.method == "POST"
+
+
+@pytest.mark.parametrize("status", [200, 202])
+def test_probe_follows_any_2xx_create_that_has_an_id(tenant, mocked_responses, status):
+    register_lifecycle(mocked_responses, create=(status, None))
+    probed = schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert probed["paths"]["/v1/app-installers/deployments/{id}"]["x-jamfpy-observed"]["get"]["source"] == "lifecycle"
+    assert mocked_responses.calls[-2].request.method == "DELETE"
+
+
+@pytest.mark.parametrize(("status", "body"), [
+    (201, {"href": "x"}),
+    (200, {"id": None}),
+    (202, {"id": ""}),
+    (201, "<html>"),
+])
+def test_probe_names_the_deployment_when_a_2xx_create_has_no_id(tenant, mocked_responses, status, body):
+    register_lifecycle(mocked_responses, create=(status, body))
+    message = (
+        rf"^POST .*/deployments returned {status} without an id: "
+        r"find the deployment named jamfpy-schemas-probe-[0-9a-f]{8} and delete it by hand$"
+    )
+    with pytest.raises(schemas.SchemaError, match=message):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    # Without an id there is nothing to delete.
+    assert [call.request.method for call in mocked_responses.calls].count("DELETE") == 0
+
+
+def test_probe_names_the_deployment_when_the_create_fails_in_transit(tenant, mocked_responses):
+    register_lifecycle(mocked_responses, create=(None, requests.exceptions.ConnectionError("down")))
+    message = r"^POST .*/deployments failed \(down\); if it created the probe's deployment jamfpy-schemas-probe-[0-9a-f]{8}, delete it by hand$"
+    with pytest.raises(schemas.SchemaError, match=message):
+        schemas.probe(LIFECYCLE_INPUT, tenant, now=NOW)
+    assert [call.request.method for call in mocked_responses.calls].count("DELETE") == 0
+
+
+def test_path_shows_each_verbs_observation_next_to_its_request_body():
+    supplement = {"paths": {"/v1/app-installers/deployments": {
+        "x-jamfpy-source": "options-probe",
+        "get": {},
+        "post": {},
+        "x-jamfpy-observed": {"post": {"observedAt": "2026-10-15", "method": "m", "status": 400, "requiredFields": []}},
+    }}}
+    schema = schemas.merge_supplement(copy.deepcopy(OPENAPI), supplement)
+    described = schemas.path("pro", "/v1/app-installers/deployments", schema=schema)
+    assert described["methods"]["post"]["x-jamfpy-observed"]["requiredFields"] == []
+    assert "x-jamfpy-observed" not in described["methods"]["get"]
+    assert "x-jamfpy-observed" not in described
 
 
 def test_tenant_from_env_names_the_missing_variables(no_schema_env):
@@ -781,7 +1171,8 @@ def test_cli_probe_rewrites_the_supplement_through_a_tenant_from_env(no_schema_e
 
     assert schemas.main(["probe"]) == 0
     out = capsys.readouterr().out
-    assert out.startswith("pro-supplement: 3 -> 3 paths (0 added, 0 removed, 2 changed)\n")
+    assert out.startswith("pro-supplement: 3 -> 3 paths (0 added, 0 removed, 3 changed)\n")
+    assert "  ~ /v1/app-installers  (differs in x-jamfpy-observed)" in out
     written = json.loads((schema_dir / "pro-supplement.json").read_text(encoding="utf-8"))
     assert written["paths"][RETRY]["x-jamfpy-probe"] == "allow-header-missing"
     assert list(written) == ["x-jamfpy-generated", "paths"]
@@ -896,6 +1287,21 @@ def test_cli_refresh_writes_nothing_when_the_probe_fails(schema_dir, no_schema_e
 
     assert schemas.main(["refresh"]) == 1
     assert capsys.readouterr().err.endswith("/api/v1/app-installers returned 500\n")
+    assert digests(schema_dir) == before
+
+
+def test_cli_probe_exits_1_naming_the_deployment_it_could_not_delete_and_writes_nothing(no_schema_env, schema_dir, mocked_responses, capsys):
+    set_probe_credentials(no_schema_env)
+    write_json(schema_dir / "pro-supplement.json", LIFECYCLE_INPUT)
+    before = digests(schema_dir)
+    register_oauth_token(mocked_responses)
+    # 403 is not retried, so the run doesn't wait on backoff: the delete and the cleanup both fail.
+    register_lifecycle(mocked_responses, delete_status=403)
+    mocked_responses.post(f"{FQDN}/api/v1/auth/invalidate-token", status=204)
+
+    assert schemas.main(["probe"]) == 1
+    err = capsys.readouterr().err
+    assert re.fullmatch(r"schemas: could not delete the probe's deployment 7 \(jamfpy-schemas-probe-[0-9a-f]{8}\): delete it by hand\n", err)
     assert digests(schema_dir) == before
 
 
