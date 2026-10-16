@@ -35,6 +35,9 @@ or, in a uv project:
 uv add jamfpy
 ```
 
+The features described here ship from the next major release. The current PyPI release, 2.7.0, has no request hooks,
+retries, `configure_logging`, `parallelism` or lazy authentication.
+
 ## Quickstart
 
 Build a `Tenant` for your Jamf Pro instance, then call endpoints on `tenant.classic` and `tenant.pro`. The examples
@@ -43,6 +46,7 @@ built the same way.
 
 ```python
 import os
+from xml.etree import ElementTree
 
 import jamfpy
 
@@ -70,13 +74,24 @@ if script.ok:
 created = tenant.classic.buildings.create(
     "<building><name>London</name></building>"
 )
-print(created.status_code, created.text)
+if created.ok:
+    new_id = ElementTree.fromstring(created.content).findtext("id")
+    print("Created building", new_id)
+else:
+    print("Creating the building failed:", created.status_code, created.text)
 
 # A Pro write takes a dict, sent as JSON.
 new_script = tenant.pro.scripts.create(
     {"name": "Hello", "scriptContents": "#!/bin/sh\necho hello\n"}
 )
-print(new_script.status_code, new_script.json()["id"])
+if new_script.ok:
+    print("Created script", new_script.json()["id"])
+else:
+    print(
+        "Creating the script failed:",
+        new_script.status_code,
+        new_script.text,
+    )
 
 # Invalidate the token. Both APIs share it, so this covers tenant.pro too.
 tenant.classic.close()
@@ -136,8 +151,12 @@ except JamfAuthError as exc:
     raise SystemExit(f"Jamf Pro refused the credentials: {exc}") from exc
 ```
 
-The exceptions live in `jamfpy.client.exceptions`. A `JamfAuthError` from a refused token request carries the token
-endpoint's `Response`; any body text it includes is redacted, whatever `safe_mode` says.
+The exceptions live in `jamfpy.client.exceptions`. `str(exc)` and the message text of a `JamfAuthError` are redacted,
+whatever `safe_mode` says, so they are safe to log. `exc.args` is not: a refused token request also carries the
+`requests.Response` (OAuth: `exc.args[1]`, then the redacted body text; basic auth: the status code, then the
+Response as `exc.args[2]`), and that Response's `request` holds the raw request body or headers, which include the
+client secret or the `Authorization: Basic` credentials. Never serialise `exc.args` or the Response into a log or a
+crash report. A keep-alive failure (basic auth) raises a `JamfAuthError` that carries no Response.
 
 ### Token refresh
 
@@ -192,7 +211,7 @@ tenant = jamfpy.Tenant(
     log_level=logging.INFO,
     safe_mode=True,
     timeout=(5.0, 60.0),
-    retries=jamfpy.RetryConfig(total=5, retry_post=True),
+    retries=jamfpy.RetryConfig(total=5),
     parallelism=5,
 )
 ```
@@ -376,7 +395,9 @@ Any other `fmt` raises `ValueError`.
 | WARNING | Each retry, a request hook that raised, a failed token invalidation in `close()`, the one-time token buffer warning, and a `get_all` page that repeats page 0. |
 | ERROR | Giving up on a request that was still retryable. |
 
-A clean request logs nothing above INFO, and auth calls never log at INFO.
+A clean request logs nothing above INFO, and auth calls never log at INFO. The one exception is the first token
+fetch for an API client whose tokens last no longer than the refresh buffer: it logs the one-time buffer WARNING (see
+[Token refresh](#token-refresh)).
 
 The lines for each request attempt (the DEBUG request and response lines, the INFO line, and any retry WARNING or
 give-up ERROR) also carry their fields as attributes on the `LogRecord`: `method`, `url` and `attempt`, then
@@ -413,8 +434,9 @@ are never redacted either. No URL jamfpy builds carries a credential, but one yo
 Redaction happens before the cut to 1024 characters, so a secret can't straddle it.
 
 `safe_mode=False` logs headers and bodies raw, including the bearer token, the basic credentials, the client ID and
-secret, and the tokens Jamf issues. Use it against a development tenant only. The text in a `JamfAuthError` is
-redacted whatever `safe_mode` says.
+secret, and the tokens Jamf issues. Use it against a development tenant only. The `str()` of a `JamfAuthError` is
+redacted whatever `safe_mode` says, but its `args` can hold the raw `Response` (see
+[When authentication happens](#when-authentication-happens)).
 
 ### Certificates
 
@@ -422,7 +444,8 @@ Requests are TLS-verified by default and never sent unverified.
 
 - `verify_path` is a CA bundle to verify the server's certificate against. When it is set, it wins over the
   `REQUESTS_CA_BUNDLE` and `CURL_CA_BUNDLE` environment variables, which are honoured otherwise.
-- `cert_path` is a client certificate file, sent for mutual TLS (it is passed to requests as `cert`).
+- `cert_path` is a single PEM file holding both the client certificate and its private key, sent for mutual TLS (it
+  is passed to requests as `cert`, in its string form).
 
 Both must be existing files: a missing path or a directory raises `JamfpyConfigError` when the tenant is built. Proxy
 settings from the environment (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are honoured too, for API and auth calls
@@ -462,8 +485,11 @@ instead:
 from xml.etree import ElementTree
 
 response = tenant.classic.buildings.get_by_id(1, xml_response=True)
-building = ElementTree.fromstring(response.content)
-print(building.findtext("name"))
+if response.ok:
+    building = ElementTree.fromstring(response.content)
+    print(building.findtext("name"))
+else:
+    print("Fetching the building failed:", response.status_code)
 ```
 
 Classic writes take an XML string, and Pro writes a dict, which is sent as JSON.
@@ -583,8 +609,9 @@ What jamfpy guarantees:
 ## Endpoints
 
 Endpoints hang off the two APIs as `tenant.classic.<resource>` and `tenant.pro.<resource>`: `tenant.classic.computers`,
-`tenant.classic.accounts.users`, `tenant.pro.scripts` and so on. [COVERAGE.md](COVERAGE.md) lists every endpoint wrapped
-today with the paths and verbs it sends, and the Jamf resources that aren't wrapped yet.
+`tenant.classic.accounts.users`, `tenant.pro.scripts` and so on.
+[COVERAGE.md](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/COVERAGE.md)
+lists every endpoint wrapped today with the paths and verbs it sends, and the Jamf resources that aren't wrapped yet.
 
 CRUD endpoints share one set of methods:
 
@@ -603,6 +630,10 @@ and their `get_all` and `get_by_id` take no `xml_response`.
 A Pro endpoint has only the methods its resource supports in Jamf's schema. `/v1/dock-items` has no collection GET,
 for example, so `tenant.pro.dock_items` has no `get_all`.
 
+`tenant.pro.app_installers` is the exception: Jamf's published schema leaves out `/v1/app-installers`, so its verbs
+come from a probe of a live tenant (the repository's `pro-supplement.json`), not from Jamf's schema, and its
+pagination and body shapes are best-effort.
+
 Action endpoints send commands rather than manage records. `tenant.pro.mdm` sends MDM commands: it has wrappers for
 common commands, which map Python arguments to Jamf's field names, and `send_command` for any command type:
 
@@ -617,8 +648,10 @@ For a Jamf endpoint jamfpy doesn't wrap yet, send a request through `do()` (see 
 
 ## Contributing
 
-The developer documentation is [AGENTS.md](AGENTS.md), which covers how the SDK is built, its conventions and its
-quality gates, and [EXPANDING.md](EXPANDING.md), a worked guide to adding an endpoint. Every task runs through make:
+The developer documentation is [AGENTS.md](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/AGENTS.md),
+which covers how the SDK is built, its conventions and its quality gates, and
+[EXPANDING.md](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/EXPANDING.md),
+a worked guide to adding an endpoint. Every task runs through make:
 `make setup` installs the locked environment with uv, `make help` lists the targets, and `make check` runs every gate
 CI runs (lint, type check, the unit tests with coverage, and the COVERAGE.md drift check). The live integration suite,
 `make test-integration`, needs a development Jamf Pro tenant: copy `.env.example` to `.env` and fill in the three

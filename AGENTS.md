@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is the user-facing guide (and the PyPI long description); [`ENTRYPOINTS.md`](ENTRYPOINTS.md) inventories every way the project is started or called and everything it emits; this file is the source of truth for how the codebase is put together and how to change it safely.
+Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is the user-facing guide (and the PyPI long description, so its links to other files in the repo are absolute GitHub URLs); [`ENTRYPOINTS.md`](ENTRYPOINTS.md) inventories every way the project is started or called and everything it emits; this file is the source of truth for how the codebase is put together and how to change it safely.
 
 **Route by task:**
 
@@ -92,14 +92,15 @@ uv.lock                     # Locked runtime + dev dependency set; `make setup` 
 
 ---
 
-## The two helpers every endpoint uses
+## The three helpers every endpoint uses
 
-Endpoints never hardcode URLs or headers. They ask the API object:
+Endpoints never hardcode URLs or headers, and never send a request themselves. They ask the API object:
 
 - **`self._api.url(target=None)`** — base URL for this API version.
   - Classic ignores `target`: `https://<fqdn>/JSSResource`.
   - Pro **requires** `target` = the API version as a string: `self._api.url("2")` → `.../api/v2`. Versions differ per endpoint (scripts=v1, mdm/commands=v2, app-installers=v1) — the version prefix on the path in `pro.json` is the value to pass.
 - **`self._api.header(key)`** — header set from `constants.py`. Shape: `header("read")["json"]`, `header("create-update")["xml"]`, `header("delete")["json"]`, `header("image")`. Classic writes use `["xml"]`; Pro uses `["json"]`.
+- **`self._api.do(request, timeout=None)`** — sends the `requests.Request` the endpoint built and returns the raw `Response`. It adds the `Authorization` header, retries, fires the hooks and logs, so endpoints never touch auth (see **Architecture & request lifecycle**).
 
 ---
 
@@ -160,7 +161,7 @@ It leaves COVERAGE.md to `make coverage-doc` (see **COVERAGE.md** below), and it
 
 `make scaffold` with `API` or `PATH` missing prints its usage line and exits 2; `SCHEMA_PATH=` works in place of `PATH=` (see the `PATH=` note under **Schemas**). It reads no `.env`. After it, fill in:
 
-- the live builders (`make schema-path` shows the required fields; check `root` in a Classic spec); until they are written, COVERAGE.md shows the spec as ❌ and says it was scaffolded;
+- the live builders (`make schema-path` shows the required fields; check `root` in a Classic spec); until they are written, COVERAGE.md shows the spec as "no" and says it was scaffolded;
 - for an endpoint that got no live spec (a Pro action, a partial CRUD, and a Classic composite's parent, whose children get specs), its `LIVE_NOT_COVERED` entry (accessor, relative to the API, mapped to why it has none) in the live module, or `make coverage-doc` refuses it; a `next:` line says so for each, naming the file and the key (`"<attr>": "<why it has no live spec>"`);
 - `_name` and the docstrings, and the class and attribute names if the path split them badly (re-run with `NAME=` after undoing the run);
 - a Pro endpoint's `get_all` when the `next:` line says its collection GET is not paginated and you want one;
@@ -247,7 +248,7 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 
 - **The endpoints.** A `ClassicAPI` and a `ProAPI` on an `OAuth` with dummy credentials for `https://coverage-doc.invalid` (auth is lazy, and the recorder below answers every request itself, so nothing is sent), and every `Endpoint` attribute on them, recursing into composites, as `tests/contract_test.py` discovers them. Each public method bar `name()` is called with dummy arguments under a stub `do` on the API instance that records `(verb, normalised path)` and returns a 200 with `{"totalCount": 0, "results": []}` (so `get_all` stops at page 0); the method names, the dummy-argument rules and the path normaliser are `tools/introspect.py`'s, which the contract test uses too. Per endpoint, in rows sorted by accessor: the accessor, the path (`_uri`, under the one `/v<n>` its requests go to for Pro; *per method* as the version if they go to several, *none* if to no versioned path), the public methods, sorted (one that sends nothing is marked *(no request)*), and *Sends to*: each path some method sent to, with the verbs sent there, so what the table says is what the endpoint does, not what the schema lists for its `_uri` (`pro.mdm` is `/v2/mdm/commands` POST). A path or verb the schema lacks is marked *not in schema* (the contract test fails on those); a path only in `pro-supplement.json` is marked `[options-probe]`. A parameter type `dummy_value` has no value for fails the run, naming the accessor.
 - **The schemas**, through `tools/schemas.py` only (`load_classic()`, and `load_pro()` with the supplement merged). A resource is a schema path's first segment, after the `/v<n>` prefix for Pro (`/v2/mdm/commands` → `mdm`; an unversioned Pro path such as `/preview/computers` → `preview`); it is covered when a wired endpoint's path is in it. The summary gives, per API, the endpoints wired, the resources covered and the resources in the schema (and names the Pro resources whose paths are all from the supplement); *Not yet covered* lists the schema's resources minus the covered ones, sorted. The file's *How to read this* states the same rule.
-- **The live specs**: `SPECS` and `LIVE_NOT_COVERED` in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, imported (at import they only define the specs and a pytest marker, so no tenant or env is needed). `LIVE_NOT_COVERED` is a `dict[str, str]` next to `SPECS`, mapping an accessor relative to the API (`"mdm"`, `"accounts"`) to why it has no spec, and gives an N/A row. A spec gives ✅ for each of `min` and `max` it has and ❌ for one it lacks or that is still the placeholder `make scaffold` writes (recognised by its `fill in the builders` message; the *Notes* then say it was scaffolded), and its optional `notes` string is the *Notes* cell.
+- **The live specs**: `SPECS` and `LIVE_NOT_COVERED` in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, imported (at import they only define the specs and a pytest marker, so no tenant or env is needed). `LIVE_NOT_COVERED` is a `dict[str, str]` next to `SPECS`, mapping an accessor relative to the API (`"mdm"`, `"accounts"`) to why it has no spec, and gives an N/A row. A spec gives a "yes" mark for each of `min` and `max` it has and a "no" mark for one it lacks or that is still the placeholder `make scaffold` writes (recognised by its `fill in the builders` message; the *Notes* then say it was scaffolded), and its optional `notes` string is the *Notes* cell.
 
 It writes nothing and exits 1, with one line on stderr per problem, when a wired endpoint has neither a spec nor a reason (`coverage-doc: pro.things has no live spec and no reason: add a spec to SPECS, or why it has none to LIVE_NOT_COVERED, in tests/integration/pro_resources_live_test.py`), has both or two specs, a spec or reason names an accessor that is not wired, a live module lacks either list, has a `SPECS` entry that is not a dict or has no `accessor` (named by its `id`, or its place in the list), or a `LIVE_NOT_COVERED` reason that is empty, only whitespace or not a string (named by accessor), or `--root` is not the repo `jamfpy` and the live modules are imported from (run it in that repo). So an endpoint added without a spec or a reason cannot pass `make coverage-doc-check`, which regenerates in memory and compares with the committed file: identical exits 0; otherwise it prints a unified diff (committed → generated), then `coverage-doc: COVERAGE.md is stale; run make coverage-doc` on stderr, and exits 1. `make check` and the CI `coverage-doc` job run it.
 
@@ -264,6 +265,7 @@ It writes nothing and exits 1, with one line on stderr per problem, when a wired
 - [ ] Coverage gate passes: `make coverage` (or run every gate CI runs, `coverage-doc-check` included, with `make check`).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
 - [ ] [`COVERAGE.md`](COVERAGE.md) regenerated with `make coverage-doc` and committed, never edited by hand: the endpoint has a covered-table row and a live-table row (from its spec, or from its `LIVE_NOT_COVERED` reason; the generator refuses an endpoint with neither), its resource has left *Not yet covered*, and `make coverage-doc-check` passes.
+- [ ] [`ENTRYPOINTS.md`](ENTRYPOINTS.md) updated when a make target, tool argument, environment variable, workflow or exported name changes (it has no drift check, unlike `COVERAGE.md`).
 - [ ] If asked to commit: Conventional Commit message (`feat:` for a new endpoint).
 
 ---

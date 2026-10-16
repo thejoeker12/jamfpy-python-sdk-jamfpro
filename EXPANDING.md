@@ -31,8 +31,8 @@ make scaffold API=pro PATH=/v1/categories DRY_RUN=1
 # regenerate COVERAGE.md with make coverage-doc
 ```
 
-For a Classic resource whose path runs its words together, pass `NAME=` (the jamfpy-dev skill should too), otherwise the
-class and attribute are one unreadable word:
+For a Classic resource whose path runs its words together, pass `NAME=`, otherwise the class and attribute are one
+unreadable word:
 
 ```bash
 make scaffold API=classic PATH=/advancedmobiledevicesearches NAME=AdvancedMobileDeviceSearches
@@ -67,7 +67,8 @@ What to fill in afterwards:
 - **COVERAGE.md.** It is generated: run `make coverage-doc` and commit the result, never edit it by hand. It
   adds the endpoint's covered row (path, version, methods and the paths and verbs those methods send, recorded by
   calling each with dummy arguments) and live row, and drops its
-  resource from *Not yet covered*; a spec whose builders are still the scaffolded placeholder shows as ❌.
+  resource from *Not yet covered*; a spec whose builders are still the scaffolded placeholder shows as a "no" in the
+  live table's Min and Max columns.
   `make coverage-doc-check` (in `make check` and CI) fails while the file is stale. See `AGENTS.md` →
   *How to add an endpoint* → *COVERAGE.md*.
 - **`_name`.** The scaffolder uses the path's snake_case slug (the snake_case of `NAME=` for Pro) unless the
@@ -86,7 +87,9 @@ What to fill in afterwards:
   `clc_endpoints_accounts.py` does if the resource needs slicing.
 - **Docstrings.** They are plain ("Endpoint for managing printers in Jamf Pro."). Say more where the
   resource deserves it, e.g. why a Pro endpoint lacks a verb, or what a Pro action's payload holds.
-- **An action's wrappers.** Variant D's convenience wrappers are yours to add on top of `send`.
+- **An action's wrappers.** The scaffolder writes only `send(payload)`. Convenience wrappers are yours to add on top
+  of it. The hand-written `MDMCommands` builds its wrappers on a richer `send_command(command_type, management_ids,
+  **kwargs)` instead (see Variant D).
 
 The four variants below stay the reference for what the scaffolder writes and for writing an
 endpoint by hand when it refuses one.
@@ -568,21 +571,26 @@ Wire it: import in `client.py` (alias if the name clashes with a Classic class �
 
 ## Variant D (Pro action)
 
-For endpoints that are **verbs, not CRUD** — sending commands to devices, etc. Reference:
-`jamfpy/endpoints/pro_mdm_commands.py`. Pattern: **one core worker method** that builds the
-JSON payload and POSTs, plus **many thin named wrappers** that fix the command string and map
-snake_case Python args to Jamf's camelCase payload keys.
+For endpoints that are **verbs, not CRUD** — sending commands to devices, etc. `make scaffold` writes the smallest
+form of this: a bare `Endpoint` with one `send(payload)` that POSTs the dict you pass, as JSON, and no wrappers.
+The reference for the richer, hand-written form is `jamfpy/endpoints/pro_mdm_commands.py`. Pattern: **one core
+worker method** (there `send_command(command_type, management_ids, **kwargs)`, which builds Jamf's MDM payload and
+POSTs it), plus **many thin named wrappers** that fix the command string and map snake_case Python args to Jamf's
+camelCase payload keys.
 
 **Subclass the bare `Endpoint`, not `ProEndpoint` or any Pro mixin** — an action endpoint has no
 `/{id}` CRUD to inherit, and pulling in `get_all`/`get_by_id`/… would just expose meaningless
 methods. (Same reason the composite Classic `Accounts` parent subclasses bare `Endpoint`.)
 
-Trimmed from the real module to two of its wrappers, and `erase_device` to some of its arguments:
+Adapted from the real module rather than trimmed from it: it keeps two of the wrappers (`erase_device` with only some
+of its arguments), the code is reflowed to 79 columns, and the POST sends the `create-update` JSON header set, as the
+scaffolder's `send` does:
 
 ```python
 from typing import Any
 
 from requests import Request, Response
+
 from .models import Endpoint
 
 
@@ -591,39 +599,59 @@ class MDMCommands(Endpoint):
     _uri = "/mdm/commands"
     _name = "mdm_commands"
 
-    def send_command(self, command_type: str, management_ids: list[str], **kwargs: object) -> Response:
-        """Build the command payload and POST it. All wrappers delegate here."""
+    def send_command(
+        self,
+        command_type: str,
+        management_ids: list[str],
+        **kwargs: object,
+    ) -> Response:
+        """Build the payload and POST it. All wrappers delegate here."""
         payload: dict[str, Any] = {
             "clientData": [{"managementId": mid} for mid in management_ids],
             "commandData": {"commandType": command_type, **kwargs},
         }
         return self._api.do(Request(
             method="POST",
-            url=self._api.url("2") + self._uri,          # mdm/commands is v2
-            headers=self._api.header("read")["json"],
+            url=self._api.url("2") + self._uri,  # mdm/commands is v2
+            headers=self._api.header("create-update")["json"],
             json=payload,
         ))
 
-    def lock_device(self, management_ids: list[str], message: str = "Device locked remotely",
-                    pin: str = "1234", phone_number: str | None = None) -> Response:
+    def lock_device(
+        self,
+        management_ids: list[str],
+        message: str = "Device locked remotely",
+        pin: str = "1234",
+        phone_number: str | None = None,
+    ) -> Response:
         """Send a DEVICE_LOCK command."""
         return self.send_command(
             "DEVICE_LOCK",
-            management_ids if isinstance(management_ids, list) else [management_ids],
+            (management_ids if isinstance(management_ids, list)
+             else [management_ids]),
             message=message, pin=pin, phoneNumber=phone_number,
         )
 
-    def erase_device(self, management_ids: list[str], pin: str = "1234",
-                     return_to_service: dict[str, bool | str] | None = None) -> Response:
+    def erase_device(
+        self,
+        management_ids: list[str],
+        pin: str = "1234",
+        return_to_service: dict[str, bool | str] | None = None,
+    ) -> Response:
         """Send an ERASE_DEVICE command."""
-        if return_to_service is None:              # avoid a mutable default
+        if return_to_service is None:  # avoid a mutable default
             return_to_service = {"enabled": True}
         return self.send_command(
             "ERASE_DEVICE",
-            management_ids if isinstance(management_ids, list) else [management_ids],
+            (management_ids if isinstance(management_ids, list)
+             else [management_ids]),
             pin=pin, returnToService=return_to_service,
         )
 ```
+
+The real `MDMCommands.send_command` still sends the `read` JSON header set, which has no content type of its own
+(requests adds one for the `json=` body). That is a known quirk, pinned by a characterisation test in
+`tests/pro_mdm_commands_test.py`; new code uses `create-update`, as above.
 
 Idioms to reproduce:
 - Each wrapper is a one-liner delegating to `send_command` with a fixed command string.
