@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,25 +8,34 @@ authors = [
     {name = "Joseph Little"},
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 version = "2.7.0"
 
 dependencies = [
     "requests",
 ]
 
-[project.optional-dependencies]
-pdf = ["ReportLab>=1.2", "RXP"]
-rest = ["docutils>=0.3", "pack ==1.1, ==1.3"]
-test = ["pytest"]
-
-[project.scripts]
-my-script = "my_package.module:function"
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "responses",
+    "pylint",
+    "mypy",
+    "pyyaml",
+    "types-pyyaml",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["*"]
-exclude = ["tests*"]
+include = ["jamfpy*"]
+
+[tool.setuptools.package-data]
+jamfpy = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
 
 [tool.pytest.ini_options]
 # Suite uses the <name>_test.py convention; pytest defaults to test_*.py.
@@ -36,5 +45,5 @@ pythonpath = ["."]
 # Live tests are opt-in only; a CLI `-m integration` overrides this default.
 addopts = "-m 'not integration'"
 markers = [
-    "integration: live min/max lifecycle tests against a real Jamf Pro tenant; deselected by default, run with `pytest -m integration tests/integration`",
+    "integration: live min/max lifecycle tests against a real Jamf Pro tenant; deselected by default, run with `make test-integration`",
 ]

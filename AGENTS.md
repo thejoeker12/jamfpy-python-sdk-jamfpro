@@ -1,12 +1,17 @@
 # AGENTS.md
 
-Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is intentionally empty; this file is the source of truth for how the codebase is put together and how to change it safely.
+Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-authored Python SDK for the Jamf Pro server APIs. `README.md` is the user-facing guide (and the PyPI long description, so its links to other files in the repo are absolute GitHub URLs); [`ENTRYPOINTS.md`](ENTRYPOINTS.md) inventories every way the project is started or called and everything it emits; this file is the source of truth for how the codebase is put together and how to change it safely.
 
 **Route by task:**
 
-- **Adding an endpoint** (the most common job) → jump to **How to add an endpoint**.
+- **Adding an endpoint** (the most common job) → jump to **How to add an endpoint**; it starts with `make scaffold` and ends with `make coverage-doc`.
 - **Touching auth, tokens, or request plumbing** → read **Architecture & request lifecycle** first.
-- **Anything else** → skim **Conventions** and **Quality gates**, and read **Known rough edges** before "fixing" anything you didn't come here to change.
+- **Touching retries or request hooks** → **Retries** and **Request hooks** (the hook contract is public; change it deliberately).
+- **Touching pagination or anything the SDK runs in parallel** → **Concurrency** (`parallelism`, how `get_all` fans out).
+- **Touching logging or redaction** → **Logging** (log levels, `extra` fields and what `safe_mode` redacts).
+- **Querying or refreshing the API schemas** → **Querying the API schemas** and **Schemas** (`make schema-paths`, `make schema-path`, `make schemas`).
+- **Anything else** → skim **Conventions** and **Quality gates**.
+- **Picking the repo up after the October 2026 tidy-up** (what changed, what is open, what the owner still has to do) → **Round status** at the end.
 
 ---
 
@@ -19,7 +24,7 @@ Jamf Pro exposes **two** HTTP APIs and this SDK wraps both:
 | **Classic** | JSS Resource API | `/JSSResource` | **XML** for writes, JSON readable | `tenant.classic.*` |
 | **Pro** | Modern Jamf Pro API | `/api/v{n}` (versioned per-endpoint) | **JSON** | `tenant.pro.*` |
 
-The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, logging — then it hands back the **raw `requests.Response`**. It does *not* deserialize into models (two documented exceptions, see Conventions). Only runtime dependency is `requests`. Python **>= 3.10** (`match`, `X | Y` unions).
+The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, logging — then it hands back the **raw `requests.Response`**. It does *not* deserialize into models (two documented exceptions, see Conventions). Only runtime dependency is `requests`. Python **>= 3.13**; CI tests the three newest stable CPython lines (3.15, 3.14, 3.13).
 
 ---
 
@@ -27,65 +32,147 @@ The SDK is a thin, explicit wrapper: auth/token lifecycle, URL/header assembly, 
 
 ```
 jamfpy/
-  __init__.py               # public surface: Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, new_logger
+  __init__.py               # public surface (`__all__`): Tenant, OAuth, BasicAuth, API, ProAPI, ClassicAPI, configure_logging,
+                            #   Timeout, RetryConfig, Hooks, RequestContext
+  py.typed                  # PEP 561 marker: tells downstream type checkers the package ships inline hints.
   client/
     tenant.py               # Tenant — the main entrypoint. Validates config, builds Auth + both APIs.
     auth.py                 # Auth base + OAuth + BasicAuth. Token acquisition, refresh, keep-alive, invalidate.
-    api.py                  # API base class. do() is the central request executor.
+    api.py                  # API base class. do() is the central request executor and runs the retry loop.
     client.py               # ProAPI / ClassicAPI. Wire endpoint objects onto each API.
     http_config.py          # HTTPConfig wrapper around the URL/header dicts.
-    constants.py            # Default URLs, header sets, timeouts, VALID_AUTH_METHODS. Edit URLs/headers HERE.
-    exceptions.py           # JamfAPIError, JamfpyConfigError, JamfpyInitError, JamfAuthError.
-    logger.py               # new_logger() — per-tenant stdout logger.
-    utility.py              # URL parsing, Jamf time->ISO fixups, XML helpers.
+    retry.py                # RetryConfig (public) + RetryPolicy (internal): what do() retries and how long it waits.
+    hooks.py                # Hooks + RequestContext: request hooks do() fires per attempt.
+    constants.py            # Default URLs, header sets, DEFAULT_TIMEOUT + the Timeout alias, DEFAULT_PARALLELISM, VALID_AUTH_METHODS.
+                            #   Edit URLs/headers HERE.
+    exceptions.py           # JamfAPIError (kept, but nothing raises it any more), JamfpyConfigError, JamfpyInitError, JamfAuthError.
+    logger.py               # The `jamfpy` logger (NullHandler) and its jamfpy.{tenant}-auth/-pro/-clc children, configure_logging()
+                            #   with its text and JSON formatters, and the DEBUG header/body render helpers (redact, then truncate).
+    redaction.py            # redact(): replaces credentials in headers and bodies before they are logged or put in an exception.
+    utility.py              # URL parsing, Jamf datetime parsing, XML helpers, the jamfpy User-Agent string.
   endpoints/
-    models.py               # Endpoint / ClassicEndpoint / ProEndpoint base classes.
+    models.py               # Endpoint / ClassicEndpoint base classes; the Pro capability mixins (ProBase + ProGetAll, ProGetById,
+                            #   ProCreate, ProUpdateById, ProDeleteById) and ProEndpoint, which composes all five.
     clc_endpoints.py        # Classic endpoints (one small class each).
     clc_endpoints_accounts.py  # Accounts (composite: .users / .groups).
     pro_scripts.py          # Pro Scripts endpoint.
     pro_mdm_commands.py     # Pro MDM commands (send_command + ~30 convenience wrappers).
-    pro_app_installers.py   # Pro App Installers endpoint.
-    pro_dock_items.py       # Pro Dock Items endpoint.
-api_schemas/
-  classic.json, pro.json    # Jamf's own API schemas — query, never read whole (see below).
+    pro_app_installers.py   # Pro App Installers endpoint (full ProEndpoint).
+    pro_dock_items.py       # Pro Dock Items endpoint (composes four mixins; no get_all).
+api_schemas/                # Generated by `make schemas`; the only hand edit is the path list in pro-supplement.json. Query with make targets, never read whole (see Schemas).
+  pro.json                  # Jamf's OpenAPI 3.0.1 schema of the Pro API, as the tenant serves it.
+  classic.json              # Jamf's Swagger 2.0 schema of the Classic API, converted from the server's YAML to JSON.
+  pro-supplement.json       # Pro paths the tenant serves but pro.json leaves out (/v1/app-installers/*), found by an OPTIONS probe,
+                            #   with the response and validation shapes the probe observed (x-jamfpy-observed).
   api-reference-url.txt     # Pointer to Jamf's human-readable docs: https://developer.jamf.com/jamf-pro/reference
+tools/                      # Dev tooling, not packaged (packages.find includes jamfpy* only). Linted and type-checked like jamfpy/.
+  __init__.py               # Empty.
+  schemas.py                # The one reader of api_schemas/: load_pro/load_classic, paths/path lookups, pull, probe (verbs and observed shapes), drift, and the
+                            #   `python -m tools.schemas` CLI (`refresh`, `pull`, `probe`, `drift`, `paths`, `path`) behind `make schemas` / `schema-paths` / `schema-path`.
+  scaffold.py               # The endpoint scaffolder behind `make scaffold`: reads a path through tools.schemas, picks one of four shapes or
+                            #   refuses, and writes the class, its client.py wiring, unit tests, a live spec and the contract count (see How to add an endpoint).
+  coverage_doc.py           # The COVERAGE.md generator behind `make coverage-doc` / `coverage-doc-check`: records what the wired endpoints send, counts the
+                            #   schema resources through tools.schemas, and reads the live modules' SPECS and LIVE_NOT_COVERED (see COVERAGE.md below).
+  introspect.py             # Shared by coverage_doc.py and tests/contract_test.py: what counts as a public method, the dummy arguments, the path normaliser
+                            #   and the stub-`do` request recorder, so the two cannot drift (see The contract test).
 tests/
-  conftest.py               # FakeAPI double + make_response helper + shared fixtures.
-  <module>_test.py          # One offline pytest file per source module (mocks the network).
-  integration/              # Live min/max lifecycle tests against a real tenant — spec-driven (one spec per resource), opt-in via -m integration, never run by default.
-COVERAGE.md                 # Which API resources the SDK wraps vs. doesn't — update when adding an endpoint.
+  conftest.py               # `responses` harness: mocked_responses, tenant / pro_api / classic_api fixtures, header and concurrency helpers.
+  <module>_test.py          # One offline pytest file per source module (mocks the network); tools_schemas_test.py covers tools/schemas.py,
+                            #   tools_scaffold_test.py tools/scaffold.py, tools_coverage_doc_test.py tools/coverage_doc.py,
+                            #   tools_introspect_test.py tools/introspect.py.
+  contract_test.py          # The exception to one-file-per-module: every wired endpoint method against the schemas (see Quality gates).
+  repo_config_test.py       # The other exception: repo config (one Python floor everywhere, .gitignore, package metadata; see Quality gates).
+  integration/              # Live min/max lifecycle tests against a real tenant — spec-driven (one spec per resource) — plus live SDK-behaviour
+                            #   checks (sdk_behaviour_live_test.py); opt-in via `make test-integration`, never run by default.
+COVERAGE.md                 # Generated by `make coverage-doc`, never hand-edited: which API resources the SDK wraps vs. doesn't, and each
+                            #   endpoint's live-test status. `make coverage-doc-check` (in `make check` and CI) fails when it is stale.
+ENTRYPOINTS.md              # Inventory of every way the project is started or called and everything it emits: the Python API, make targets,
+                            #   tools scripts, environment variables, inputs, outputs, workflows and the live-tenant contract.
+Makefile                    # The single dev entrypoint (`make help` lists targets). Docs only ever point at make targets.
+uv.lock                     # Locked runtime + dev dependency set; `make setup` installs exactly this.
+.env.example                # Template for the live-tenant vars; copy to `.env` (gitignored) for `make test-integration` and `make schemas`.
 ```
 
 ---
 
-## The two helpers every endpoint uses
+## The three helpers every endpoint uses
 
-Endpoints never hardcode URLs or headers. They ask the API object:
+Endpoints never hardcode URLs or headers, and never send a request themselves. They ask the API object:
 
 - **`self._api.url(target=None)`** — base URL for this API version.
   - Classic ignores `target`: `https://<fqdn>/JSSResource`.
   - Pro **requires** `target` = the API version as a string: `self._api.url("2")` → `.../api/v2`. Versions differ per endpoint (scripts=v1, mdm/commands=v2, app-installers=v1) — the version prefix on the path in `pro.json` is the value to pass.
 - **`self._api.header(key)`** — header set from `constants.py`. Shape: `header("read")["json"]`, `header("create-update")["xml"]`, `header("delete")["json"]`, `header("image")`. Classic writes use `["xml"]`; Pro uses `["json"]`.
+- **`self._api.do(request, timeout=None)`** — sends the `requests.Request` the endpoint built and returns the raw `Response`. It adds the `Authorization` header, retries, fires the hooks and logs, so endpoints never touch auth (see **Architecture & request lifecycle**).
 
 ---
 
 ## Conventions (follow these — the codebase is consistent)
 
-1. **Endpoints return a `requests.Response`.** Don't `.json()` inside an endpoint or invent return models. Two places synthesize a Response instead of passing the raw one straight back, and both still hand back a `Response`: `ProEndpoint.get_all` (paginates every page and aggregates them into one Response whose body is `{"totalCount": N, "results": [...]}`), and `clc_endpoints_accounts` `.users`/`.groups` (repackage the shared `/accounts` payload). Both use the shared `Endpoint._repackage_response` helper (accounts still has its own near-duplicate `pass_response`). Match the surrounding file unless you have the same reason.
+1. **Endpoints return a `requests.Response`, and nothing raises on a non-2xx.** Don't `.json()` inside an endpoint or invent return models. Two places synthesize a Response instead of passing the raw one straight back, and both still hand back a `Response`: `ProGetAll.get_all` (paginates every page and aggregates them into one Response whose body is `{"totalCount": N, "results": [...]}`), and `clc_endpoints_accounts` `.users`/`.groups` (repackage the shared `/accounts` payload). Both use the shared `Endpoint._repackage_response` helper; don't add another copy. Both build the synthesized Response only from ok responses: a non-ok one (a failed page, a failed `/accounts` read) is returned raw instead, so the caller checks `.ok` / `.status_code` as for any other endpoint. Match the surrounding file unless you have the same reason.
 2. **Classic write bodies are XML strings** passed as `data=`. Pro bodies are dicts passed as `json=`.
-3. **One endpoint = one class.** Classic endpoints subclass `ClassicEndpoint` and usually only set `_uri` and `_name` — they inherit full CRUD. Pro endpoints subclass `ProEndpoint` and usually only set `_uri`, `_name`, and `_version` — they inherit the same full CRUD (with a paginating `get_all`), the Pro mirror of `ClassicEndpoint`. Hand-roll a method only when a resource deviates. **Action/verb endpoints** (send-command style, e.g. `pro_mdm_commands`) subclass the bare `Endpoint` so they don't inherit CRUD.
+3. **One endpoint = one class.** Classic endpoints subclass `ClassicEndpoint` and usually only set `_uri` and `_name` — they inherit full CRUD. Pro endpoints are built from **capability mixins** in `models.py`, each contributing exactly one method: `ProGetAll` (`get_all`, paginating), `ProGetById`, `ProCreate`, `ProUpdateById`, `ProDeleteById`, all on `ProBase` (`_version = "1"`, `_page_size = 100`, `name()`). A resource with full CRUD in the schema subclasses `ProEndpoint` (all five, the Pro mirror of `ClassicEndpoint`); one that supports only some verbs composes exactly those mixins (`DockItems(ProGetById, ProCreate, ProUpdateById, ProDeleteById)`: the schema has no collection GET, so it has no `get_all`). Either way the class usually only sets `_uri`, `_name` and `_version`. Hand-roll a method only when a resource deviates. **Action/verb endpoints** (send-command style, e.g. `pro_mdm_commands`) subclass the bare `Endpoint` so they don't inherit CRUD.
 4. **`_uri`** is the path segment appended to the base URL (leading slash, e.g. `/computers`). **`_name`** is the snake_case key used for response browsing / `.name()`; keep it aligned with Jamf's JSON top-level key where one exists.
 5. **Docstrings on every public class/method.** `.pylintrc` exempts `_private` names (`no-docstring-rgx=^_`) but everything public needs one. Comments explain **why**, never what.
 6. **`snake_case`** functions/vars/args, **`PascalCase`** classes, **`UPPER_CASE`** constants (all enforced by pylint). Max line length **150**.
-7. **Log through the injected logger** (`self._logger` / `self._api._logger`), not `print`. `safe_mode=True` (default) redacts headers from debug logs — don't log secrets around it.
+7. **Log through the injected logger** (`self._logger` / `self._api._logger`), never `print`, at the levels and with the `extra=` fields in **Logging**. A header or body never goes into a log line or an exception raw: pass it through `redact()` (`jamfpy/client/redaction.py`), or `render_headers` / `render_body` (`logger.py`), which redact under `safe_mode` and truncate. `safe_mode=False` logs credentials in full and is for a dev tenant only.
+8. **Style reference is [PEP 8](https://peps.python.org/pep-0008/); docstrings follow [PEP 257](https://peps.python.org/pep-0257/).** pylint (`make lint`) is the only lint gate. There is no auto-formatter — don't add one.
 
 ---
 
 ## How to add an endpoint
 
-> For a fuller, worked walkthrough of each endpoint variant (simple/composite Classic, simple/action Pro), including test templates and schema-query recipes, see [`EXPANDING.md`](EXPANDING.md). This section is the quick version.
+> For a fuller, worked walkthrough of each endpoint variant (simple/composite Classic; CRUD, full or partial, and action Pro), including test templates and schema-query recipes, see [`EXPANDING.md`](EXPANDING.md). This section is the quick version.
 
-### Classic endpoint (inherits CRUD for free)
+### Scaffold first (`make scaffold`)
+
+```bash
+make scaffold API=pro PATH=/v1/categories DRY_RUN=1   # the shape it picked and the files it would write; writes nothing
+make scaffold API=pro PATH=/v1/categories             # writes them
+make scaffold API=classic PATH=/printers
+make scaffold API=classic PATH=/advancedmobiledevicesearches NAME=AdvancedMobileDeviceSearches   # readable class and attribute names
+```
+
+`tools/scaffold.py` (`python -m tools.scaffold --api pro|classic --path <path> [--name <ClassName>] [--root <repo>] [--dry-run]`; `--root` defaults to this repo; `make scaffold` takes `NAME=` for `--name`) reads the path, its siblings, their verbs and their request bodies through `tools/schemas.py`, from `<root>/api_schemas`, and picks one of four shapes:
+
+| The schema has | Shape | It writes |
+|---|---|---|
+| Classic `<path>` GET and `<path>/id/{id}` DELETE GET POST PUT | **Classic simple** | a `ClassicEndpoint` subclass setting `_uri` and `_name`, in `clc_endpoints.py` before the first class whose name sorts after it (at the end otherwise) |
+| Classic `<path>` GET, no `/id/{id}`, and id-style siblings `<path>/<thing>id/{id}`, each DELETE GET POST PUT | **Classic composite** | a `clc_endpoints_<slug>.py` module in the `clc_endpoints_accounts.py` pattern: a `<Class>Child` base whose CRUD runs off `_by_id_uri` (keeping `ClassicEndpoint`'s signatures), one child per sibling (attribute and `_name` `<thing>s`, class `<Class><Thing>s`, `_by_id_uri` from the sibling, `_by_name_uri` from a `<thing>name/{...}` sibling when there is one), and a bare-`Endpoint` parent that wires them and has `get_all` |
+| Pro `/v<n><path>` with a `<path>/{id}` sibling | **Pro CRUD** | `pro_<slug>.py` composing exactly the mixins the verbs back (collection GET → `ProGetAll`, only when that GET is paginated; collection POST → `ProCreate`, `{id}` GET → `ProGetById`, PUT → `ProUpdateById`, DELETE → `ProDeleteById`), or subclassing `ProEndpoint` when all five are there; other verbs (a PATCH) get no method and are named in the output. A collection GET is paginated when it declares `page` and `page-size` query parameters, or its 200 response is an object with `totalCount` and `results` properties (the shape `ProGetAll` aggregates); otherwise (a bare array, no response schema) there is no `ProGetAll`, the generated class says so, and a `next:` line says `get_all` has to be written by hand if wanted |
+| Pro `/v<n><path>` with POST, at most GET besides, and no `{id}` sibling | **Pro action** | `pro_<slug>.py`: a bare `Endpoint` with `_uri`, `_name`, `_version` and one `send(payload: dict[str, Any]) -> Response`, which POSTs `json=payload` with the `create-update` JSON header set (`MDMCommands.send_command` without the wrappers, bar the header: the real MDM module still sends the `read` set, a quirk its tests pin) |
+
+The repo's own endpoints classify the same way, bar one `get_all`: `/buildings` simple, `/accounts` composite (`.groups`, `.users`), `/v1/scripts` full CRUD, `/v1/dock-items` the four mixins, `/v2/mdm/commands` (GET and POST) action, and `/v1/app-installers/deployments`, which is full CRUD by hand but whose probed GET declares neither signal (the scaffolder reads declared parameters and responses, and the probe's `x-jamfpy-observed` shape is neither), so the scaffolder would leave `ProGetAll` out; the live `test_app_installers_get_all_pages_through_every_deployment` proves `ProGetAll` pages it correctly. Names come from the path after the version: its segments, split on `-`, `_` and camelCase, give the snake_case slug (module suffix, attribute, `_name`) and the PascalCase class: `/v1/dock-items` → `pro_dock_items.py`, `DockItems`, `dock_items`; `/v1/app-installers/deployments` → `app_installers_deployments`; `/printers` → `Printers`, `printers`. A Pro class is imported as `Pro<Class>`. That split cannot find the words in a run-together Classic path (`/advancedmobiledevicesearches` → `Advancedmobiledevicesearches`), so **pass `NAME=<PascalCaseName>` for a Classic multi-word resource** (the jamfpy-dev skill should too): it sets the class name, the attribute is its snake_case (`AdvancedMobileDeviceSearches` → `advanced_mobile_device_searches`), and the Pro module slug and Pro `_name` follow it, as does a composite's module; a Classic `_name` stays path-derived and `_uri` is always the path. It must be a PascalCase identifier that is not a keyword, and the usual refusals apply to what it derives. Without it, a Classic path, and a Pro path whose slug has no word break, get a `next:` line saying so; the same `NAME=` scaffolds a second version of a resource next to the first (`/v2/groups` after `/v1/groups` is refused for its attribute, with that hint; `NAME=GroupsV2` gives `pro_groups_v2.py`, `groups_v2`, `_version = "2"`). `_name` is Jamf's JSON top-level key when the Classic collection GET's 200 response names one (its single property, or the name of the definition it refers to); the committed Classic schema declares no response schemas, so in practice `_name` is the slug, as it always is for Pro. Review it.
+
+In the same run it writes, all or nothing (every file is computed before the first write, and a write that fails puts back the files already written):
+
+- the endpoint class, as above;
+- the wiring in `client.py`: a Classic simple class into the `from ..endpoints.clc_endpoints import (...)` block before the first name that sorts after it (giving the last name a trailing comma when it goes at the end), a Pro import `from ..endpoints.pro_<slug> import <Class> as Pro<Class>` after the last Pro import, a composite's after the last `clc_endpoints_*` import, an import longer than 150 characters wrapped in parentheses; and `self.<attr> = <Class>(self)` as the last line of `ClassicAPI.__init__` / `ProAPI.__init__`;
+- the unit tests, in the `responses` style below: `tests/pro_<slug>_test.py` (one test per method asserting the verb, full URL, header set and `json=` body, then the methods present and absent and `name()`) or `tests/clc_endpoints_<slug>_test.py` (the parent's `get_all` and each child's five methods and `name()`, parametrised over the children). A Classic simple endpoint, which inherits everything, gets a `CLASSIC_ENDPOINTS` row (in class order) and an `EXPECTED_ATTRS` entry in `tests/clc_endpoints_test.py` instead, as the existing ones have;
+- a live spec appended to `SPECS` in `tests/integration/pro_resources_live_test.py` / `clc_resources_live_test.py` (one per composite child, `accessor` `<attr>.<child>`), with `root` set to the `_name` for Classic, and `min` and `max` both `lambda n: pytest.fail("fill in the builders")`, so the live suite fails loudly on it until the builders are written. Only when the endpoint has `create`, `get_by_id`, `update_by_id` and `delete_by_id`, which the lifecycle runners call: a Pro action or a partial CRUD without them gets no spec, and needs a `LIVE_NOT_COVERED` reason instead (see **COVERAGE.md** below);
+- `EXPECTED_ENDPOINT_COUNT` in `tests/contract_test.py`, bumped by the endpoints it wired (a composite's parent and each child, as discovery counts them).
+
+It leaves COVERAGE.md to `make coverage-doc` (see **COVERAGE.md** below), and its last line says `regenerate COVERAGE.md with make coverage-doc`. It refuses, with one line on stderr naming the rule, a non-zero exit (1 from the CLI; make reports a failed recipe as 2) and nothing written, when:
+
+- the path is not in the schema (the closest paths are named), or a Pro path has no `/v<n>` prefix;
+- the endpoint would have more than one path parameter, or one not named `id` (the path's own, a Pro `<path>/{param}` sibling, a Classic `<path>/id/{param}` or `<path>/{param}`; lookup siblings such as `/printers/name/{name}` are ignored), or the path itself has one (`_uri` has none: scaffold the collection);
+- a body it would send (the POST and PUT its methods use) is multipart or binary, or not JSON (Pro) / XML (Classic);
+- the verbs fit none of the four shapes (a Classic `/id/{id}` without all of DELETE GET POST PUT, a Pro collection with no `{id}` sibling and no POST or with PUT, PATCH or DELETE), including a Pro collection whose only backing verb is an unpaginated GET;
+- it cannot derive a Python name: the path's words (or `NAME=`) give a keyword or an invalid identifier, or `NAME=` is not a PascalCase identifier;
+- a Classic composite's id-style siblings give clashing child names;
+- the endpoint exists: its attribute on the API (including the `API` base's own names, such as `auth`; the line says to pass `NAME=...`), its class, an endpoint class that already wraps the same `_uri` (and, for Pro, version), its module, its test module, or its live spec.
+
+`make scaffold` with `API` or `PATH` missing prints its usage line and exits 2; `SCHEMA_PATH=` works in place of `PATH=` (see the `PATH=` note under **Schemas**). It reads no `.env`. After it, fill in:
+
+- the live builders (`make schema-path` shows the required fields; check `root` in a Classic spec); until they are written, COVERAGE.md shows the spec as "no" and says it was scaffolded;
+- for an endpoint that got no live spec (a Pro action, a partial CRUD, and a Classic composite's parent, whose children get specs), its `LIVE_NOT_COVERED` entry (accessor, relative to the API, mapped to why it has none) in the live module, or `make coverage-doc` refuses it; a `next:` line says so for each, naming the file and the key (`"<attr>": "<why it has no live spec>"`);
+- `_name` and the docstrings, and the class and attribute names if the path split them badly (re-run with `NAME=` after undoing the run);
+- a Pro endpoint's `get_all` when the `next:` line says its collection GET is not paginated and you want one;
+- a composite's children: they inherit `ClassicEndpoint.get_all`, which returns the whole collection, not the sliced payload the hand-written `AccountUsers` returns; override it like `clc_endpoints_accounts.py` if the resource needs slicing.
+
+Then run `make coverage-doc` and the gates in the **Definition of done**. For a shape it refuses, write the endpoint by hand:
+
+### Classic endpoint by hand (inherits CRUD for free)
 
 1. Add the class in `jamfpy/endpoints/clc_endpoints.py`:
    ```python
@@ -98,9 +185,10 @@ Endpoints never hardcode URLs or headers. They ask the API object:
 2. Import it in `jamfpy/client/client.py` (the `from ..endpoints.clc_endpoints import (...)` block).
 3. Attach it in `ClassicAPI.__init__`: `self.buildings = Buildings(self)`.
 
-### Pro endpoint (inherits CRUD for free)
+### Pro endpoint by hand (compose the verbs the schema has)
 
-1. Add the class in a `jamfpy/endpoints/pro_<thing>.py` module, subclass `ProEndpoint`, and set `_uri`, `_name`, and `_version` (the `/v{n}` prefix on the path in `pro.json`):
+1. Check the verbs: `make schema-paths API=pro MATCH=<thing>` lists the collection path (`get` → `get_all`, `post` → `create`) and the `/{id}` path (`get` → `get_by_id`, `put` → `update_by_id`, `delete` → `delete_by_id`).
+2. Add the class in a `jamfpy/endpoints/pro_<thing>.py` module and set `_uri`, `_name`, and `_version` (the `/v{n}` prefix on the path in `pro.json`). **All five verbs** → subclass `ProEndpoint`:
    ```python
    from .models import ProEndpoint
 
@@ -110,40 +198,79 @@ Endpoints never hardcode URLs or headers. They ask the API object:
        _name = "things"
        _version = "1"
    ```
-   You now have `get_all`, `get_by_id`, `create`, `update_by_id`, `delete_by_id`, `name` from `ProEndpoint` — the Pro mirror of `ClassicEndpoint`, but with versioned URLs (`url(self._version)`), `/{id}` id paths (**no** `/id/`), JSON bodies (`json=`), and a `get_all` that transparently paginates the `page`/`page-size` cursor and aggregates every page into **one** Response (`{"totalCount": N, "results": [...]}`). Hand-roll a method only when a resource deviates. **Verbs-not-CRUD** endpoints (send-command style) subclass the bare `Endpoint` instead — see `pro_mdm_commands.py`.
-2. Import it in `jamfpy/client/client.py` and attach it in `ProAPI.__init__` (e.g. `self.things = Things(self)`).
+   You now have `get_all`, `get_by_id`, `create`, `update_by_id`, `delete_by_id`, `name` — the Pro mirror of `ClassicEndpoint`, but with versioned URLs (`url(self._version)`), `/{id}` id paths (**no** `/id/`), JSON bodies (`json=`), and a `get_all` that paginates the `page`/`page-size` cursor, fetching pages in parallel (see **Concurrency**), and aggregates every page into **one** Response (`{"totalCount": N, "results": [...]}`). **Only some verbs** → compose exactly the mixins the schema supports, so the endpoint has no method that can only fail. `/v1/dock-items` takes POST only and `/v1/dock-items/{id}` GET/PUT/DELETE, so:
+   ```python
+   from .models import ProCreate, ProDeleteById, ProGetById, ProUpdateById
+
+   class DockItems(ProGetById, ProCreate, ProUpdateById, ProDeleteById):
+       """Endpoint for managing dock items in the modern Jamf Pro API (v1+)."""
+       _uri = "/dock-items"
+       _name = "dock_items"
+       _version = "1"
+   ```
+   Hand-roll a method only when a resource deviates. **Verbs-not-CRUD** endpoints (send-command style) subclass the bare `Endpoint` instead — see `pro_mdm_commands.py`.
+3. Import it in `jamfpy/client/client.py` and attach it in `ProAPI.__init__` (e.g. `self.things = Things(self)`).
 
 ### Querying the API schemas (never read them whole)
 
-`api_schemas/pro.json` is **~1.9 MB** and `classic.json` is **~320 KB** — reading either in full wastes your context. Query them instead:
+`api_schemas/pro.json` is **~2.1 MB** and `classic.json` is **~330 KB** — reading either in full wastes your context. Query them with the make targets, which go through `tools/schemas.py` (see **Schemas**):
 
 ```bash
-# Pro: find the path. The /v1, /v2... prefix IS the version string url() needs.
-.venv/bin/python -c "import json; print([p for p in json.load(open('api_schemas/pro.json'))['paths'] if 'script' in p])"
+# Paths containing a string (case-insensitive), with their verbs. The /v1, /v2... prefix IS the version string url() needs.
+make schema-paths API=pro MATCH=scripts         # /v1/scripts  get post, /v1/scripts/{id}  delete get put, ...
+make schema-paths API=classic MATCH=buildings   # /buildings  get, /buildings/id/{id}  delete get post put, ...
 
-# Pro: full spec for one path (methods, params, request body shape)
-.venv/bin/python -c "import json; print(json.dumps(json.load(open('api_schemas/pro.json'))['paths']['/v1/scripts'], indent=2))"
-
-# Classic: NOT valid JSON (trailing commas — json.load raises). grep it instead:
-grep -o '"/[^"]*buildings[^"]*"' api_schemas/classic.json | sort -u
+# One path as JSON: per verb, its summary fields, parameters and request body, with every $ref resolved.
+make schema-path API=pro PATH=/v1/scripts
+make schema-path API=classic PATH=/mobiledevicecommands/command   # 16 in: body parameters, merged into one requestBody.schema
+# (/buildings/id/{id} declares no body at all, so its methods have no requestBody.)
 ```
 
-Human-readable docs, if the schema isn't enough: https://developer.jamf.com/jamf-pro/reference (also in `api_schemas/api-reference-url.txt`).
+Paths from the supplement are marked `[options-probe]` in `schema-paths`; they have no `requestBody`, and `schema-path` shows instead, in each verb the probe observed, its `x-jamfpy-observed` entry (the 200 body's shape, or the fields a `POST {}` was refused for; see **Schemas**). Worked examples with output are in [`EXPANDING.md`](EXPANDING.md) → *Querying the API schemas*. Human-readable docs, if the schema isn't enough: https://developer.jamf.com/jamf-pro/reference (also in `api_schemas/api-reference-url.txt`).
+
+### Schemas
+
+- **Files.** `api_schemas/pro.json` (Jamf's OpenAPI 3.0.1 schema of the Pro API; 551 paths at the 2026-10-15 refresh), `api_schemas/classic.json` (Swagger 2.0 schema of the Classic API; 273 paths; valid JSON since that refresh) and `api_schemas/pro-supplement.json` (9 `/v1/app-installers/*` paths the tenant serves but Jamf's schema leaves out, with their probed verbs and observed shapes). `make schemas` writes all three; never edit `pro.json` or `classic.json` by hand, and edit `pro-supplement.json` only to add or remove a path template (see **The supplement**).
+- **One reader.** `tools/schemas.py` is the only code that parses them; anything else that needs a schema imports it. `load_pro()` returns the Pro schema with the supplement merged into `paths` (`supplement=False` gives it exactly as Jamf serves it). `load_classic()` normalises verb keys and still tolerates trailing commas, which earlier snapshots had (string-aware: a comma inside a string is left alone). `paths(api, match=None)` gives `(path, [verbs])` pairs, verbs lower-case and sorted; `path(api, path)` gives one path's methods with their parameters (path-level ones merged in), for a supplement path each verb's `x-jamfpy-observed` entry, and request body (always `{"contentTypes": [...], "required": bool, "schema": {...}}`: an OpenAPI 3 `requestBody`, or Swagger 2's `in: body` parameter(s); where Classic declares several, e.g. 16 on `POST /mobiledevicecommands/command`, `schema` is a synthesised object schema with a property per parameter, a `required` list of those marked required and an `x-jamfpy-note` saying `<N> in: body parameters merged into one object schema`, so no parameter is dropped), every `$ref` (OpenAPI 3 `components`, Swagger 2 `definitions`) resolved in place and named under `x-jamfpy-ref`, a cycle or a chain deeper than 8 left as a `$ref` marked `x-jamfpy-unresolved`; an unknown path raises `SchemaError` naming the closest matches. Both take `schema=` to reuse one already loaded. The Pro version prefix is part of the path string (`/v1/scripts`).
+- **Where they come from.** Found on 2026-10-15 from the Swagger UIs the server hosts; both are unauthenticated GETs.
+  - Pro: `https://<fqdn>/api/schema/`, OpenAPI 3.0.1 JSON (~2 MB). The Swagger UI at `/api/doc/` inlines the same spec. The response says `Content-Type: application/json;charset=ISO-8859-1` but the body is UTF-8, so `pull` decodes the bytes as UTF-8 and ignores the header.
+  - Classic: `https://<fqdn>/classicapi/doc/swagger.yaml`, Swagger 2.0 **YAML** (~240 KB) with no `Content-Type` header; the Swagger UI at `/classicapi/doc/` loads it as `url: "swagger.yaml"`. The server has no JSON form.
+- **YAML to JSON.** `pull` reads Classic with `yaml.safe_load` (PyYAML, a dev dependency only) and respells the one verb key with a leading space (`' delete'` on `/patchexternalsources/id/{id}`) as `delete`, in place; were a proper `delete` also there, the stray one would be dropped. `save` writes the dates YAML parses (such as `x-deprecation-date: 2025-02-11` on the deprecated `/computers` routes) as ISO strings. Both schemas are written with `json.dumps(indent=2)`, the source's key order, non-ASCII as UTF-8 and a final newline, so a refresh diffs cleanly.
+- **The supplement.** `/v1/app-installers/*` is absent from `/api/schema/` and from Jamf's developer reference, but the tenant serves it and `pro.app_installers` uses it. For each path template listed in `pro-supplement.json`, the probe sends one OPTIONS request through the SDK (a `Tenant` from the `.env` credentials, `tenant.pro.do(...)`, so with a token), with `0` for each `{param}`, and records the verbs in the `Allow` header less HEAD and OPTIONS (the server lists those on every route; neither schema ever does). Each entry is marked `"x-jamfpy-source": "options-probe"` and gets a string path parameter per `{param}`; its verb objects are empty, and what the probe learns about bodies goes under `x-jamfpy-observed` (next bullet). A response without an `Allow` header keeps the verbs already recorded for that path and marks it `"x-jamfpy-probe": "allow-header-missing"`; a non-2xx answer or a path left with no verbs fails the run. The path list is curated by hand in `pro-supplement.json`; the verbs are always probed, never typed. A top-level `x-jamfpy-generated` block holds the probe's UTC timestamp, the method and a note saying so; the timestamp moves only when a path's verbs or observations, or the path list, change, so a probe that finds nothing new leaves the file byte-identical. Where the main schema also has a path, its entry wins, so once Jamf documents a path its own description is used. To track another undocumented path, add its template (with the `/v<n>` prefix) mapped to `{}` and run `make schemas`. The probe's results on 2026-10-15: `/v1/app-installers` GET; `/titles` GET; `/titles/{id}` GET; `/deployments` GET, POST; `/deployments/{id}` GET, PUT, DELETE; `/deployments/{id}/computers` GET; `/deployments/{id}/installation-summary` GET; `/deployments/{id}/computers/installation-retry` POST; `/global-settings` GET, PUT. Deployment ids are numeric strings. An earlier probe got no `Allow` header from `installation-retry` (a POST there returned 400 `INVALID_ID`, so the route exists); on the 2026-10-15 refresh it answered `Allow: POST,OPTIONS`.
+- **Observed shapes.** Jamf documents no body for these paths, so the probe also records what the tenant answers, under `x-jamfpy-observed` on each path item, keyed by verb. Only paths without a `{param}` are sent anything beyond OPTIONS: a GET, whose 200 body's shape is recorded as `response`, and a `POST {}`, which fails validation and so creates nothing, whose 400 body's `errors` give `requiredFields` (`{"field", "code"}` each, sorted by field; on 2026-10-16 `appTitleId`, `deploymentType`, `name` and `updateBehavior`, all `INVALID_FIELD`). A shape is the body's JSON types, never its values: `"string"`, `"integer"`, `"number"`, `"boolean"` or `"null"` per scalar, an object as its keys (sorted) with their shapes, an array as `[<shape of its first element>]`, or `[]` when empty. Each entry carries `observedAt` (a UTC date), `method` (how it was taken) and `status`. Any other answer (a non-2xx GET, a POST that is not a 400, a body that is not JSON) fails the run. `observedAt` moves only when the rest of its entry changes.
+- **The probe's one write.** A deployment's own shape can't be read on a tenant that has none (a fresh tenant has 0), and Jamf documents none, so when the supplement lists `/v1/app-installers/titles`, `/deployments` and `/deployments/{id}`, the probe creates one App Installers deployment and deletes it again. It is `enabled: false`, so it never reaches a device; named `jamfpy-schemas-probe-<8 hex>`, so a leftover traces back here; from the first catalog title, with `SELF_SERVICE` and `MANUAL`. The probe GETs it by id and records that shape under `/deployments/{id}`, marked `"source": "lifecycle"`; if the list GET above found no deployments, it reads the list again while this one exists and records that instead (also `"source": "lifecycle"`), because a list item's shape differs from the by-id one (it nests `app`, `category`, `site`, `smartGroup` and `computerStatuses`). Then it DELETEs the deployment and checks the GET by id answers 404. The create and the delete each print a `probe:` line. The create is inside the same `try` as the steps after it, so any 2xx answer counts as a record that may exist: its `id` is taken from the body and registered for the cleanup. A 2xx without a usable `id`, or a transport failure on the POST, exits 1 naming the deployment (`schemas: POST <url> returned <status> without an id: find the deployment named <name> and delete it by hand`). If any step after the create fails, a `finally` deletes the deployment and reads it again by id, which must answer 404; if the delete fails, or the read does not show it gone, the run exits 1 with `schemas: could not delete the probe's deployment <id> (<name>): delete it by hand` (or `could not confirm the probe's deployment <id> (<name>) is gone ...`), whatever stopped the probe first. The id and name are never recorded, so a rerun against the same tenant data stays byte-identical; but an observed shape records JSON types from the tenant's data (a `null` field becomes `string` once it is set), so a rerun on a tenant with different data can legitimately change the supplement. Nothing else the probe sends writes: no PUT (`global-settings` is only read), and nothing but OPTIONS to `installation-retry` or any other `{param}` path.
+- **Refreshing.** `make schemas` runs `python -m tools.schemas refresh`: fetch both schemas, probe the supplement, then write all three files and print each drift, loading `.env` when it exists. There is no partial refresh: the sources, the supplement file and the probe's credentials are checked first, and every fetch and probe request is made before the first file is written, so a failure at any step (a missing credential, an unreachable source, a non-2xx OPTIONS answer) leaves all three files untouched. The sources default to the URLs above on `JAMFPRO_INSTANCE_FQDN` (a bare host or a URL, normalised to `https://`); `JAMFPY_PRO_SCHEMA_SOURCE` and `JAMFPY_CLASSIC_SCHEMA_SOURCE` override each with a URL or a local path. With no source the run exits 1 with one line (`schemas: no source for the pro schema: set JAMFPRO_INSTANCE_FQDN (copy .env.example to .env) or JAMFPY_PRO_SCHEMA_SOURCE`); the probe also needs `JAMFPRO_CLIENT_ID` and `JAMFPRO_CLIENT_SECRET`. The `tools.schemas` CLI behind the target also has `pull` (schemas only), `probe` (supplement only) and `drift` (print the drift against a source, write nothing) subcommands; they are implementation detail, listed in [`ENTRYPOINTS.md`](ENTRYPOINTS.md#toolsschemas). The command to run is `make schemas`.
+- **Drift.** The summary covers paths and schema definitions (Pro `components.schemas`, Classic `definitions`). It opens with `<api>: <before> -> <after> paths (N added, N removed, N changed); <before> -> <after> schemas (N added, N removed, N changed)` (the supplement's has no schemas clause), then one line per path: `+` added and `-` removed with their verbs, `~` changed with any verb change and the path-item keys that differ (a path has changed when its verbs or its JSON differ; key order doesn't count). A `schemas +`, `schemas -` or `schemas ~` line follows for each kind of definition change, naming up to 20 and then `… and N more`. The 2026-10-15 refresh, for paths: Pro 525 -> 551 (26 added, 0 removed, 31 changed); Classic 275 -> 273 (0 added, 2 removed: `/computercommands/command/{command}/action/{action}/id/{id}` and `/computers/extensionattributedataflush/id/{id}`; 20 changed). A PR that refreshes the schemas carries the summary in its description.
+- **`PATH=` on `make schema-path` and `make scaffold`.** `PATH` is also make's search path, and make exports a command-line variable to every recipe, which would hide `uv`. The Makefile keeps the value as `SCHEMA_PATH` and restores the `PATH` make inherited with `$(shell /usr/bin/printenv PATH)`, which works on macOS's make 3.81 and GNU make up to 4.3. GNU make 4.4+ passes the override to `$(shell)` too, so there make stops with a message; pass `SCHEMA_PATH=<path>` instead.
 
 ### If you need a new URL, header set, or auth route
 
 Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DEFAULT_HTTP_CONFIG_HEADERS`). Everything else reads from there via `HTTPConfig`.
 
+### COVERAGE.md (`make coverage-doc`)
+
+[`COVERAGE.md`](COVERAGE.md) is generated: never edit it by hand. `make coverage-doc` (`python -m tools.coverage_doc [--root <repo>] [--check]`; `--root` defaults to this repo) rewrites it from three sources, with no timestamps, so the same tree always gives the same bytes:
+
+- **The endpoints.** A `ClassicAPI` and a `ProAPI` on an `OAuth` with dummy credentials for `https://coverage-doc.invalid` (auth is lazy, and the recorder below answers every request itself, so nothing is sent), and every `Endpoint` attribute on them, recursing into composites, as `tests/contract_test.py` discovers them. Each public method bar `name()` is called with dummy arguments under a stub `do` on the API instance that records `(verb, normalised path)` and returns a 200 with `{"totalCount": 0, "results": []}` (so `get_all` stops at page 0); the method names, the dummy-argument rules and the path normaliser are `tools/introspect.py`'s, which the contract test uses too. Per endpoint, in rows sorted by accessor: the accessor, the path (`_uri`, under the one `/v<n>` its requests go to for Pro; *per method* as the version if they go to several, *none* if to no versioned path), the public methods, sorted (one that sends nothing is marked *(no request)*), and *Sends to*: each path some method sent to, with the verbs sent there, so what the table says is what the endpoint does, not what the schema lists for its `_uri` (`pro.mdm` is `/v2/mdm/commands` POST). A path or verb the schema lacks is marked *not in schema* (the contract test fails on those); a path only in `pro-supplement.json` is marked `[options-probe]`. A parameter type `dummy_value` has no value for fails the run, naming the accessor.
+- **The schemas**, through `tools/schemas.py` only (`load_classic()`, and `load_pro()` with the supplement merged). A resource is a schema path's first segment, after the `/v<n>` prefix for Pro (`/v2/mdm/commands` → `mdm`; an unversioned Pro path such as `/preview/computers` → `preview`); it is covered when a wired endpoint's path is in it. The summary gives, per API, the endpoints wired, the resources covered and the resources in the schema (and names the Pro resources whose paths are all from the supplement); *Not yet covered* lists the schema's resources minus the covered ones, sorted. The file's *How to read this* states the same rule.
+- **The live specs**: `SPECS` and `LIVE_NOT_COVERED` in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, imported (at import they only define the specs and a pytest marker, so no tenant or env is needed). `LIVE_NOT_COVERED` is a `dict[str, str]` next to `SPECS`, mapping an accessor relative to the API (`"mdm"`, `"accounts"`) to why it has no spec, and gives an N/A row. A spec gives a "yes" mark for each of `min` and `max` it has and a "no" mark for one it lacks or that is still the placeholder `make scaffold` writes (recognised by its `fill in the builders` message; the *Notes* then say it was scaffolded), and its optional `notes` string is the *Notes* cell.
+
+It writes nothing and exits 1, with one line on stderr per problem, when a wired endpoint has neither a spec nor a reason (`coverage-doc: pro.things has no live spec and no reason: add a spec to SPECS, or why it has none to LIVE_NOT_COVERED, in tests/integration/pro_resources_live_test.py`), has both or two specs, a spec or reason names an accessor that is not wired, a live module lacks either list, has a `SPECS` entry that is not a dict or has no `accessor` (named by its `id`, or its place in the list), or a `LIVE_NOT_COVERED` reason that is empty, only whitespace or not a string (named by accessor), or `--root` is not the repo `jamfpy` and the live modules are imported from (run it in that repo). So an endpoint added without a spec or a reason cannot pass `make coverage-doc-check`, which regenerates in memory and compares with the committed file: identical exits 0; otherwise it prints a unified diff (committed → generated), then `coverage-doc: COVERAGE.md is stale; run make coverage-doc` on stderr, and exits 1. `make check` and the CI `coverage-doc` job run it.
+
 ### Definition of done
 
+- [ ] Scaffolded with `make scaffold API=… PATH=…` (or, for a shape it refuses, written by hand as below), and its output reviewed: `_name`, the docstrings, and the live spec's builders (and Classic `root`) filled in so `make test-integration` runs it (or, for an endpoint the lifecycle can't drive, a `LIVE_NOT_COVERED` reason in its place).
 - [ ] Class added, with docstrings on every public class/method.
 - [ ] Imported in `jamfpy/client/client.py` and attached in `ProAPI.__init__` / `ClassicAPI.__init__`.
-- [ ] Path, version, and body shape verified against the schema (queries above, not a full read).
-- [ ] Smoke test passes: `.venv/bin/python -c "import jamfpy; print(jamfpy.Tenant)"`
-- [ ] Tests pass: `.venv/bin/python -m pytest -q` — and a new endpoint gets a `tests/<module>_test.py` covering the Request it builds (mock only; see Quality gates).
-- [ ] Lint passes: `.venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0`
+- [ ] Path, version, verbs and body shape verified against the schema (`make schema-paths` / `make schema-path`, never a full read); a Pro endpoint composes exactly the mixins for the verbs listed.
+- [ ] Tests pass: `make test` — and a new endpoint gets a `tests/<module>_test.py` covering the request it sends (mocked with `responses`; see Quality gates).
+- [ ] The contract test passes for the new endpoint: `tests/contract_test.py` (part of `make test`) discovers it and every public method on its own; bump its `EXPECTED_ENDPOINT_COUNT` (`make scaffold` does).
+- [ ] Lint passes: `make lint`
+- [ ] Type check passes: `make typecheck`
+- [ ] Coverage gate passes: `make coverage` (or run every gate CI runs, `coverage-doc-check` included, with `make check`).
 - [ ] No live-request testing outside `tests/integration/` (the unit suite mocks the network — see Quality gates), no edits to version/CHANGELOG.
-- [ ] [`COVERAGE.md`](COVERAGE.md) updated: move the resource from *Not yet covered* into the covered table and bump the summary counts — and add a row to the *Live integration test coverage* table (with a min/max spec in `tests/integration/` if the resource supports CRUD, or an N/A row with the reason if it doesn't).
+- [ ] [`COVERAGE.md`](COVERAGE.md) regenerated with `make coverage-doc` and committed, never edited by hand: the endpoint has a covered-table row and a live-table row (from its spec, or from its `LIVE_NOT_COVERED` reason; the generator refuses an endpoint with neither), its resource has left *Not yet covered*, and `make coverage-doc-check` passes.
+- [ ] [`ENTRYPOINTS.md`](ENTRYPOINTS.md) updated when a make target, tool argument, environment variable, workflow or exported name changes (it has no drift check, unlike `COVERAGE.md`).
 - [ ] If asked to commit: Conventional Commit message (`feat:` for a new endpoint).
 
 ---
@@ -151,23 +278,186 @@ Edit the dicts in `jamfpy/client/constants.py` (`DEFAULT_HTTP_CONFIG_URLS` / `DE
 ## Architecture & request lifecycle
 
 ```
-Tenant(fqdn, auth_method, creds...)
-  ├─ builds ONE Auth object (OAuth or BasicAuth) and eagerly calls set_new_token()  ← network call at construction
-  ├─ tenant.pro     = ProAPI(...)      ┐ both APIs share the SAME auth object
-  └─ tenant.classic = ClassicAPI(...)  ┘
+Tenant(fqdn, auth_method, creds..., timeout=30.0, retries=RetryConfig(), parallelism=5)
+  ├─ builds ONE Auth object (OAuth or BasicAuth)   ← no network call: auth is lazy
+  ├─ tenant.hooks   = Hooks()          ← one hook registry, shared by both APIs
+  ├─ tenant.pro     = ProAPI(...)      ┐ both APIs share the SAME auth object and hooks; each has its own Session
+  └─ tenant.classic = ClassicAPI(...)  ┘ (requests' default headers + User-Agent: jamfpy/<version>) and RetryPolicy
+
+tenant.authenticate()                  ← optional: fetch a token now, to fail fast
 
 tenant.classic.computers.get_all()
   → ClassicEndpoint builds a requests.Request (url via api.url(), headers via api.header())
-  → api.do(request)
-       → _refresh_session_headers()  → auth.token() → check_token()  ← refreshes token if expired / within buffer
-       → session.prepare_request() + session.send()
-       → returns raw requests.Response
+  → api.do(request, timeout=None)
+       loop: attempt = 1, 2, ... (at most 1 + RetryConfig.total attempts)
+       → auth.token() → check_token()  ← first fetch, or refresh if expired / within buffer, under the Auth lock (never retried, no hooks)
+       → request.headers = {**endpoint headers, "Authorization": "Bearer <token>"}   ← per attempt, never on the session
+       → session.prepare_request()
+       → hooks: before_request(prepared, ctx)
+       → DEBUG: request headers + body (redacted under safe_mode, truncated)
+       → merge_environment_settings() + session.send(prepped, timeout=<configured or override>, **settings)
+       → INFO: <method> <url> -> <status or exception class> (N ms)   (+ DEBUG: response headers + body)
+            got a response → hooks: after_response(prepared, response, ctx)   (any status)
+            send raised    → no after_response
+       → RetryPolicy.delay(): retryable, not exhausted, Retry-After within max_backoff?
+            no  → return the raw requests.Response, or raise the exception (ERROR log if it gave up on a retryable one)
+            yes → WARNING log → hooks: on_retry(prepared, ctx, reason, delay) → sleep(delay) → next attempt
 ```
 
-- **`API.do()` (`client/api.py`) is the one place every request goes through.** It re-applies the `Authorization` header from `auth.token()` before *every* send — endpoints never touch auth.
-- **`auth.token()` → `check_token()`** checks expiry and a configurable buffer (`token_exp_threshold_mins`, default 20). Expired ⇒ new token. Within buffer ⇒ OAuth re-fetches, Basic/Bearer calls keep-alive.
-- **`Tenant.__init__` makes a live auth request** (`set_new_token()`). Bad creds or an unreachable FQDN raise at construction, not on first API call.
-- If you build a `ProAPI`/`ClassicAPI` directly (bypassing `Tenant`), call `auth.set_new_token()` yourself first — `token_expiry` is unset until then.
+- **`API.do()` (`client/api.py`) is the one place every request goes through.** It puts `Authorization: Bearer <token>` from `auth.token()` on each `Request`'s own headers before `prepare_request` — endpoints never touch auth. It builds a new dict over the endpoint's headers rather than updating them in place, because endpoints pass the shared header sets from `constants.py`, which must never carry a token. requests merges request headers over session headers case-insensitively, so the per-request `Authorization` (and an endpoint's `accept`/`content-type`) win over any session default.
+- **Auth is lazy.** `Tenant()` makes no network call. `Auth` starts with no token (`_token_str = None`) and `token_expiry = 0.0`, which reads as expired, and `token()` fetches one on demand, so the first request does it. Bad credentials (`JamfAuthError`) or an unreachable FQDN (the requests exception) therefore raise on the first request, not at construction. `Tenant.authenticate()` fetches a token immediately for callers who want to fail fast; the live `tenant` fixture calls it. A `ProAPI`/`ClassicAPI` built directly from an `Auth` needs no setup either. `invalidate()` before any token exists returns `True` without a request.
+- **Thread safety.** One `Tenant` can serve concurrent callers. `do()` never mutates the `Session`: its headers (requests' defaults plus `User-Agent`), `verify` and `cert` are set once at construction, and per-request state (the `Authorization` header, the timeout) travels with each request. What concurrent callers share is the `Session`, which holds the connection pool, the cookie jar and the redirect cache. The SDK mutates none of them per request, and the pool is the part urllib3 guards, so one session per API is fine. The token is the only shared state that changes as requests run, and `Auth` guards it with a `threading.RLock`. (The hook registry is shared too, but changes only when a caller registers or removes a hook; `Hooks` guards its lists with its own lock, see Request hooks. Everything else `do()` touches per attempt, the retry counter and the `RequestContext`, is local to the call.) `token()` does a double-checked refresh: a lock-free check, then, if a fetch or refresh is due, the lock and a re-check, because another thread may have refreshed while this one waited. So N threads that hit an expired token make one token request and all use its result. `set_new_token()`, `_keep_alive_token()` and `invalidate()` take the same lock, so no thread swaps the token out from under another. The lock is re-entrant because `token()` holds it while `check_token()` calls `set_new_token()` / `_keep_alive_token()`. A failing fetch is not shared: the lock is held across the fetch and every waiting thread re-checks and re-tries it in turn, so N concurrent first requests against a dead token endpoint take up to N times the timeout. That is by design (simple and correct); the API retry loop never retries auth calls.
+- **Timeout.** `Tenant(timeout=30.0)` takes seconds or a `(connect, read)` tuple, as requests does (type alias `jamfpy.Timeout`; default `DEFAULT_TIMEOUT` in `constants.py`). It applies to every API call and every auth call (token, keep-alive, invalidate). `OAuth`, `BasicAuth`, `ProAPI` and `ClassicAPI` take the same `timeout=` keyword. `api.do(request, timeout=...)` overrides it for that API request only; the default `None` means the configured value. A token fetch the call triggers uses the configured `Tenant(timeout=...)`, not the override.
+- **User-Agent.** Each API's session sends `User-Agent: jamfpy/<version>`, with the version from `importlib.metadata` (`jamfpy/unknown` when jamfpy isn't installed as a distribution). It is set at construction, including on a `session=` you pass in, and the auth calls send the same header. requests' other defaults (`Accept-Encoding`, `Accept: */*`, `Connection: keep-alive`) go out too; an endpoint's `accept` replaces `Accept` per request.
+- **API requests are TLS-verified by default and honour the environment like the auth calls.** `API.__init__` sets `session.verify` (`True`, or `verify_path` as a CA-bundle path) and `session.cert` (`cert_path`, or `None`) once, including on a `session=` you pass in. `do()` resolves `verify`/`cert`/`proxies` through `Session.merge_environment_settings` and passes them to `session.send`, because `send` skips the env merge that `Session.request` does. So API requests pick up `REQUESTS_CA_BUNDLE`/`CURL_CA_BUNDLE` and `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` exactly as the auth calls (which go through `requests.request()`) do; an explicit `verify_path` wins over the env bundle, and a request is never sent unverified. `Tenant` checks both paths exist and stores them as `str`.
+- **`auth.token()` → `check_token()`** checks for a token, its expiry, and a refresh buffer. No token yet or expired ⇒ new token (both log at DEBUG: a routine refresh is nothing to act on). Within buffer ⇒ OAuth re-fetches, Basic/Bearer calls keep-alive. The buffer is `token_exp_threshold_mins` (default 20), capped at half the current token's lifetime (0 s if the lifetime is 0 or negative), which `Auth` records whenever a token is set (OAuth: `expires_in`; Bearer: `expires` minus now, at issue and on keep-alive). The cap exists because API clients can issue tokens shorter than the buffer (the dev tenant's are 299 s). The clamp is silent unless the configured buffer is at least the whole token lifetime (the case that used to raise); then `Auth` logs one WARNING per instance naming the buffer it uses instead. A freshly issued token is always used, never rejected.
+- **`close()` → `auth.invalidate()`** POSTs `{fqdn}/api/v1/auth/invalidate-token`. Pro and Classic share one `Auth`, so closing either invalidates the token for both. If invalidation fails, `close()` logs a WARNING and still marks the API closed.
+
+---
+
+## Retries
+
+`API.do()` retries a failed attempt itself, in a loop. It does not use urllib3's `Retry`, which cannot fire the `on_retry` hook, log per attempt or re-apply a refreshed token. Configure it with `Tenant(retries=RetryConfig(...))`; the default is `RetryConfig()`, and `retries=None` turns retries off (one attempt, and the loop logs nothing). `API`, `ProAPI` and `ClassicAPI` take the same `retries=` keyword. Auth calls (token fetch, keep-alive, invalidate) are never retried: a token fetch that fails inside `do()` raises out of it on that attempt.
+
+`RetryConfig` (`jamfpy/client/retry.py`, exported as `jamfpy.RetryConfig`) is a frozen dataclass, so one instance is safe to share:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `total` | `3` | Retries after the first attempt, so at most four attempts. Attempts are numbered from 1 in logs and hooks. |
+| `backoff_factor` | `0.5` | Base of the exponential backoff. |
+| `max_backoff` | `30.0` | Cap on the computed delay, and the most `Retry-After` the loop will honour. |
+| `jitter` | `True` | Full jitter on the computed delay. |
+| `statuses` | `(429, 500, 502, 503, 504)` | Statuses that are retried. |
+| `methods` | `("GET", "HEAD", "OPTIONS", "PUT", "DELETE")` | Methods retried after a status, read timeout or connection error (compared case-insensitively). |
+| `retry_post` | `False` | Also retry POST under those rules. POST is not idempotent: a resend can create a second record. |
+
+The fields are validated when the config is built, so a typo fails at construction rather than mid-outage: `total` must be an `int` and `backoff_factor` and `max_backoff` numbers, none of them negative or NaN, and `statuses` (ints) and `methods` (strings) must be collections, not a bare string (`methods="GET"` raises `ValueError` and shows the one-item tuple form, `methods=("GET",)`). Any bad value raises `ValueError`. Lists and sets are accepted and stored as tuples, which keeps the frozen config hashable.
+
+What is retried:
+
+- **A status in `statuses`**: for a method in `methods`, plus POST when `retry_post`. Any other status, or a listed status on any other method (PATCH, a POST without `retry_post`), is returned at once.
+- **`requests.ConnectTimeout`**: every method, POST included, whatever `retry_post` says. The connection never opened, so nothing reached the server.
+- **`requests.ReadTimeout` and `requests.ConnectionError`**: the same method rule as a status, because the server may have processed the request. `ProxyError` subclasses `ConnectionError` and is treated as one.
+- **Nothing else.** `SSLError` also subclasses `ConnectionError`, so the policy checks it first and lets it propagate at once (a TLS failure won't fix itself on a resend). `ConnectTimeout` is checked before the `ConnectionError` rule too, since it subclasses both `ConnectionError` and `Timeout`. `InvalidURL`, `MissingSchema`, `ChunkedEncodingError` and every other exception propagate at once.
+
+Delay before the next attempt, when attempt `n` failed:
+
+- **Computed:** `min(backoff_factor * 2**(n-1), max_backoff)`, then, with `jitter`, multiplied by a uniform draw in [0, 1) ("full jitter": capped first, so late retries still spread over the whole window). Without jitter the defaults give 0.5 s, 1 s, 2 s.
+- **`Retry-After`:** on a retryable response it replaces the computed delay, unjittered. It may be integer seconds or an HTTP-date (RFC 9110), which is parsed with `email.utils.parsedate_to_datetime` and measured from the current UTC time (a naive `-0000` date is read as UTC; a date in the past means no wait). A value that parses as neither is ignored and the computed delay applies. If the value is more than `max_backoff`, the loop stops and returns that response, because sleeping less than the server asked would only earn another 429. A `Retry-After` on a status that isn't retried changes nothing.
+
+Each attempt re-prepares the `Request` and re-applies `Authorization` from `auth.token()`, so a token that expires during a backoff is refreshed before the resend. The body must therefore be replayable: a `str`/`bytes`/dict `data=` or `json=`, as every endpoint passes. A file-like or generator body would be used up by the first attempt.
+
+When retries run out, a status retry returns the last response (`do()` never raises on a status) and a timeout or connection retry raises the last exception.
+
+Logging goes through the API's logger (see **Logging** for the full level table). Each retry logs one WARNING with the method, URL, the number of the attempt that failed, the reason (`HTTP 503`, or the exception's class and message) and the delay. Giving up on an outcome that was still retryable (retries exhausted, or a `Retry-After` beyond `max_backoff`) logs one ERROR. Both carry the failed attempt's structured fields as `extra` (`method`, `url`, `status` when a response arrived, `duration_ms`, `attempt`); `RetryPolicy.delay()` takes them as a keyword-only `extra=`. A clean first attempt, a status that isn't retried and an exception that isn't retried add nothing at WARNING or above. Every attempt logs its INFO line, which from the first retry on ends `, attempt n)`, and at DEBUG its request and response lines, each with `(attempt n)`, so a retried request reads as one trace. Those lines are neutral (`-> 503`) because they run for every status, including one about to be retried.
+
+For tests, `API.__init__` (and `ProAPI`/`ClassicAPI`) take keyword-only `sleep: Callable[[float], None] = time.sleep` and `random_source: Callable[[], float] = random.random`. They are deliberately not on `Tenant`. The decisions live in `RetryPolicy` (`retry.py`, internal), which the API keeps as `_retry` (`None` when retries are off). The unit suite injects a recording sleep and a fixed random source, so no test ever waits (see Quality gates).
+
+---
+
+## Request hooks
+
+`tenant.hooks` is a `Hooks` object (`jamfpy/client/hooks.py`; `Hooks` and `RequestContext` are exported from `jamfpy`). `Tenant` creates one and both APIs share it. `API`, `ProAPI` and `ClassicAPI` take `hooks: Hooks | None = None`; `None` gives that API a private, empty `Hooks`, so nothing fires.
+
+Registering: `before_request(fn)`, `after_response(fn)` and `on_retry(fn)` each register `fn` and return it, so each also works as a decorator (`@tenant.hooks.after_response`). `remove(fn)` removes `fn` from every list it is in, every time it was registered; removing a function that isn't registered does nothing. The lists are guarded by a lock and copied before each dispatch, so registering or removing is safe from any thread and from inside a hook; a change applies from the next dispatch.
+
+Signatures:
+
+- `before_request(prepared: PreparedRequest, ctx: RequestContext) -> None`
+- `after_response(prepared: PreparedRequest, response: Response, ctx: RequestContext) -> None`
+- `on_retry(prepared: PreparedRequest, ctx: RequestContext, reason: Response | Exception, delay: float) -> None`
+
+`RequestContext` is a frozen dataclass:
+
+- `tenant: str`: the tenant's FQDN. It is a plain string so hooks also work for an API built without a `Tenant`, and so a hook never receives the object that holds the credentials.
+- `api: str`: `"pro"` or `"classic"`.
+- `attempt: int`: 1 for the first attempt, then one more per retry.
+- `started: float`: `time.monotonic()` at the start of the attempt, taken after the request is prepared, so a token fetch isn't counted.
+
+The contract:
+
+- Hooks fire per HTTP attempt, not per SDK operation. They fire for API requests only, never for auth calls (token fetch, keep-alive, invalidate).
+- For each attempt: `before_request`, then the send, then exactly one of `after_response` (for any response received, whatever its status, including one that is about to be retried) or nothing, when the send raised.
+- If a retry follows, `on_retry` fires after that and before the sleep, with the response or the exception as `reason` and the delay about to be slept as `delay`.
+- `ProGetAll.get_all` (every `ProEndpoint`) runs this sequence once per page. Pages 1..N run on worker threads when `parallelism` is above 1 (see **Concurrency**), so their `before_request` / `after_response` calls may interleave in any order; `ctx.attempt` counts the attempts of one page's request, so it is 1 for every page that wasn't retried and is how a consumer tells retries apart.
+- Return values are ignored. Mutating the arguments is unsupported.
+- A hook that raises is logged at WARNING, with the hook's `__qualname__` (its `repr` for a callable without one) and the traceback, and the request carries on. The remaining hooks still run.
+- Hooks may run on worker threads, not only the caller's, and from several threads at once (concurrent callers of one `Tenant`, or the SDK's own `get_all` page fetchers), so they must be thread-safe.
+- The prepared request carries the real `Authorization` header. A consumer that persists requests redacts it itself.
+
+---
+
+## Concurrency
+
+`Tenant(parallelism=5)` caps the requests the SDK runs at once for an operation it fans out on its own. `API`, `ProAPI` and `ClassicAPI` take the same keyword (the last one; default `DEFAULT_PARALLELISM` in `constants.py`), and `Tenant` passes it to both. Today one operation fans out: `ProGetAll.get_all`'s page fetches. The Classic API has nothing to fan out yet.
+
+- **What it is not.** It is not a rate limiter: it never throttles, queues or serialises requests the caller makes. Ten threads calling `get_by_id` on one `Tenant` send ten requests at once whatever `parallelism` says, and ten threads each running a `get_all` can have ten times `parallelism` page requests in flight. A caller that needs a global cap brings its own.
+- **Values.** An `int` of at least 1. `1` gives sequential behaviour: every page fetched on the calling thread, in order, and no executor. Anything else (`0`, a negative, a `bool`, a non-int) raises `ValueError` at construction, from `Tenant` too.
+- **Why 5.** Jamf's scalability guidance says to limit a client to no more than 5 concurrent connections: https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-scalability-best-practices. requests keeps up to 10 pooled connections per host for each session, so five page workers reuse pooled connections.
+
+**How `get_all(page_size=None, sort=None)` fetches:**
+
+1. Page 0, on the calling thread. If it isn't ok, it is returned as-is.
+2. With a `totalCount` in page 0's body, there are `ceil(totalCount / page_size)` pages. Pages 1 onwards run on a `concurrent.futures.ThreadPoolExecutor(max_workers=min(parallelism, pages remaining))`; at `parallelism=1` they are fetched one at a time on the calling thread instead. `get_all` submits pages in order, never more than `parallelism` at a time, and submits the next as one finishes (`concurrent.futures.wait`, `FIRST_COMPLETED`), so the executor never holds a queue of pages that would start on their own.
+   - **A failure stops further pages.** When a page comes back not ok, or raises, `get_all` submits no more pages. The pages already in flight finish, and the rest are never requested. At most `parallelism` pages, each with its own retries, are in flight when that happens, so the extra load on a failing server is bounded by `parallelism`: that is the point of the default of 5. Cancelling a queue instead does not give this bound, because the worker that returned the failed page starts the next queued one before the calling thread can cancel it (12 pages, page 1 failing, `parallelism=5`: 7 requests, and 25 when every page is a 503 retried 3 times, against bounds of 6 and 21). Pages are submitted in order, so the lowest failed page is always among those fetched.
+   - The pages are then read in page order:
+      - The first page that isn't ok is returned as-is (its own status, headers, body and `.url`), so the lowest page number wins when several fail. No aggregate is built and nothing raises. A page whose request raised (after `do()`'s retries) raises from `get_all` when it is reached, as in a sequential walk.
+      - A page whose `results` equal page 0's (non-empty) `results` means the server is ignoring `page` (the ignore-page guard): `get_all` logs one WARNING with the page number, its URL and how many results (from which pages) are returned, stops, and returns only the results of the pages before it. At `parallelism=1` nothing after that page is requested; in parallel the pages submitted alongside it were already fetched and are discarded.
+      - Otherwise the page's `results` are appended.
+3. Without a `totalCount`, the page count is unknown, so `get_all` walks one page at a time on the calling thread: it stops on a short or empty page, on reaching a `totalCount` a later page reports, or after page 3 (the runaway bound `page > totalCount // page_size + 2`, against a server that ignores `page`). A page that isn't ok is returned as-is.
+4. The aggregate is one Response built by `_repackage_response` on the last page read: that page's status, headers and URL, and the body `{"totalCount": N, "results": [...]}`, N being the number of results collected.
+
+Each page is its own `do()` call, so it is retried, logged and hooked on its own: its INFO line and any retry WARNING name that page's URL, and its hooks fire on the thread that fetched it (see **Request hooks**).
+
+---
+
+## Logging
+
+jamfpy logs through the standard `logging` module and sends output nowhere until the application asks for it.
+
+**Hierarchy and names.** `jamfpy/client/logger.py` attaches a `logging.NullHandler` to the `jamfpy` logger once, at import, so an application that configures nothing sees nothing (not even Python's last-resort output for WARNINGs). Each tenant logs through three children named from `extract_cloud_tenant_name_from_url(fqdn)` (`acme` for `https://acme.jamfcloud.com`): `jamfpy.acme-auth` (token fetch, keep-alive, invalidate), `jamfpy.acme-pro` and `jamfpy.acme-clc`. They are plain `logging.getLogger` loggers with no handlers that propagate, so a record reaches the `jamfpy` logger's handlers and then the root logger's. Names are never padded (`jamfpy.ab-pro` stays as it is). `Tenant(log_level=...)` (default `INFO`) sets the level on all three; `API`/`ProAPI`/`ClassicAPI` and `OAuth`/`BasicAuth` take the same `log_level=` for their own child. A `logger=` passed to any of those five is used as-is: jamfpy neither sets its level nor adds a handler. Loggers are process-wide by name, so two `Tenant`s for one FQDN share them and the last `log_level` wins.
+
+**`jamfpy.configure_logging(level=logging.INFO, fmt="text", stream=None) -> logging.Handler`** attaches one handler to the `jamfpy` logger, writing to `stream` (`sys.stdout`, looked up at call time, when `None`), sets both the handler's and the logger's level to `level`, and returns the handler. Calling it again replaces the handler it installed before (it is recognised by its own handler class) and leaves any handler you added yourself alone. `level` is the output threshold: a tenant only emits what its own loggers let through, so DEBUG output needs `Tenant(log_level=logging.DEBUG)` as well as `configure_logging(level=logging.DEBUG)`. Formats (both example lines are from a live run, with the tenant renamed `acme`):
+
+- `fmt="text"`: `%(asctime)s [%(levelname)s] (%(name)s): %(message)s` with `jamfpy.` stripped from the name (on a copy: other handlers still see the full name), so it matches what the removed `new_logger` printed apart from its name padding:
+  `2026-10-15 20:15:04,134 [INFO] (acme-pro): GET https://acme.jamfcloud.com/api/v1/scripts?page=0&page-size=2 -> 200 (820 ms)`
+- `fmt="json"`: one object per line with `ts` (ISO 8601 UTC with milliseconds and `Z`), `level`, `sender` (the logger name without `jamfpy.`) and `message`, plus each of `method`, `url`, `status`, `duration_ms` and `attempt` only when the record has it. A traceback (from a hook that raised) is appended to `message`, so the keys never change:
+  `{"ts": "2026-10-15T19:14:01.751Z", "level": "INFO", "sender": "acme-pro", "message": "GET https://acme.jamfcloud.com/api/v1/scripts?page=0&page-size=2 -> 200 (832 ms)", "method": "GET", "url": "https://acme.jamfcloud.com/api/v1/scripts?page=0&page-size=2", "status": 200, "duration_ms": 832, "attempt": 1}`
+- Any other `fmt` raises `ValueError`.
+
+`jamfpy.client.logger` also keeps `DEFAULT_FORMAT` (equal to `TEXT_FORMAT`) and `DEFAULT_LEVEL` (`logging.INFO`) as compatibility aliases, because both were public there on 2.x; nothing in jamfpy reads them. Removing them is a breaking change.
+
+**Levels.**
+
+| Level | What | Logger |
+|---|---|---|
+| DEBUG | Per API attempt: `Request <method> <url> (attempt n): headers={...} body=...` before the send, `Response <method> <url> -> <status> (attempt n): headers={...} body=...` after it. Headers are rendered as JSON. Each header set and body is redacted under `safe_mode` and then cut to 1024 characters, with `… (truncated, N chars)` appended when cut. An empty body shows as `<none>`; a streamed (file or generator) body as `<streamed <type> body, not logged>`, since reading it would leave nothing to send. Rendering is skipped unless DEBUG is enabled. | `-pro`, `-clc` |
+| DEBUG | Per auth call (token fetch, keep-alive, invalidate): `POST <url> -> <status> (N ms)`, then its request and response lines as above. Token housekeeping: `No token yet; fetching one`, `Token expired`, `Token in buffer` (routine refreshes, so not WARNING). | `-auth` |
+| INFO | One line per API attempt: `GET <url> -> 200 (123 ms)`, and from the first retry on `(123 ms, attempt 2)`. When the send raised a retryable exception (`ConnectionError`, `ReadTimeout`), its class stands in for the status: `GET <url> -> ConnectTimeout (30001 ms)`. Also `Closing ...` / `... closed` from `close()`. | `-pro`, `-clc` |
+| WARNING | Each retry (see **Retries**), a request hook that raised, a failed token invalidation in `close()`, the one-time token-buffer clamp, a `get_all` page that repeats page 0 (see **Concurrency**). | all three |
+| ERROR | Giving up on a still-retryable outcome (see **Retries**). | `-pro`, `-clc` |
+
+A clean request logs nothing above INFO. Auth calls never log at INFO; the API's INFO line already shows the request a token was fetched for.
+
+**Structured fields.** Every log call in `api.py` passes the fields as `extra=`, so they are attributes on the `LogRecord` (for `caplog`, filters and your own formatters) as well as JSON keys: `method`, `url` and `attempt` on every line of an attempt, `duration_ms` (an `int`: the send alone, not the token fetch or hooks) from the INFO line on, and `status` when a response arrived. The DEBUG request line, written before the send, has only `method`, `url` and `attempt`. The retry WARNING and the give-up ERROR carry the fields of the attempt that failed. Auth calls carry `method`, `url`, `status` and `duration_ms`, without `attempt` (they are never retried).
+
+**Redaction.** `redact(value)` in `jamfpy/client/redaction.py` is the one helper: every logged header set and body, and the text in `JamfAuthError`, goes through it. It takes a mapping (headers, or a parsed JSON object), `str`, `bytes` (decoded as UTF-8, undecodable bytes replaced) or `None`, returns the same shape (a new `dict` for a mapping, `str` for text or bytes, `None` for `None`) and never mutates its input. It replaces:
+
+- the value of an `Authorization` key, keeping a `Bearer` or `Basic` scheme (`Bearer [redacted]`), or `[redacted]` for anything else;
+- the whole value of a `Proxy-Authorization`, `X-Auth-Token`, `Cookie` or `Set-Cookie` key (`REDACTED_HEADERS`), matched case-insensitively. A mapping key of that name is redacted wherever it sits, header or not;
+- the value of any key in `SECRET_KEYS`: `access_token`, `token`, `client_id`, `client_secret`, `password`, matched case-insensitively. `client_id` is on the list because the OAuth token request body carries it next to the secret, and the client ID is half of the credential pair.
+
+Mappings are walked recursively, lists included. Text that opens with `{` or `[` and parses as JSON is redacted the same way and re-serialised with `json.dumps` (so the logged body is single-line). Any other text, including JSON that does not parse (a fragment, a truncated body) and the XML bodies Classic writes, is matched against five patterns, tried in this order:
+
+1. `Cookie: ...`, `Set-Cookie: ...`, `Proxy-Authorization: ...` and `X-Auth-Token: ...` header lines, also quoted (`"Set-Cookie": "..."`, `{'Cookie': '...'}`). Cookie values hold spaces and semicolons, so the value runs to its closing quote, or to the end of the line when unquoted. The name must start the word, so `My-Cookie:` and `Cookie-Policy:` are left alone;
+2. `Authorization: Bearer xxx` (quoted or not), keeping the scheme;
+3. `"key": "value"`;
+4. `key=value` (form bodies and any other `key=value` text; the key must not be the tail of a longer name, so `my_token=` is left alone);
+5. `<key>value</key>` XML elements, with or without attributes, whose content is text or a CDATA section: `<password>hunter2</password>` becomes `<password>[redacted]</password>`. An empty (`<password></password>`) or self-closing (`<password/>`) element holds nothing to redact and is left alone, and so is one with child elements inside it.
+
+Keys match exactly: `newPassword` and `pin` are not covered. Redaction runs before truncation, so a secret can't straddle the cut. Not redacted: URLs and their query strings, wherever a line shows one (the INFO line, the DEBUG request and response lines, retry warnings); no URL jamfpy builds carries a credential, but one you add yourself is logged as written. Session cookies such as `JSESSIONID` (seen on auth and Classic responses) and Jamf Cloud's `jpro-ingress` affinity cookie travel in `Cookie` / `Set-Cookie` headers, so under `safe_mode` they show as `[redacted]`; with `safe_mode=False` they are logged as sent.
+
+**`safe_mode`.** `Tenant(safe_mode=True)` (the default) passes the flag to both APIs and to the Auth; `OAuth` and `BasicAuth` also take `safe_mode: bool = True` themselves. With it on, every logged header and body is redacted. `safe_mode=False` logs them raw, including the Bearer token, the Basic credentials, the client ID and secret in the token request, and the issued tokens: use it against a dev tenant only. `JamfAuthError` text is redacted whatever `safe_mode` says, because exception messages end up in crash reporters: `OAuth.set_new_token` raises `JamfAuthError("Error getting token.", response, redact(response.text))`, the same three positional args as before. `BasicAuth`'s errors carry the status code and the response object, not the body text, so there is nothing in them to redact.
 
 ---
 
@@ -186,43 +476,49 @@ Use `"oauth2"` / `"basic"` at the `Tenant` layer. The `"oauth"` / `"bearer"` str
 
 ## Quality gates & workflow
 
-- **Setup:** a `.venv` already exists with `requests`, `pylint` + `pytest`. Use it (`.venv/bin/python`, `.venv/bin/pylint`, `.venv/bin/pytest`). If recreating: `python -m venv .venv && .venv/bin/pip install requests pylint pytest`.
-- **Lint — a CI gate.** `.github/workflows/pylint.yml` runs on every push against Python 3.13 and **fails under 9.0**. Match it locally before you push:
-  ```bash
-  .venv/bin/pylint $(git ls-files '*.py') --fail-under=9.0
-  ```
-  Baseline is ~9.8/10. Config is `.pylintrc` (max line 150; `missing-module-docstring`, `too-many-arguments`, `duplicate-code` disabled). Keep the score ≥ 9.0 — don't blanket-disable checks to get there.
-- **Tests — a CI gate.** `.github/workflows/pytest.yml` runs `pytest` on every pull request to `main` (Python 3.13). Run locally before you push:
-  ```bash
-  .venv/bin/python -m pytest -q
-  ```
-  The unit suite lives in `tests/`, one `<module>_test.py` per source module (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: the SDK's two network boundaries are mocked — patch `jamfpy.client.auth.request` for auth, and endpoints run against the `FakeAPI` double in `tests/conftest.py` that records the `requests.Request` they build. **Never exercise a live tenant from unit tests** — add tests by mocking, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main; needs the repo var/secrets below and skips on forks/unconfigured repos) or explicitly via `pytest -m integration tests/integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is tracked in `COVERAGE.md` → *Live integration test coverage*. Some tests deliberately **characterize known quirks** (e.g. the no-op `time.replace` in `fix_jamf_time_to_iso`, MDM's preserved `rebuildKernalCache` typo); if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
-- **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
+- **Setup:** install [uv](https://docs.astral.sh/uv/), then `make setup` (`uv sync`). It creates the project virtualenv from `uv.lock` with the runtime dependency plus the `dev` dependency group in `pyproject.toml` (`pytest`, `pytest-cov`, `responses`, `pylint`, `mypy`, and `pyyaml` + `types-pyyaml` for `tools/schemas.py`; runtime dependencies stay `requests` only). Run everything through `make` (`make help` lists the targets); each target calls `uv run`, which keeps the virtualenv in step with the lock. To change a dependency, edit `pyproject.toml`, run `make lock` (`uv lock`), and commit `uv.lock` with it.
+- **CI.** `.github/workflows/ci.yml` runs on every pull request (no base-branch filter, so stacked PRs are checked too) and every push to `main`. Four jobs: `lint` (Python 3.13, `make lint`), `typecheck` (3.13, `make typecheck`), `test` (matrix 3.15 / 3.14 / 3.13, `make coverage`) and `coverage-doc` (3.13, `make coverage-doc-check`, which fails when COVERAGE.md is stale). Each job uses `astral-sh/setup-uv` pinned to `v10.3.0`, `uv python install <version>`, `uv sync --frozen`, then the make target, with `UV_PYTHON` and `UV_FROZEN=1` in the job env so `uv run` inside make neither picks another interpreter nor rewrites the lock. No `actions/setup-python`. Locally, `make check` runs the same four gates (`lint typecheck coverage coverage-doc-check`); `make check-matrix` repeats `make check` once per interpreter in `PYTHON_VERSIONS` (default `3.15 3.14 3.13`), each in its own per-version virtualenv (via `UV_PROJECT_ENVIRONMENT`).
+- **Lint — a CI gate.** `make lint` runs pylint over every tracked `.py` file and **fails under 9.0**. Baseline is ~9.9/10. Config is `.pylintrc` (`py-version=3.13`; max line 150; `missing-module-docstring`, `too-many-arguments`, `duplicate-code` disabled; `ignored-parents` lists `ProBase` and the five Pro capability mixins, so composing them doesn't count against `max-parents=7`). Keep the score ≥ 9.0 — don't blanket-disable checks to get there.
+- **Types — a CI gate.** `jamfpy/` and `tools/` are fully type-hinted, and `make typecheck` runs mypy in strict mode (config in `pyproject.toml` `[tool.mypy]`) over both; the package ships `jamfpy/py.typed` so downstream type checkers use the hints. New code must be hinted too: no bare `def f(x):`, every parameter and return annotated (strict mypy rejects anything less). Endpoints reference `API` through the `typing.TYPE_CHECKING` import at the top of `jamfpy/endpoints/models.py` (reuse it in any endpoint module that needs the name): the client layer imports the endpoints at runtime, so endpoints import `API` for hints only and the import graph cannot become a cycle. `# type: ignore` needs an error code and a one-line reason; prefer `cast()` when the narrowing is genuinely known. `tests/` is not type-checked.
+- **Tests — a CI gate.** `make test` runs the unit suite; `make coverage` (what CI runs, on all three interpreters) adds branch coverage of `jamfpy/` and **fails under 90%** (baseline 98%). `tools/` has its own tests (`tests/tools_schemas_test.py`, `tests/tools_scaffold_test.py` and `tests/tools_coverage_doc_test.py`, run by `make test` and `make coverage` like the rest) but sits outside the coverage gate. The first two use small fixture schemas and tmp paths, never the committed 2 MB files, apart from two CLI smoke tests that run `python -m tools.schemas` against them and assert structure (the path appears, the verbs are lower-case HTTP verbs, `requestBody` has its stable shape), not Jamf's current verbs, so a schema refresh can't break them; the probe tests drive a real `Tenant` (the `tenant` fixture) against `responses`, including the observations (`json_shape`, the GET and `POST {}` entries, `observedAt` held until a shape changes) and the deployment lifecycle (the requests in order, the created body, a byte-identical rerun with another id, the create inside the guarded region (a 2xx without an id, a transport failure, a stdout that breaks right after it, any 2xx with an id followed), the cleanup when a later step fails with its 404 re-read in order, the errors naming a deployment it could not delete or show gone, and through `main()` the exit 1 that leaves the supplement unwritten). `tools_scaffold_test.py` scaffolds into a tmp tree laid out like the repo (a `client.py` with both import blocks and `__init__`s, a two-class `clc_endpoints.py`, the live modules' `SPECS`, `contract_test.py`'s count) over fixture schemas: each shape and each refusal (by its message), the three pagination signals and the shapes that lack them, the `NAME=` override and its validation, alphabetical insertion, the wiring, the live specs (whose builders it calls, expecting the loud failure), the count, all-or-nothing on a failed write, and `--dry-run`. It also imports each generated endpoint and test module and runs the generated tests against the real SDK stack, with the endpoint attached to `pro_api` / `classic_api`. `tools_introspect_test.py` tests the shared introspection on fixture endpoints over throwaway APIs (the method rules, the dummy arguments, the path normaliser, the recorder: distinct requests in send order, `do` put back even when a method raises, a type with no dummy value). `tools_coverage_doc_test.py` runs the generator's functions on fixture schemas, endpoints and specs (resource counting, the supplement-only resources, the covered and not-covered split, each endpoint's sent paths with the verbs sent, including the missing and probed ones and a schema parameter named other than `{id}`, the live rows, the scaffold placeholder, every refusal by its message, the rendered rows), runs `--check` and the write against a tmp root with `generate` stubbed (current → 0; one changed line or no file → 1 with the diff and the hint), and smoke-tests the real repo, reading the committed schemas: discovery finds exactly the contract test's endpoints and sends nothing, the real endpoints' recorded requests (`pro.mdm` sends only a `v2` POST; every method sends something), the live modules import with the tenant env unset, `generate()` is deterministic with every endpoint in a covered and a live row and no timestamp, and a missing `LIVE_NOT_COVERED` entry fails `main` with one line naming `pro.mdm`.
+  The unit suite lives in `tests/`, one `<module>_test.py` per source module plus `contract_test.py` (below) and `repo_config_test.py` (one Python floor across `requires-python`, `.pylintrc`'s `py-version`, mypy's `python_version`, the lowest CI test-matrix version, read from `ci.yml` with the dev-group `pyyaml`, and the Makefile's `PYTHON_VERSIONS`; `.gitignore` covering `.env` and `.venv-*`; no `[project.scripts]` or `[project.optional-dependencies]`; no stray `json` file at the root; `jamfpy/py.typed` present and declared as package data; no `setuptools-scm` in `build-system.requires`) (config in `pyproject.toml` `[tool.pytest.ini_options]` — note the non-default `*_test.py` naming). It is **fully offline and deterministic**: tests drive the real SDK stack and mock only the network edge, with [`responses`](https://github.com/getsentry/responses). `responses` replaces `HTTPAdapter.send`, so the auth calls (`requests.request()`) and every endpoint call (`API.do()` → `Session.send`) both land in one `RequestsMock`; an unregistered URL raises `ConnectionError`, so nothing can leak to a live tenant. `tests/conftest.py` provides `restore_jamfpy_logging` (autouse: puts every `jamfpy` logger's level and handlers back after each test, because `configure_logging()` and `Tenant(log_level=...)` change process-wide state), `mocked_responses` (an active `RequestsMock` that fails the test if a registration goes unused), `response_registry` (the registry class behind it; `tests/models_test.py` overrides it with `OrderedRegistry` so a sequential `get_all` that repeats a URL fails the test instead of looping, and its `TestParallelGetAll` class puts the default `FirstMatchRegistry` back, because `OrderedRegistry` is one FIFO for the whole mock and parallel pages arrive in any order: those tests register each page under its own `page=` URL, and `FirstMatchRegistry` serves several registrations of one URL in turn, which scripts a retried page. `add_callback` ignores the query string unless given `match=[matchers.query_string_matcher(...)]`, so a per-page callback needs one), `tenant` (a real OAuth `Tenant`, authenticated with `authenticate()` against the token endpoint `mocked_responses` answers; the call log is reset after that, so `mocked_responses.calls` holds only the test's own requests; its APIs keep the default `RetryConfig` but append each backoff delay to the `sleeps` list instead of sleeping, so a retried status costs no time; at teardown it fails the test if any call other than a token request went out without the `Authorization: Bearer` header), `pro_api` / `classic_api` (its two APIs), `make_classic_api` (builds a `ClassicAPI` on the tenant's `Auth` with whatever `retries`, `hooks`, `logger` or `sleep` a test passes, defaulting to a recording `sleep` and a `random_source` fixed at 0.5), `warning_logger` (a propagating WARNING-level logger for `caplog` tests), `silent_logger` (a handler-less CRITICAL logger, `make_classic_api`'s default), the helpers `register_oauth_token`, `with_bearer` and `sent_headers`, and for the concurrency tests `run_together` (calls a function from `THREADS` = 20 threads released together by a `threading.Barrier`, with timeouts so a deadlock fails instead of hanging) and `register_slow_oauth_token` (a token endpoint slow enough that, without the `Auth` lock, every thread would reach it). A lazy-auth test builds its own `Tenant` inside `mocked_responses` and registers the token endpoint only if it authenticates or sends a request. An endpoint test registers the URL it expects, calls the endpoint through `pro_api` / `classic_api`, and asserts on `mocked_responses.calls[-1].request`: method, full URL (with the `/JSSResource` or `/api/v{n}` prefix), headers (`sent_headers(req) == with_bearer(<config header set>)`: requests' session defaults with the jamfpy `User-Agent`, the config header set over them, and the `Authorization: Bearer` header the real `Auth` injects; names lower-cased) and body (`request.body`: the XML string for Classic, JSON for Pro). Auth tests register the four auth URLs (`/api/oauth/token`, `/api/v1/auth/token`, `/api/v1/auth/keep-alive`, `/api/v1/auth/invalidate-token`) the same way. The one exception is the TLS tests in `api_test.py`: they patch `HTTPAdapter.send` directly, with a stub Auth and no `responses` mock, because they assert the exact keyword arguments the adapter receives (`verify`, `cert`, `proxies`, `timeout`), the point where `verify=None` used to become an unverified connection. Other timeout tests read the value `responses` records on `mocked_responses.calls[i].request.req_kwargs["timeout"]`. `tests/retry_test.py` scripts each attempt with `OrderedRegistry` (one registration per attempt, in order) and raises network failures by registering an exception as the `body` (`body=requests.exceptions.ConnectTimeout(...)`), which `responses` raises from the send; `tests/hooks_test.py` records hook calls in lists, tests that a hook registered (or re-registered by itself) from inside a dispatch only runs from the next one, and includes a 20-thread test where workers register and remove hooks while others dispatch; `tests/models_test.py` shows `get_all`'s pages 1-3 are in flight together by answering them from callbacks that wait on one `threading.Barrier(parties=3, timeout=5)` (fetched one at a time, the barrier times out and the call fails), and records each executor's `max_workers` by monkeypatching `jamfpy.endpoints.models.ThreadPoolExecutor`. The failure-stops-further-pages tests use a `page_failed` fixture, a patched executor whose futures set a `threading.Event` when a page fails; pages after the first failure answer from callbacks that wait on that event, which fixes the batch in flight when the failure lands, so the request counts (`<= 1 + parallelism` pages, `<= 1 + parallelism * attempts` with retries) hold on every run instead of depending on thread timing. They set `mocked_responses.assert_all_requests_are_fired = False`, because the pages that are never started are meant to go unrequested. **Never exercise a live tenant from unit tests** — add tests by registering responses, following the existing files. The one sanctioned exception is `tests/integration/`: marker-gated live min/max lifecycle tests, deselected by default (`addopts = "-m 'not integration'"`), run only by `.github/workflows/integration-test.yml` (workflow_dispatch + PRs to main, also on uv: setup-uv, `uv sync --frozen`, `make test-integration`; needs the repo var/secrets below and skips on forks/unconfigured repos) or locally via `make test-integration` with `JAMFPRO_INSTANCE_FQDN` / `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET` set (repo Actions variable + secrets in CI). Locally the target loads `.env` when it exists (copy `.env.example`); if any of the three vars is unset or empty it exits non-zero with a one-line reason before pytest starts, and the live `tenant` fixture in `tests/integration/conftest.py` also fails (never skips) as a backstop. That live `tenant` (a real tenant, built from the environment) and the unit `tenant` in `tests/conftest.py` (a fake token served by `responses`) are different fixtures that share a name; each applies only to the tests under its own directory. The suite is spec-driven: each resource is a small dict (min/max payload builders) in `tests/integration/clc_resources_live_test.py` / `pro_resources_live_test.py`, run through the shared runners in `tests/integration/lifecycle.py`; per-resource status is in `COVERAGE.md` → *Live integration test coverage*, generated from the specs (their `min`/`max` builders and optional `notes`) and each module's `LIVE_NOT_COVERED` (accessor → why it has no spec). A Pro spec may carry a `setup`, a function of the `ProAPI` returning keyword arguments for its builders, for a payload that must name tenant state (`app_installers` takes a catalog title's id and version from `GET /v1/app-installers/titles`); a spec without a `max` builder runs only the min test. Logging tests read records with `caplog` and assert on their `extra` attributes. The `tenant` fixture builds its loggers at CRITICAL, so a test that wants its API's lines calls `caplog.set_level(logging.DEBUG, logger="jamfpy.test-clc")` (or `-pro`), or passes `make_classic_api(logger=None, log_level=...)` to log through the `jamfpy.test-clc` child instead of `silent_logger`. `tests/logger_test.py` sends `configure_logging()` output to an `io.StringIO` and reads it back line by line; `tests/redaction_test.py` covers `redact()` on its own. Some tests deliberately **characterize known quirks** (e.g. `ClassicEndpoint.delete_by_id` sending no headers of its own); the tests that pin current behaviour carry a `# Characterises current behaviour` comment, so `grep -rn "Characterises current behaviour" tests` finds them; if you intentionally fix one of those, update its test in the same change. Test files carry a small `# pylint: disable=...` header for test idioms (fixtures, `_private` access) — keep new ones lint-clean too.
+
+  **The contract test** (`tests/contract_test.py`) covers the whole endpoint surface, not one source module. It discovers the endpoints by introspection: every `Endpoint` instance attribute of `tenant.classic` and `tenant.pro`, recursing into endpoints that hold endpoints (`classic.accounts.users`), and asserts there are `EXPECTED_ENDPOINT_COUNT` of them including a few named accessors, so a wiring regression shows (22 endpoints and 130 methods at the time of writing; the discovery test is the source of truth). For every public callable bar `name()` and nested endpoints (so a public `@staticmethod` or a callable assigned in `__init__` counts, not only bound methods; that rule, the dummy arguments and the path normaliser are `tools/introspect.py`'s, shared with the COVERAGE.md generator) it builds dummy arguments from the signature (`int` → `1`, `str` → the sentinel `CONTRACT_ARG` = `"jamfpy-contract-arg"`, `list[str]` → `[CONTRACT_ARG]`, `dict` → `{}`, the default where there is one, `False` for a `bool` without one, nothing for `*args`/`**kwargs`), calls the method under a catch-all `responses` registration (every verb; a 200 with `{"totalCount": 0, "results": []}`, so `get_all` stops at page 0) and checks every request it sends. The path, with the API base (`/JSSResource`, `/api`) and the query string stripped and each integer, UUID or `CONTRACT_ARG` segment (URL-encoded or not) as `{id}`, and the verb must be a `(path, verb)` pair in `load_classic()` / `load_pro()` (supplement included), whose `{param}` segments are normalised to `{id}` too; the Pro version prefix is part of the path. The sentinel rule is what lets a name-based lookup (a `get_by_name` hitting `/accounts/username/jamfpy-contract-arg`) compare equal to `/accounts/username/{id}`; any other string segment is part of the path and has to match the schema. The check is that the `(path, verb)` pair **exists** in the schema, so a valid-but-wrong verb on a path that supports several verbs (a `delete_by_id` that sends PUT to `/buildings/id/{id}`) is caught by the per-endpoint unit tests, not by the contract test. Each request must also carry the `Authorization` header, a Classic write must pass an XML string as `data=` (`Content-Type: text/xml`) and a Pro write a `json=` body. A second test checks that each endpoint's `_uri` names schema paths: Classic `<uri>` and `<uri>/id/{id}` (accounts children: `<by-id uri>/{id}`), Pro `/v<version><uri>` and its `/{id}` path when a by-id mixin is composed, and for `pro.mdm`, which names its version per method, `<uri>` under any version. Test ids name the method (`classic.buildings.get_by_id`, `pro.mdm.lock_device`) and the message says what was sent against what the schema has: `classic.buildings.frobnicate sent GET /buildings/frob, which the classic schema has no path for`, or `... sent PATCH /buildings/id/{id}, which the classic schema has only for ['delete', 'get', 'post', 'put']`. **There is no allowlist.** A method the schema does not back is a bug in the endpoint: fix the endpoint (correct the URL or verb, or remove the method; a Pro endpoint composes only the mixins for the verbs it has), never the test. A newly wired endpoint and its methods are tested without editing the file, bar the count (which `make scaffold` bumps). A parameter type `dummy_value` doesn't know raises `TypeError` naming the parameter; add the type there. The schemas are read once per module.
+
+  **Live SDK behaviour** (`tests/integration/sdk_behaviour_live_test.py`) checks against the real tenant what the unit suite can only simulate. Lazy auth: a fresh `Tenant` has `token_expiry == 0.0` until its first request. The buffer clamp: on a fresh `Tenant` with the default 20-minute buffer, whose tokens last less (the dev tenant's, 299 s), a Classic and then a Pro call fetch exactly one token (one `POST .../api/oauth/token` DEBUG record on the `-auth` logger, which the test sets to DEBUG through `caplog` after building the tenant, and an unchanged `token_expiry`), and the clamp WARNING appears exactly once. App Installers pagination: after creating two disabled `unique_name` deployments with the spec's `setup` and min builder, `pro.app_installers.get_all(page_size=1)` returns 200 with `totalCount >= 2`, every result, both names, and one first-attempt `before_request` per page: the proof that `ProGetAll` fits an endpoint no schema documents. Parallel pagination: after creating three `unique_name` scripts, `pro.scripts.get_all(page_size=1)` on the session tenant (`parallelism=5`) and on a fresh `Tenant(parallelism=1)` give the same `totalCount` and identical ordered results, and a `before_request` hook sees one first attempt per page, at least one of them on a worker thread. Hooks over a lifecycle: on a fresh, unauthenticated `Tenant`, the Classic categories min lifecycle fires six `before_request` and six `after_response` calls with the methods and statuses of create, read, update, re-read, delete and the 404 read, `ctx.api == "classic"` and `ctx.tenant` the FQDN, and none for the token fetch the create triggered (its record is janitored through the session tenant, because the fresh one is closed before the janitor runs). `close()`: no invalidation WARNING, after which the same GET returns 401 and no token is re-fetched. A test that builds its own `Tenant` closes it in a `finally`.
+- **Commits drive releases — use Conventional Commits.** `release-please` runs on `main` (`feat:` → minor, `fix:` → patch, `chore:`/`docs:` → no release; a commit that removes or renames anything public, see the Python API in [`ENTRYPOINTS.md`](ENTRYPOINTS.md#python-api), is marked `!` after its type or carries a `BREAKING CHANGE:` footer, and release-please makes it a major bump) and opens the release PR + updates `CHANGELOG.md` and the version in `pyproject.toml`. PyPI publish (`pypi-publish.yml`) is **manual** (`workflow_dispatch`). Don't hand-edit the version.
 - **Branch/PR:** work on a branch, open a PR to `main`. Don't commit or push unless asked.
-
----
-
-## Known rough edges (don't "fix" without asking)
-
-- **`/json`** at the repo root is a stray file (accidental capture of git output). It is not used by anything — ignore it.
-- **`pyproject.toml`** contains leftover template cruft: `[project.scripts] my-script = ...` and the `pdf`/`rest` optional-dependencies are placeholders, not real. Don't rely on them.
-- **`client.py`** sets `self.policies = Policies(self)` twice in `ClassicAPI.__init__` — harmless duplicate.
-- **`logger.new_logger`** adds a fresh `StreamHandler` each call for a given name — repeated construction of the same-named logger can duplicate log lines.
-- **`ProEndpoint` provides shared CRUD + pagination** (mirroring `ClassicEndpoint`). `ProEndpoint.get_all` paginates and aggregates into one Response; its `update_by_id` uses PUT and is a best-effort default (some resources are read-only or need PATCH — override or don't use it). `pro_app_installers` inherits `get_all`/`update_by_id` even though those aren't in `pro.json` for that resource — treat them as best-effort there.
-- **`api_schemas/classic.json` is not strictly valid JSON** (trailing commas) — `json.load` raises. Query it with grep, not a JSON parser.
 
 ---
 
 ## Quick reference
 
 ```python
+import logging
+
 import jamfpy
+
+# jamfpy logs nowhere until asked: one handler on the "jamfpy" logger; calling again replaces it.
+jamfpy.configure_logging(level=logging.INFO, fmt="text")   # or fmt="json"; stream defaults to sys.stdout
 
 tenant = jamfpy.Tenant(
     fqdn="https://your-instance.jamfcloud.com",
     auth_method="oauth2",              # or "basic"
     client_id="...", client_secret="...",   # or username=..., password=...
+    timeout=30.0,                      # the default; or (connect, read). API and auth calls alike.
+    retries=jamfpy.RetryConfig(),      # the default; e.g. RetryConfig(total=5, retry_post=True). retries=None turns retries off.
+    log_level=logging.INFO,            # the default; DEBUG adds redacted headers and bodies (with configure_logging at DEBUG too)
+    safe_mode=True,                    # the default; False logs credentials raw: dev tenant only
+    parallelism=5,                     # the default: most page fetches one get_all runs at once; 1 = sequential
 )
+tenant.authenticate()                  # optional: fetch the token now (fail fast) instead of on the first request
+
+# Hooks fire per HTTP attempt (API requests only) and must be thread-safe.
+@tenant.hooks.after_response
+def log_status(prepared, response, ctx):
+    logging.getLogger("audit").info("%s %s -> %s (attempt %d)", prepared.method, prepared.url, response.status_code, ctx.attempt)
+
+tenant.hooks.remove(log_status)
 
 # Classic (raw requests.Response back)
 resp = tenant.classic.computers.get_all()
@@ -230,8 +526,88 @@ one  = tenant.classic.computers.get_by_id(123)
 tenant.classic.buildings.create("<building>...</building>")   # XML body
 
 # Pro
-scripts = tenant.pro.scripts.get_all()
+scripts = tenant.pro.scripts.get_all()   # one Response: {"totalCount": N, "results": [...]}, or the first failed page raw
+if not scripts.ok:
+    ...
 tenant.pro.mdm.lock_device(["<managementId>"], message="...", pin="123456")
 
 tenant.classic.close()   # invalidates the token
 ```
+
+---
+
+## Round status (October 2026 tidy-up)
+
+Written 2026-10-16 at the end of the round that produced the stacked PRs below. Keep it current: when a PR merges or an item under **Outstanding** resolves, update this section in the same change and replace the item's `OWNER-PENDING` marker with `OWNER-DONE` and the date, so the history stays readable without the item matching the grep. `grep -n "OWNER-PENDING" AGENTS.md` is the authoritative list of what waits on the owner: every hit but this sentence is an open item.
+
+| Question | Where the answer lives |
+|---|---|
+| Where have we been? | `git log --oneline 224d712..tidy/all` (the round's commits, one per task plus each task's review fixes), the stacked PR descriptions #55 to #66 (each states its decisions, breaking changes and evidence), and the evidence folder on the owner's machine, `~/Github/jamfpy-python-sdk-jamfpro-evidence/` (one folder per PR with the exact commands and the raw logs; not in git, no credentials). |
+| What is outstanding? | **Outstanding** below: the 9 numbered items that carry the pending marker. |
+| What is next? | The owner's merge, under **Where we are**. There is no plan file in the tree: the round ran from `jamfpy-tidy-prompt.md` (the plan) and `jamfpy-tidy-rulings.md` (the owner's rulings), both untracked at the repo root on the owner's machine. |
+
+### What the round did
+
+The goal, from the plan: make jamfpy robust, fully tested and validated, and set up so an agent can pick it up cold and add, change or fix an endpoint end to end with one skill (the `jamfpy-dev` skill, [thejoeker12/ai-tools#3](https://github.com/thejoeker12/ai-tools/pull/3)). Everything started from `main` at `224d712` and landed as twelve stacked PRs, each based on the previous branch, plus one combined PR carrying all of them against `main`:
+
+| PR | Branch | PR title | What it did |
+|---|---|---|---|
+| #55 | `tidy/01-tooling` | `chore!: tooling: uv, Makefile, CI matrix, mypy, Python 3.13 floor` | uv and `uv.lock`; the Makefile as the single entrypoint; `ci.yml` with the 3.15/3.14/3.13 matrix on `astral-sh/setup-uv`; mypy strict with full type hints and `py.typed`; the 90% branch-coverage gate; `.env.example`; the stray `/json` file and the template `pyproject.toml` entries removed; `types-requests` dropped (requests ships its own types). |
+| #56 | `tidy/02-correctness` | `fix!: TLS verification, invalidate URL, token buffer and other bugs` | API requests were sent with `verify=None` (unverified); `close()` raised `MissingSchema`; a token buffer longer than the token lifetime made the SDK unusable (the dev tenant issues 299-second tokens, so the live suite was 0/38 on `main`; now the buffer clamps to half the lifetime and warns once when it is at least the lifetime); `rebuildKernalCache`; broken time parsing; the duplicate `policies` wiring. Live suite 38/38. |
+| #57 | `tidy/03-responses-migration` | `test: migrate the unit suite from FakeAPI to responses` | Every endpoint test runs through the real `API.do()`; the `tenant` fixture asserts `Authorization` on every call; proven offline with sockets blocked. |
+| #58 | `tidy/04-request-plumbing` | `feat!: lazy auth, configurable timeout, thread-safe tokens, User-Agent` | `Tenant()` no longer makes a network call; `Tenant(timeout=)` replaces `AUTH_REQUEST_TIMEOUT`; an `RLock` around token state; `User-Agent: jamfpy/<version>`. |
+| #59 | `tidy/05-retries-hooks` | `feat: retries with backoff and request hooks` | `RetryConfig`, `Retry-After`, `tenant.hooks` with the contract under **Request hooks**. |
+| #60 | `tidy/06-logging` | `feat!: logging hierarchy, configure_logging, JSON format and redaction` | `jamfpy.configure_logging()` replaces `new_logger`; the `jamfpy.*` logger hierarchy under a `NullHandler`; redaction of secrets in headers, bodies, cookies and XML (`safe_mode`). |
+| #61 | `tidy/07-schema-tooling` | `feat: schema tooling, refreshed schemas and app-installers supplement` | `tools/schemas.py` and `make schemas` with a drift summary (Pro 525 → 551 paths); Classic YAML converted to valid JSON; the verbs of the undocumented App Installers API probed into a committed supplement. |
+| #62 | `tidy/08-endpoint-capabilities` | `feat!: endpoint capability mixins, parallel pagination and non-raising get_all` | Pro endpoints compose the verbs the schema has; `Tenant(parallelism=5)` per Jamf's scalability guidance; `get_all` fans pages out and returns the first failed page instead of raising. |
+| #63 | `tidy/09-contract-tests` | `test: schema contract tests and live suite extensions` | Every public method on every endpoint checked against the schema with no allowlist; live tests for lazy auth, parallel pagination, hooks and `close()`; an App Installers deployment lifecycle. |
+| #64 | `tidy/10-scaffolder` | `feat: endpoint scaffolder and COVERAGE.md generator` | `make scaffold`; `make coverage-doc` with the `coverage-doc` CI drift check. |
+| #65 | `tidy/11-docs` | `docs: README, EXPANDING.md and ENTRYPOINTS.md` | The user-facing README (also the PyPI long description), the worked endpoint guide and the entrypoint inventory. |
+| #66 | `tidy/12-final-fixes` | `test: final review fixes (app-installers shape probe, config tests, live clamp test, logger aliases)` | The whole-stack review's findings: App Installers request and response shapes probed into the supplement, live max lifecycle and pagination, the live clamp test, the config-consistency tests, the 2.x logger aliases restored. |
+| #67 | `tidy/all` | `feat!: jamfpy tidy-up (tooling, correctness, plumbing, retries, logging, schemas, mixins, tests, scaffolder, docs)` | The combined PR: every commit of #55 to #66 against `main`, with a consolidated description and a `BREAKING CHANGE:` footer. `tidy/all` is kept equal to the tip of #66. |
+
+The breaking changes against the 2.x line (PyPI's latest is 2.6.0; v2.7.0 is released on GitHub but its PyPI publish was cancelled) are consolidated in #67's description and its `BREAKING CHANGE:` footer: the Python floor is 3.13; `Tenant()` no longer raises on bad credentials (the first request or `authenticate()` does); `AUTH_REQUEST_TIMEOUT` is gone in favour of `Tenant(timeout=)`; `new_logger` is gone in favour of `configure_logging()` and the logger names changed; `utility.fix_jamf_time_to_iso` and `AccountChild.pass_response` are removed; `get_all` returns a non-ok Response instead of raising; `pro.dock_items.get_all` is removed (the schema has no collection GET); `safe_mode=False` logs raw secrets; API requests are TLS-verified by default (`verify_path` or `REQUESTS_CA_BUNDLE` for a private CA) and `Tenant.cert_path`/`verify_path` are `str`, not `Path`; `API.do()`'s `timeout` defaults to the configured value instead of 10; `DockItems` no longer subclasses `ProEndpoint`; `JamfAPIError` is imported from `jamfpy.client.exceptions`; `get_all` fans out with `parallelism=5` by default. No argument was renamed or reordered; every new keyword is trailing with a default, verified by a signature diff of every public class and function against `main`. The owner's rulings for the round (uppercase `.env` keys; the buffer clamp in the SDK rather than the tenant; App Installers kept and probed rather than removed; CI on every pull request regardless of base; the live CI variable and secrets left unset until the stack merges; the responses migration moved ahead of the behaviour PRs; a conduct-only round workflow with the evidence outside the repo; `REQUESTS_CA_BUNDLE` and proxies honoured as `requests.request()` does) and the decisions the plan did not specify (among them `types-requests` dropped as obsolete in #55, the `RLock` in #58, the sliding window instead of cancellation in #62) are each recorded in the description of the PR that made them.
+
+Gates on the final tree against `main` at `224d712`:
+
+| Gate | `main` | final tree |
+|---|---|---|
+| unit tests | 192 | 1151, fully offline |
+| branch coverage of `jamfpy/` | 94% | 98.9% (gate 90%) |
+| pylint | 9.92 | 9.99 (gate 9.0; the eight remaining messages are listed under **Outstanding**) |
+| mypy strict | not run | clean over `jamfpy/` and `tools/` |
+| `make check-matrix` | n/a | exit 0 on 3.15, 3.14 and 3.13 (rerun on the final tree on 2026-10-16) |
+| live suite, `make test-integration` | 0/38 | 46/46, no objects left on the tenant |
+| COVERAGE.md | hand-maintained | generated, drift-checked in CI |
+
+Every stacked PR had an independent review that re-derived its claims (mutation testing where it applied) and a scoped fix loop before it was pushed; a final whole-stack review against the plan produced the findings that became #66. Against the plan's "Done means" list every item holds, with one qualification: CI is green on every PR, but the live job in `integration-test.yml` is skipped in CI until the variable and secrets under **Outstanding** are set, so the live suite was run locally against the dev tenant instead (evidence in `12-final-fixes`). `make schemas` was also rerun live on the final tree on 2026-10-16: the probe created and deleted its deployment, and all three schema files came back byte-identical.
+
+### Where we are
+
+Nothing is merged. The thirteen jamfpy PRs (#55 to #67) are open with CI green on each, ai-tools#3 is open (that repo runs no CI), and #67 reports no conflicts with `main`. The merge is the owner's, one of two ways. Bottom-up: merge #55 into `main` with a merge commit and delete `tidy/01-tooling`, on which GitHub retargets #56 to `main`; repeat up to #66. Or merge #67 alone with a merge commit, then close #55 to #66 by hand (their bases are the intermediate branches, so they do not auto-close) and delete the `tidy/*` branches, locally and on origin. Either way every commit on `tidy/all` reaches `main` as a Conventional Commit, and release-please turns the `!` commits into the 3.0.0 release PR (updating the pre-existing #49).
+
+Pre-existing and untouched by the round, by instruction: #49 (release-please's `chore(main): release 3.0.0`), #54 (a fork PR adding a Classic mobile-device-configuration-profiles endpoint; it predates `make scaffold`, the contract test and the generated COVERAGE.md, so it needs reworking onto that structure before it can land) and the remote branch `feat/integration-tests`.
+
+On the owner's machine: the checkout holds the thirteen `tidy/*` branches, each equal to origin; `.venv-3.13`, `.venv-3.14` and `.venv-3.15` from `make check-matrix` (gitignored); and, untracked at the root, `jamfpy-tidy-prompt.md`, `jamfpy-tidy-rulings.md` and `.env`. The `~/ai-tools` checkout is on `feat/jamfpy-dev-skill`, which is what makes the `jamfpy-dev` skill live through the `~/.claude/skills` symlink; `git -C ~/ai-tools checkout main` once #3 merges.
+
+### Outstanding
+
+Waiting on the owner:
+
+1. `OWNER-PENDING` Merge the stack (merge commits bottom-up, or #67 alone), close #55 to #66, delete the `tidy/*` branches.
+2. `OWNER-PENDING` Set the repo Actions variable `JAMFPRO_INSTANCE_FQDN` and the secrets `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET`, then run `integration-test.yml` once by `workflow_dispatch` to see the live job green in CI. Left unset until the stack merges, by ruling.
+3. `OWNER-PENDING` Merge thejoeker12/ai-tools#3 (the `jamfpy-dev` skill) and return the `~/ai-tools` checkout to `main`.
+4. `OWNER-PENDING` Choose a license. There is no LICENSE file and no `license` field in `pyproject.toml`; a public PyPI package without one is all-rights-reserved.
+5. `OWNER-PENDING` `pypi-publish.yml` builds on Python 3.12 (`actions/setup-python`) while the package requires 3.13; fix it before the next publish. Left alone during the round by instruction.
+6. `OWNER-PENDING` `Tenant(fqdn="acme.jamfcloud.com")`, without a scheme, raises a bare `IndexError` from `utility.extract_cloud_tenant_name_from_url`; the README says to include `https://`. Decide between validating with a `JamfpyConfigError` and accepting a bare host.
+7. `OWNER-PENDING` The README's note under *Install* says the features ship from the next major release and names the current PyPI release; rewrite it when 3.0.0 publishes.
+8. `OWNER-PENDING` This file is over 110 KB. A split would help a cold reader (the test-suite description under **Quality gates** alone is a page); ask before restructuring, because the `jamfpy-dev` skill, EXPANDING.md and ENTRYPOINTS.md link to section names here.
+9. `OWNER-PENDING` v2.7.0 is released on GitHub (2026-02-09) and `pyproject.toml` says 2.7.0, but its `pypi-publish.yml` run was cancelled, so PyPI's latest is 2.6.0. Decide whether to publish 2.7.0 or let 3.0.0 be the next PyPI release.
+
+Recorded, not pending (known, accepted, fixable in a later round):
+
+- The eight remaining pylint messages (line numbers as of this writing). In `jamfpy/endpoints/pro_mdm_commands.py`: trailing whitespace after the `send_command` docstring (line 26), the 189-character `enable_lost_mode` signature (line 144), six positional arguments on `erase_device` (line 161) and 30 public methods on `MDMCommands` (line 7). `too-many-instance-attributes` (16/15) on `ClassicAPI` in `jamfpy/client/client.py` (line 42). `arguments-differ` on the three `# type: ignore[override]` methods in `jamfpy/endpoints/clc_endpoints_accounts.py` (`get_by_id` at line 17, `get_all` at lines 74 and 99).
+- `pro.mdm.send_command` sends the `read` header set on its POST; Jamf accepts it, and a characterising test pins it.
+- `JamfAuthError.args` holds the raw `Response` on both auth paths, in different shapes: `(message, response, redacted_text)` for OAuth and `(message, status_code, response)` for basic (`auth.py`). Printing the exception shows `<Response [401]>`, not a body, but the unredacted body is reachable through `exc.args`. Pre-existing shape.
+- `make schemas` makes one guarded write to the tenant (a disabled App Installers deployment, created, deleted and verified gone) because a fresh tenant has no deployment to observe; by design, see ENTRYPOINTS.md.
+- A `~/.netrc` entry for the tenant host makes `requests` replace the `Authorization: Bearer` header with Basic credentials (`trust_env`); pre-existing, unchanged.

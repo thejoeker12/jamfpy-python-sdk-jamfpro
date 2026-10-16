@@ -1,4 +1,6 @@
 """Endpoint module for managing Jamf Pro MDM commands."""
+from typing import Any
+
 from requests import Request, Response
 from .models import Endpoint
 
@@ -13,7 +15,7 @@ class MDMCommands(Endpoint):
 
     # Send the command
 
-    def send_command(self, command_type: str, management_ids: list[str], **kwargs) -> Response:
+    def send_command(self, command_type: str, management_ids: list[str], **kwargs: object) -> Response:
         """
         Send a generic MDM command.
 
@@ -22,7 +24,7 @@ class MDMCommands(Endpoint):
             management_ids: List of Jamf Pro management IDs to target.
             **kwargs: Additional fields (like pin, message, preserveDataPlan).
         """        
-        payload = {
+        payload: dict[str, Any] = {
             "clientData": [{"managementId": mid} for mid in management_ids],
             "commandData": {"commandType": command_type, **kwargs},
         }
@@ -89,7 +91,7 @@ class MDMCommands(Endpoint):
             deleteAllUsers = delete_all_users
         )
 
-    def device_information(self, management_ids: list[str], queries: list = None) -> Response:
+    def device_information(self, management_ids: list[str], queries: list[str] | None = None) -> Response:
         """Send a DEVICE_INFORMATION command"""
         return self.send_command(
             "DEVICE_INFORMATION",
@@ -104,7 +106,8 @@ class MDMCommands(Endpoint):
             management_ids if isinstance(management_ids, list) else [management_ids]
         )
 
-    def lock_device(self, management_ids: list[str], message: str="Device locked remotely", pin: str="1234", phone_number: str=None) -> Response:
+    def lock_device(self, management_ids: list[str], message: str = "Device locked remotely", pin: str = "1234",
+                    phone_number: str | None = None) -> Response:
         """Send a DEVICE_LOCK command."""
         return self.send_command(
             "DEVICE_LOCK",
@@ -114,7 +117,8 @@ class MDMCommands(Endpoint):
             phoneNumber = phone_number
         )
 
-    def disable_lost_mode(self, management_ids: list[str], preserve_data_plan: bool=False, disallow_proximity_setup: bool=False, return_to_service: dict=None) -> Response:
+    def disable_lost_mode(self, management_ids: list[str], preserve_data_plan: bool = False, disallow_proximity_setup: bool = False,
+                          return_to_service: dict[str, bool | str] | None = None) -> Response:
         """Send an DISABLE_LOST_MODE command"""
 
         if return_to_service is None:
@@ -154,7 +158,8 @@ class MDMCommands(Endpoint):
             management_ids if isinstance(management_ids, list) else [management_ids]
         )
 
-    def erase_device(self, management_ids: list[str], preserve_data_plan: bool=False, disallow_proximity_setup: bool=False, pin: str="1234", obliteration_behavior: str="Default", return_to_service: dict=None) -> Response:
+    def erase_device(self, management_ids: list[str], preserve_data_plan: bool = False, disallow_proximity_setup: bool = False, pin: str = "1234",
+                     obliteration_behavior: str = "Default", return_to_service: dict[str, bool | str] | None = None) -> Response:
         """Send an ERASE_DEVICE command"""
 
         if return_to_service is None:
@@ -209,7 +214,8 @@ class MDMCommands(Endpoint):
             management_ids if isinstance(management_ids, list) else [management_ids]
         )
 
-    def restart_device(self, management_ids: list[str], rebuild_kernel_cache: bool=True, kextpath: list[str]=None, notify_user: bool=True) -> Response:
+    def restart_device(self, management_ids: list[str], rebuild_kernel_cache: bool = True, kextpath: list[str] | None = None,
+                       notify_user: bool = True) -> Response:
         """Send RESTART_DEVICE command"""
         if rebuild_kernel_cache and kextpath is None:
             kextpath = []
@@ -217,12 +223,13 @@ class MDMCommands(Endpoint):
         return self.send_command(
             "RESTART_DEVICE",
             management_ids if isinstance(management_ids, list) else [management_ids],
-            rebuildKernalCache=rebuild_kernel_cache,
+            rebuildKernelCache=rebuild_kernel_cache,
             kextPaths=kextpath,
             notifyUser=notify_user
         )
 
-    def request_mirroring(self, management_ids: list[str], destination_device_id: str, destination_name: str, password: str=None, scan_time: str=None) -> Response:
+    def request_mirroring(self, management_ids: list[str], destination_device_id: str, destination_name: str, password: str | None = None,
+                          scan_time: str | None = None) -> Response:
         """Send REQUEST_MIRRORING command"""
         return self.send_command(
             "REQUEST_MIRRORING",

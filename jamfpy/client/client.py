@@ -1,13 +1,18 @@
 """Core client module for Jamf Pro API interactions, providing base API client functionality and specific implementations for Pro and Classic APIs."""
 
+import random
+import time
+from collections.abc import Callable
 from logging import Logger
 from requests import Session
 
 
 from .auth import Auth
 from .http_config import HTTPConfig
-from .constants import DEFAULT_LOG_LEVEL
+from .constants import DEFAULT_LOG_LEVEL, DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, Timeout
 from .api import API
+from .hooks import Hooks
+from .retry import RetryConfig
 
 from ..endpoints.clc_endpoints import (
     ComputerGroups,
@@ -45,14 +50,20 @@ class ClassicAPI(API):
             *,
             fqdn: str,
             auth: Auth,
-            log_level = DEFAULT_LOG_LEVEL,
+            log_level: int = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
-            session: Session = None,
-            logger: Logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
-    ):
+            session: Session | None = None,
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
+            retries: RetryConfig | None = RetryConfig(),
+            hooks: Hooks | None = None,
+            sleep: Callable[[float], None] = time.sleep,
+            random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
+    ) -> None:
 
         # no dynamic args here to preserve the hints.
         super().__init__(
@@ -64,7 +75,13 @@ class ClassicAPI(API):
             session=session,
             logger=logger,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
+            retries=retries,
+            hooks=hooks,
+            sleep=sleep,
+            random_source=random_source,
+            parallelism=parallelism,
         )
 
         # Endpoints
@@ -82,7 +99,6 @@ class ClassicAPI(API):
         self.mobile_devices = MobileDevices(self)
         self.sites = Sites(self)
         self.departments = Departments(self)
-        self.policies = Policies(self)
         self.accounts = Accounts(self)
         self.restricted_software = RestrictedSoftware(self)
 
@@ -99,14 +115,20 @@ class ProAPI(API):
             *,
             fqdn: str,
             auth: Auth,
-            log_level = DEFAULT_LOG_LEVEL,
+            log_level: int = DEFAULT_LOG_LEVEL,
             http_config: HTTPConfig = HTTPConfig(),
             safe_mode: bool = True,
-            session: Session = None,
-            logger: Logger = None,
-            cert_path: str = None,
-            verify_path: str = None,
-    ):
+            session: Session | None = None,
+            logger: Logger | None = None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
+            retries: RetryConfig | None = RetryConfig(),
+            hooks: Hooks | None = None,
+            sleep: Callable[[float], None] = time.sleep,
+            random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
+    ) -> None:
 
         super().__init__(
             fqdn=fqdn,
@@ -117,7 +139,13 @@ class ProAPI(API):
             session=session,
             logger=logger,
             cert_path=cert_path,
-            verify_path=verify_path
+            verify_path=verify_path,
+            timeout=timeout,
+            retries=retries,
+            hooks=hooks,
+            sleep=sleep,
+            random_source=random_source,
+            parallelism=parallelism,
         )
 
         self.scripts = ProScripts(self)

@@ -1,5 +1,7 @@
 """HTTP configuration module for managing API request settings and configurations."""
 
+from typing import Any
+
 from .constants import DEFAULT_HTTP_CONFIG_URLS, DEFAULT_HTTP_CONFIG_HEADERS
 
 class HTTPConfig:
@@ -7,8 +9,8 @@ class HTTPConfig:
 
     def __init__(
             self,
-            urls: dict = None,
-            headers: dict = None
-    ):
-        self.urls = urls or DEFAULT_HTTP_CONFIG_URLS
-        self.headers = headers or DEFAULT_HTTP_CONFIG_HEADERS
+            urls: dict[str, Any] | None = None,
+            headers: dict[str, Any] | None = None
+    ) -> None:
+        self.urls: dict[str, Any] = urls or DEFAULT_HTTP_CONFIG_URLS
+        self.headers: dict[str, Any] = headers or DEFAULT_HTTP_CONFIG_HEADERS
