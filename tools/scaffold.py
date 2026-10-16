@@ -14,8 +14,8 @@
 Anything else is refused with one line on stderr, and nothing is written. Every file is computed first and then written
 together; a write that fails puts back the files already written. COVERAGE.md is left to ``make coverage-doc``.
 """
-# One module on purpose: the generated code's templates live next to the rules that pick them, which outgrows
-# pylint's 500-line default.
+# One module on purpose: the generated code's templates live next to the rules that pick them, which outgrows this
+# repo's 500-line max-module-lines (.pylintrc; pylint's own default is 1000).
 # pylint: disable=too-many-lines
 
 import argparse

@@ -18,8 +18,10 @@ from requests.exceptions import ConnectTimeout
 from conftest import FQDN
 
 import jamfpy
+from jamfpy.client.constants import DEFAULT_LOG_LEVEL
 from jamfpy.client.logger import (
-    MAX_LOGGED_CHARS, JsonFormatter, TextFormatter, configure_logging, render_body, render_headers, truncate,
+    DEFAULT_FORMAT, DEFAULT_LEVEL, MAX_LOGGED_CHARS, TEXT_FORMAT, JsonFormatter, TextFormatter, configure_logging, render_body,
+    render_headers, truncate,
 )
 from jamfpy.client.retry import RetryConfig
 
@@ -55,6 +57,12 @@ def acme_pro():
 
 
 # --- the jamfpy logger -----------------------------------------------------
+
+def test_the_2x_names_are_kept_as_aliases_of_the_new_ones():
+    # DEFAULT_FORMAT and DEFAULT_LEVEL were public on 2.x; the module renamed the format TEXT_FORMAT.
+    assert DEFAULT_FORMAT == TEXT_FORMAT == OLD_FORMAT
+    assert DEFAULT_LEVEL == DEFAULT_LOG_LEVEL == logging.INFO
+
 
 def test_jamfpy_logger_has_only_a_null_handler_before_configure_logging():
     handlers = _jamfpy_handlers()

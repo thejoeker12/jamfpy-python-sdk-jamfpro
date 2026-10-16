@@ -3,7 +3,7 @@
 Same spec pattern as the Classic suite, JSON both ways. A spec may also have a
 ``setup``: a function of the ``ProAPI`` returning keyword arguments for its
 builders, for a payload that must name tenant state (``app_installers`` needs a
-catalog title id). A spec without a ``max`` builder runs only the min test, and
+catalog title's id and version). A spec without a ``max`` builder runs only the min test, and
 its optional ``notes`` is the Notes cell of COVERAGE.md's live table. A wired
 endpoint with no spec has the reason in ``LIVE_NOT_COVERED`` instead (``pro.mdm``
 is a verb endpoint); ``make coverage-doc`` refuses an endpoint with neither.
@@ -17,15 +17,18 @@ from .lifecycle import run_pro_lifecycle
 pytestmark = pytest.mark.integration
 
 
-def _first_catalog_title_id(pro) -> str:
-    """Any App Installers catalog title's id. The catalog is Jamf's, so it is read here, never created."""
+def first_catalog_title(pro) -> dict:
+    """The first App Installers catalog title's id and current version, as builder arguments.
+
+    The catalog is Jamf's, so it is read here, never created.
+    """
     resp = pro.do(Request(
         "GET", pro.url("1") + "/app-installers/titles?page=0&page-size=1", headers=pro.header("read")["json"],
     ))
     assert resp.status_code == 200, f"app-installers titles: {resp.status_code} {resp.text}"
     results = resp.json()["results"]
     assert results, "the App Installers catalog lists no titles"
-    return results[0]["id"]
+    return {"title_id": results[0]["id"], "title_version": results[0]["version"]}
 
 
 SPECS = [
@@ -66,21 +69,55 @@ SPECS = [
         "id": "app_installers",
         "accessor": "app_installers",
         "notes": (
-            "No max: the body is in no published schema (`/v1/app-installers` is only in `pro-supplement.json`, which has "
-            "no bodies), so its writable fields are unknown. Min sends the four fields a 400 on `{}` names as required "
-            "(`name`, `appTitleId`, `deploymentType`, `updateBehavior`), with the first catalog title from "
-            "`GET /v1/app-installers/titles` (the spec's `setup`), `SELF_SERVICE` / `MANUAL`, and `enabled: false` so "
-            "nothing reaches a device. Best-effort: the resource is undocumented, so `get_all`'s pagination and the body "
-            "shapes are unverified beyond this lifecycle, which does not call `get_all`."
+            "Undocumented by Jamf; the shapes are the probe's (`make schema-path API=pro PATH=/v1/app-installers/deployments`). "
+            "Every deployment is `enabled: false`, so nothing reaches a device, and uses the first catalog title from "
+            "`GET /v1/app-installers/titles` (the spec's `setup`). Min sends the four fields a 400 on `{}` names as required "
+            "(`name`, `appTitleId`, `deploymentType`, `updateBehavior`). Max adds every other writable field the read-back "
+            "has, with `updateBehavior: MANUAL` and the title's current version as `selectedVersion` (under `AUTOMATIC` the "
+            "server blanks `selectedVersion`); `categoryId` and `siteId` are `-1`, the server's none. Left out: "
+            "`smartGroupId` (the server takes `-1`, but a real group is tenant state the spec's `setup` cannot create and "
+            "clean up), a non-empty `selfServiceSettings.categories` (the same), and the read-only `titleAvailableInAis`, "
+            "`latestAvailableVersion` and `versionRemoved`. `get_all`'s pagination is proven live in "
+            "`sdk_behaviour_live_test.py`."
         ),
-        "setup": lambda pro: {"title_id": _first_catalog_title_id(pro)},
-        "min": lambda n, title_id: {
+        "setup": first_catalog_title,
+        # title_version is only for max: min takes whatever setup returns and uses the id.
+        "min": lambda n, title_id, **_: {
             "name": n,
             "appTitleId": title_id,
             "deploymentType": "SELF_SERVICE",
             "updateBehavior": "MANUAL",
             # Not required: sent so the deployment is never offered to a device, whatever the tenant defaults to.
             "enabled": False,
+        },
+        "max": lambda n, title_id, title_version: {
+            "name": n,
+            "appTitleId": title_id,
+            "enabled": False,
+            "deploymentType": "SELF_SERVICE",
+            "updateBehavior": "MANUAL",
+            "selectedVersion": title_version,
+            "categoryId": "-1",
+            "siteId": "-1",
+            "installPredefinedConfigProfiles": True,
+            "triggerAdminNotifications": True,
+            "notificationSettings": {
+                "notificationMessage": f"notification for {n}",
+                "notificationInterval": 4,
+                "deadlineMessage": f"deadline for {n}",
+                "deadline": 2,
+                "quitDelay": 3,
+                "completeMessage": f"complete for {n}",
+                "relaunch": True,
+                "suppress": True,
+            },
+            "selfServiceSettings": {
+                "includeInFeaturedCategory": True,
+                "includeInComplianceCategory": True,
+                "forceViewDescription": True,
+                "description": f"description for {n}",
+                "categories": [],
+            },
         },
     },
 ]

@@ -6,12 +6,14 @@ This is the one module that parses ``api_schemas/*.json``; anything else that ne
 - ``classic.json``: Jamf's Swagger 2 schema of the Classic API. The server only serves it as YAML, at
   ``https://<fqdn>/classicapi/doc/swagger.yaml``; ``pull`` converts it to JSON.
 - ``pro-supplement.json``: Pro paths the tenant serves but its schema leaves out, with the verbs an OPTIONS probe
-  found. ``load_pro`` merges them into the schema's ``paths``; each carries ``"x-jamfpy-source": "options-probe"``.
+  found and the shapes it observed (``x-jamfpy-observed``). ``load_pro`` merges them into the schema's ``paths``; each
+  carries ``"x-jamfpy-source": "options-probe"``.
 
 The CLI is ``python -m tools.schemas {refresh,pull,probe,drift,paths,path}``; the make targets ``schemas`` (``refresh``),
 ``schema-paths`` and ``schema-path`` wrap it.
 """
-# One module on purpose: it is the only reader of api_schemas/, so it outgrows pylint's 500-line default.
+# One module on purpose: it is the only reader of api_schemas/, so it outgrows this repo's 500-line max-module-lines
+# (.pylintrc; pylint's own default is 1000).
 # pylint: disable=too-many-lines
 
 import argparse
@@ -21,6 +23,7 @@ import json
 import os
 import re
 import sys
+import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -58,6 +61,24 @@ PROBE_SOURCE = "options-probe"
 PROBE_KEY = "x-jamfpy-probe"
 ALLOW_MISSING = "allow-header-missing"
 GENERATED_KEY = "x-jamfpy-generated"
+OBSERVED_KEY = "x-jamfpy-observed"
+# Marks an observation taken from the deployment the probe creates, rather than from a request to the path alone.
+LIFECYCLE_SOURCE = "lifecycle"
+OBSERVE_METHODS = {
+    "get": "GET through jamfpy with the tenant's token; the 200 body's shape",
+    "post": "POST {} through jamfpy with the tenant's token; the field names and codes of the 400 validation body. "
+            "{} fails validation, so nothing is created",
+    "list": "GET through jamfpy with the tenant's token while the probe's own disabled deployment exists (the tenant had "
+            "none, so the list was empty); the 200 body's shape",
+    "read": "the probe creates one disabled deployment (the first catalog title, SELF_SERVICE, MANUAL), GETs it by id, "
+            "then DELETEs it and confirms the 404; the GET's 200 body's shape",
+}
+# App Installers deployments. Jamf documents no body for them, and a fresh tenant has none to read, so the probe creates
+# one, disabled so it never reaches a device, to put the shape of a deployment on record; see _observe_deployment.
+TITLES = "/v1/app-installers/titles"
+DEPLOYMENTS = "/v1/app-installers/deployments"
+DEPLOYMENT = "/v1/app-installers/deployments/{id}"
+PROBE_DEPLOYMENT_PREFIX = "jamfpy-schemas-probe-"
 REF_KEY = "x-jamfpy-ref"
 UNRESOLVED_KEY = "x-jamfpy-unresolved"
 NOTE_KEY = "x-jamfpy-note"
@@ -67,6 +88,8 @@ MAX_LISTED_NAMES = 20
 # What `path` reports about an operation besides its parameters and request body.
 OPERATION_FIELDS = ("summary", "operationId", "deprecated", "x-deprecation-date", "x-required-privileges")
 
+# bool before int: True is an int to Python, but a boolean to JSON. None, the one other value json.loads gives, is null.
+_SCALAR_TYPES: tuple[tuple[type, str], ...] = ((bool, "boolean"), (int, "integer"), (float, "number"), (str, "string"))
 # A whole JSON string, escapes included, or a comma whose next non-blank character closes an object or array.
 # Strings are matched as single tokens, so a comma inside one is never mistaken for a trailing comma.
 _STRING_OR_TRAILING_COMMA = re.compile(r'"(?:[^"\\]|\\.)*"|,(?=\s*[}\]])', re.DOTALL)
@@ -215,8 +238,9 @@ def path(api: str, key: str, *, schema: Schema | None = None) -> Schema:
 
     The result has ``api``, ``path``, the supplement's ``x-jamfpy-*`` markers when the path came from it, and
     ``methods``: per verb, the operation's summary-level fields, ``parameters`` (path-level ones included, overridden
-    by the operation's own of the same name and location) and, when it takes one, ``requestBody``, always shaped
-    ``{"contentTypes": [...], "required": bool, "schema": {...}}``. Swagger 2's ``in: body`` parameters become that
+    by the operation's own of the same name and location), when it takes one, ``requestBody``, always shaped
+    ``{"contentTypes": [...], "required": bool, "schema": {...}}``, and, for a supplement path the probe observed, that
+    verb's ``x-jamfpy-observed`` entry (see ``probe``). Swagger 2's ``in: body`` parameters become that
     ``requestBody``: one parameter gives its schema as it is, several are merged into one object schema (see
     ``_swagger_body``). Every ``$ref`` (OpenAPI 3 ``components``, Swagger 2 ``definitions``) is replaced by its target
     (see ``resolve``).
@@ -233,11 +257,14 @@ def path(api: str, key: str, *, schema: Schema | None = None) -> Schema:
     shared = [resolve(param, loaded) for param in item.get("parameters", [])]
     result: Schema = {"api": api, "path": key}
     result.update({marker: item[marker] for marker in (SOURCE_KEY, PROBE_KEY) if marker in item})
-    result["methods"] = {verb: _describe(op, shared, loaded) for verb, op in sorted(operations(item).items())}
+    observed: Mapping[str, Any] = item.get(OBSERVED_KEY, {})
+    result["methods"] = {
+        verb: _describe(op, shared, loaded, observed.get(verb)) for verb, op in sorted(operations(item).items())
+    }
     return result
 
 
-def _describe(operation: Mapping[str, Any], shared: list[Any], schema: Schema) -> Schema:
+def _describe(operation: Mapping[str, Any], shared: list[Any], schema: Schema, observation: Schema | None = None) -> Schema:
     described: Schema = {field: operation[field] for field in OPERATION_FIELDS if field in operation}
     own = [resolve(param, schema) for param in operation.get("parameters", [])]
     own_keys = {(param.get("name"), param.get("in")) for param in own}
@@ -255,6 +282,8 @@ def _describe(operation: Mapping[str, Any], shared: list[Any], schema: Schema) -
     described["parameters"] = [param for param in params if param.get("in") != "body"]
     if body is not None:
         described["requestBody"] = body
+    if observation is not None:
+        described[OBSERVED_KEY] = observation
     return described
 
 
@@ -411,17 +440,22 @@ def tenant_from_env(env: Mapping[str, str] | None = None) -> jamfpy.Tenant:
 def probe(supplement: Schema, tenant: jamfpy.Tenant, *, now: dt.datetime | None = None) -> Schema:
     """Probe every path template the supplement lists and return the supplement rebuilt from the answers.
 
-    Each template goes out as an OPTIONS request through ``tenant.pro.do()``, so with the tenant's token, with ``0``
-    in place of each ``{param}``. Its verbs are those in the ``Allow`` header, less HEAD and OPTIONS. A response with
-    no ``Allow`` header keeps the verbs the supplement already records for that path, marked
+    Verbs: each template goes out as an OPTIONS request through ``tenant.pro.do()``, so with the tenant's token, with
+    ``0`` in place of each ``{param}``. Its verbs are those in the ``Allow`` header, less HEAD and OPTIONS. A response
+    with no ``Allow`` header keeps the verbs the supplement already records for that path, marked
     ``"x-jamfpy-probe": "allow-header-missing"``. Every entry is marked ``"x-jamfpy-source": "options-probe"`` and
     gets a string path parameter per ``{param}``.
 
-    ``generatedAt`` moves only when the probed paths differ from the ones the supplement records, so a probe that
-    finds nothing new leaves the file byte-identical once saved.
+    Shapes: see ``observe``; each path's observations go under ``x-jamfpy-observed``, keyed by verb.
 
-    Raises ``SchemaError`` for a template without a ``/v<n>`` prefix, a non-2xx answer, or a path left with no verbs.
+    An observation's ``observedAt`` (a date) moves only when what it records changes, and ``generatedAt`` only when
+    the probed paths, verbs or observations differ from the ones the supplement records, so a probe that finds nothing
+    new leaves the file byte-identical once saved.
+
+    Raises ``SchemaError`` for a template without a ``/v<n>`` prefix, a non-2xx answer, a path left with no verbs, or
+    anything ``observe`` refuses.
     """
+    moment = now or dt.datetime.now(dt.UTC)
     probed: dict[str, Schema] = {}
     for template, item in supplement["paths"].items():
         entry: Schema = {SOURCE_KEY: PROBE_SOURCE}
@@ -439,30 +473,102 @@ def probe(supplement: Schema, tenant: jamfpy.Tenant, *, now: dt.datetime | None 
             entry["parameters"] = params
         entry.update({verb: {} for verb in HTTP_VERBS if verb in found})
         probed[template] = entry
-    recorded = supplement.get(GENERATED_KEY, {}).get("generatedAt")
-    if isinstance(recorded, str) and _canonical(supplement["paths"]) == _canonical(probed):
-        stamp = recorded
+    observed = observe(probed, tenant)
+    for template, by_verb in observed.items():
+        recorded = supplement["paths"].get(template, {}).get(OBSERVED_KEY, {})
+        probed[template][OBSERVED_KEY] = {
+            verb: _stamped(by_verb[verb], recorded.get(verb), moment.date()) for verb in HTTP_VERBS if verb in by_verb
+        }
+    recorded_stamp = supplement.get(GENERATED_KEY, {}).get("generatedAt")
+    if isinstance(recorded_stamp, str) and _canonical(supplement["paths"]) == _canonical(probed):
+        stamp = recorded_stamp
     else:
-        stamp = (now or dt.datetime.now(dt.UTC)).isoformat(timespec="seconds")
+        stamp = moment.isoformat(timespec="seconds")
     return {
         GENERATED_KEY: {
             "generatedAt": stamp,
             "method": "OPTIONS request per path through jamfpy with the tenant's token; verbs from the Allow header, "
-                      "less HEAD and OPTIONS",
-            "note": "Written by `make schemas`; the path list is curated by hand, the verbs are always probed, never "
-                    "typed. These are Pro paths the tenant serves but /api/schema/ leaves out; tools.schemas.load_pro "
-                    "merges them in.",
+                      "less HEAD and OPTIONS. Shapes under x-jamfpy-observed: a GET and a POST {} on each path without a "
+                      "{param}, and one disabled App Installers deployment created, read and deleted",
+            "note": "Written by `make schemas`; the path list is curated by hand, the verbs and shapes are always probed, "
+                    "never typed. These are Pro paths the tenant serves but /api/schema/ leaves out; "
+                    "tools.schemas.load_pro merges them in.",
         },
         "paths": probed,
     }
 
 
-def _allowed_verbs(tenant: jamfpy.Tenant, template: str) -> list[str] | None:
-    """The verbs the tenant's ``Allow`` header lists for ``template``, or ``None`` when it sends none."""
+def observe(probed: Mapping[str, Schema], tenant: jamfpy.Tenant) -> dict[str, dict[str, Schema]]:
+    """What the tenant answers on the probed paths, as ``{template: {verb: observation}}``.
+
+    Only paths without a ``{param}`` are sent anything, because a real id would mean reading or changing a record:
+
+    - GET: the 200 body's shape (see ``json_shape``);
+    - POST: ``{}``, which fails validation and creates nothing; the 400 body's ``errors`` give ``requiredFields``, each
+      ``{"field": ..., "code": ...}``, sorted by field.
+
+    When the supplement lists the App Installers titles, deployments and deployment-by-id paths, ``_observe_deployment``
+    adds the shape of a deployment read by id (and of the list, if the GET above found it empty). Each observation
+    carries ``observedAt`` (filled in by ``probe``), ``method`` (how it was taken, from ``OBSERVE_METHODS``) and
+    ``status``; one taken from the probe's own deployment is marked ``"source": "lifecycle"``.
+
+    Raises ``SchemaError`` for a non-2xx GET, a POST that does not answer 400, or a body that is not JSON.
+    """
+    observed: dict[str, dict[str, Schema]] = {}
+    for template, item in probed.items():
+        if _TEMPLATE_PARAM.search(template):
+            continue
+        found: dict[str, Schema] = {}
+        if "get" in item:
+            found["get"] = _observe_get(tenant, template)
+        if "post" in item:
+            found["post"] = _observe_post(tenant, template)
+        if found:
+            observed[template] = found
+    needed = {TITLES: "get", DEPLOYMENTS: "post", DEPLOYMENT: "delete"}
+    if all(verb in probed.get(key, {}) for key, verb in needed.items()) and "get" in probed[DEPLOYMENT]:
+        _observe_deployment(tenant, observed)
+    return observed
+
+
+def json_shape(value: object) -> Any:
+    """The JSON type of ``value``, recursively, so two bodies with the same structure give the same shape.
+
+    A scalar is ``"string"``, ``"integer"``, ``"number"``, ``"boolean"`` or ``"null"``; an object is ``{key: shape}``
+    with its keys sorted; an array is ``[shape of its first element]``, or ``[]`` when empty.
+    """
+    if isinstance(value, dict):
+        return {key: json_shape(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [json_shape(value[0])] if value else []
+    return next((name for kind, name in _SCALAR_TYPES if isinstance(value, kind)), "null")
+
+
+def _stamped(observation: Schema, recorded: Mapping[str, Any] | None, today: dt.date) -> Schema:
+    """``observation`` with ``observedAt`` set: the recorded date when nothing else changed, otherwise ``today``."""
+    stamp = today.isoformat()
+    if recorded is not None and _canonical(_unstamped(recorded)) == _canonical(observation):
+        stamp = recorded.get("observedAt", stamp)
+    # Before the rest, after any source marker, so every entry reads in the same order.
+    head = {key: observation[key] for key in ("source",) if key in observation}
+    return {**head, "observedAt": stamp, **{key: value for key, value in observation.items() if key not in head}}
+
+
+def _unstamped(observation: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in observation.items() if key != "observedAt"}
+
+
+def _probe_url(tenant: jamfpy.Tenant, template: str, param: str = PLACEHOLDER_ID) -> str:
+    """The URL of ``template`` on the tenant, each ``{param}`` filled with ``param``."""
     match = re.fullmatch(r"/v(\d+)(/.*)", template)
     if match is None:
         raise SchemaError(f"supplement path {template} has no /v<n> version prefix")
-    url = tenant.pro.url(match[1]) + _TEMPLATE_PARAM.sub(PLACEHOLDER_ID, match[2])
+    return tenant.pro.url(match[1]) + _TEMPLATE_PARAM.sub(param, match[2])
+
+
+def _allowed_verbs(tenant: jamfpy.Tenant, template: str) -> list[str] | None:
+    """The verbs the tenant's ``Allow`` header lists for ``template``, or ``None`` when it sends none."""
+    url = _probe_url(tenant, template)
     response = tenant.pro.do(requests.Request("OPTIONS", url))
     if not response.ok:
         raise SchemaError(f"OPTIONS {url} returned {response.status_code}")
@@ -471,6 +577,155 @@ def _allowed_verbs(tenant: jamfpy.Tenant, template: str) -> list[str] | None:
         return None
     listed = {verb.strip().lower() for verb in allow.split(",")}
     return [verb for verb in HTTP_VERBS if verb in listed and verb not in IMPLICIT_VERBS]
+
+
+def _get(tenant: jamfpy.Tenant, url: str) -> requests.Response:
+    return tenant.pro.do(requests.Request("GET", url, headers=tenant.pro.header("read")["json"]))
+
+
+def _json_body(response: requests.Response, what: str) -> Any:
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise SchemaError(f"{what} returned {response.status_code} with a body that is not JSON") from exc
+
+
+def _observe_get(tenant: jamfpy.Tenant, template: str, how: str = "get") -> Schema:
+    url = _probe_url(tenant, template)
+    response = _get(tenant, url)
+    if not response.ok:
+        raise SchemaError(f"GET {url} returned {response.status_code}")
+    body = _json_body(response, f"GET {url}")
+    return {"method": OBSERVE_METHODS[how], "status": response.status_code, "response": json_shape(body)}
+
+
+def _observe_post(tenant: jamfpy.Tenant, template: str) -> Schema:
+    url = _probe_url(tenant, template)
+    headers = tenant.pro.header("create-update")["json"]
+    response = tenant.pro.do(requests.Request("POST", url, headers=headers, json={}))
+    if response.ok:
+        raise SchemaError(f"POST {{}} to {url} returned {response.status_code}, so it may have created a record: check and delete it by hand")
+    if response.status_code != 400:
+        raise SchemaError(f"POST {{}} to {url} returned {response.status_code}, not the 400 validation answer the probe reads")
+    body = _json_body(response, f"POST {{}} to {url}")
+    errors = body.get("errors") if isinstance(body, dict) else None
+    fields = [
+        {"field": error["field"], "code": error.get("code")}
+        for error in (errors if isinstance(errors, list) else [])
+        if isinstance(error, dict) and isinstance(error.get("field"), str)
+    ]
+    required = sorted(fields, key=lambda field: (field["field"], str(field["code"])))
+    return {"method": OBSERVE_METHODS["post"], "status": response.status_code, "requiredFields": required}
+
+
+def _observe_deployment(tenant: jamfpy.Tenant, observed: dict[str, dict[str, Schema]]) -> None:
+    """Create one disabled App Installers deployment, read it by id, delete it, and record what the read showed.
+
+    This is the one write the probe makes. Jamf documents no deployment body and a fresh tenant has no deployment to
+    read, so the shape can only come from one the probe makes: ``enabled: false`` so it never reaches a device, named
+    ``jamfpy-schemas-probe-<8 hex>`` so a leftover traces back here, from the first catalog title. The create is inside
+    the ``try`` whose ``finally`` deletes the deployment, so any 2xx answer counts as a record that may exist; the 404
+    after the delete is checked, on the cleanup path as well. A line on stdout reports the create and the delete. When
+    the list GET found no deployments, the list is read again while this one exists, for the shape of a list item,
+    which differs from the by-id shape. Raises ``SchemaError`` when a step fails, naming the deployment when it could
+    not be created, deleted or confirmed gone.
+    """
+    titles = _get(tenant, _probe_url(tenant, TITLES) + "?page=0&page-size=1")
+    body = _json_body(titles, f"GET {TITLES}") if titles.ok else None
+    results = body.get("results") if isinstance(body, dict) else None
+    if not results:
+        raise SchemaError(f"GET {TITLES} returned {titles.status_code} and no catalog title to create the probe's deployment from")
+    name = PROBE_DEPLOYMENT_PREFIX + uuid.uuid4().hex[:8]
+    payload = {
+        "name": name, "enabled": False, "appTitleId": results[0]["id"], "deploymentType": "SELF_SERVICE", "updateBehavior": "MANUAL",
+    }
+    collection = _probe_url(tenant, DEPLOYMENTS)
+    deployment_id: str | None = None
+    deleted = False
+    try:
+        created = _create_deployment(tenant, collection, payload, name)
+        deployment_id = _created_id(created)
+        if deployment_id is None:
+            raise SchemaError(
+                f"POST {collection} returned {created.status_code} without an id: find the deployment named {name} and delete it by hand"
+            )
+        print(f"probe: created disabled deployment {deployment_id} ({name}) to observe its shape; deleting it next")
+        url = _probe_url(tenant, DEPLOYMENT, deployment_id)
+        read = _get(tenant, url)
+        if read.status_code != 200:
+            raise SchemaError(f"GET {url} returned {read.status_code}")
+        observed.setdefault(DEPLOYMENT, {})["get"] = {
+            "source": LIFECYCLE_SOURCE, "method": OBSERVE_METHODS["read"], "status": read.status_code,
+            "response": json_shape(_json_body(read, f"GET {url}")),
+        }
+        listed = observed.get(DEPLOYMENTS, {}).get("get", {}).get("response", {})
+        if isinstance(listed, dict) and listed.get("results") == []:
+            observed[DEPLOYMENTS]["get"] = {"source": LIFECYCLE_SOURCE, **_observe_get(tenant, DEPLOYMENTS, "list")}
+        deleted = _delete(tenant, url)
+        if not deleted:
+            raise SchemaError(f"DELETE {url} did not answer 204")
+        gone = _get(tenant, url).status_code
+        if gone != 404:
+            raise SchemaError(f"GET {url} returned {gone} after the probe deleted its deployment")
+        print(f"probe: deleted deployment {deployment_id}; GET by id now answers 404")
+    finally:
+        # Raised from the finally on purpose: a leftover record matters more than why the probe stopped.
+        if deployment_id is not None and not deleted:
+            _remove_leftover(tenant, _probe_url(tenant, DEPLOYMENT, deployment_id), deployment_id, name)
+
+
+def _create_deployment(tenant: jamfpy.Tenant, collection: str, payload: Mapping[str, Any], name: str) -> requests.Response:
+    """POST the probe's deployment; any 2xx answer is returned, since it may have created a record.
+
+    A transport failure becomes a ``SchemaError`` naming the deployment, because the request may have been served.
+    """
+    headers = tenant.pro.header("create-update")["json"]
+    try:
+        created = tenant.pro.do(requests.Request("POST", collection, headers=headers, json=payload))
+    except requests.RequestException as exc:
+        raise SchemaError(
+            f"POST {collection} failed ({_one_line(exc)}); if it created the probe's deployment {name}, delete it by hand"
+        ) from exc
+    if not 200 <= created.status_code < 300:
+        raise SchemaError(f"POST {collection} returned {created.status_code}; the probe could not create its deployment")
+    return created
+
+
+def _created_id(response: requests.Response) -> str | None:
+    """The ``id`` in a create's answer, or ``None`` when the body has none the probe can delete by."""
+    try:
+        raw = response.json()["id"]
+    except (ValueError, TypeError, KeyError):
+        return None
+    return str(raw) if isinstance(raw, (str, int)) and str(raw) else None
+
+
+def _remove_leftover(tenant: jamfpy.Tenant, url: str, deployment_id: str, name: str) -> None:
+    """Delete the probe's deployment after a failed step and require the GET by id to answer 404 afterwards.
+
+    Raises ``SchemaError`` naming the id and the name when the delete fails or the record can't be shown gone.
+    """
+    if not _delete(tenant, url, quiet=True):
+        raise SchemaError(f"could not delete the probe's deployment {deployment_id} ({name}): delete it by hand")
+    try:
+        status: int | str = _get(tenant, url).status_code
+    except requests.RequestException as exc:
+        status = _one_line(exc)
+    if status != 404:
+        raise SchemaError(
+            f"could not confirm the probe's deployment {deployment_id} ({name}) is gone (GET by id answered {status}): check it and delete it by hand"
+        )
+
+
+def _delete(tenant: jamfpy.Tenant, url: str, *, quiet: bool = False) -> bool:
+    """DELETE ``url``; True when the record is gone (204, or 404 when ``quiet``, the cleanup after a failure)."""
+    try:
+        status = tenant.pro.do(requests.Request("DELETE", url, headers=tenant.pro.header("delete")["json"])).status_code
+    except requests.RequestException:
+        if not quiet:
+            raise
+        return False
+    return status == 204 or (quiet and status == 404)
 
 
 # Drift

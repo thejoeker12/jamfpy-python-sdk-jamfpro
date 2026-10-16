@@ -1,7 +1,8 @@
 """Live checks of SDK behaviour the offline suite can only simulate against ``responses``.
 
-Lazy auth against the real token endpoint, parallel pagination, request hooks over a whole lifecycle and token
-invalidation on ``close()``. Marker-gated like everything under ``tests/integration`` (the conftest marks each
+Lazy auth against the real token endpoint, one token for back-to-back calls with the buffer clamp warning once, parallel
+pagination (scripts, and App Installers deployments, which no schema documents), request hooks over a whole lifecycle
+and token invalidation on ``close()``. Marker-gated like everything under ``tests/integration`` (the conftest marks each
 test). A test that needs its own ``Tenant`` builds it from the same environment variables as the session
 ``tenant`` fixture and closes it in a ``finally``; everything created goes through ``unique_name`` and ``janitor``.
 """
@@ -9,16 +10,20 @@ test). A test that needs its own ``Tenant`` builds it from the same environment 
 import logging
 import os
 import threading
+import time
 from collections import Counter
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 import jamfpy
+from jamfpy.client.constants import DEFAULT_TOKEN_BUFFER
+from jamfpy.client.utility import extract_cloud_tenant_name_from_url
 
 from .clc_resources_live_test import SPECS as CLASSIC_SPECS
 from .conftest import REQUIRED_ENV
 from .lifecycle import resolve_accessor, run_classic_lifecycle
+from .pro_resources_live_test import SPECS as PRO_SPECS
 
 pytestmark = pytest.mark.integration
 
@@ -53,6 +58,67 @@ def test_tenant_fetches_its_token_on_the_first_request():
         assert live.pro.auth.token_expiry > 0
     finally:
         live.classic.close()
+
+
+def test_back_to_back_calls_share_one_token_and_the_clamp_warns_once(caplog):
+    """With the tenant's short tokens and the default buffer, two calls fetch one token and the clamp WARNING fires once."""
+    live = _env_tenant()
+    # After Tenant(), which sets its loggers to INFO and would hide the DEBUG line each token fetch logs.
+    caplog.set_level(logging.DEBUG, logger=f"jamfpy.{extract_cloud_tenant_name_from_url(live.fqdn)}-auth")
+    try:
+        first = live.classic.categories.get_all()
+        expiry = live.pro.auth.token_expiry
+        lifetime = expiry - time.time()
+        second = live.pro.scripts.get_all()
+        assert live.pro.auth.token_expiry == expiry, "the second call fetched another token"
+    finally:
+        live.classic.close()
+
+    assert first.status_code == 200, f"categories: {first.status_code}"
+    assert second.status_code == 200, f"scripts: {second.status_code}"
+    # The clamp applies only when the buffer covers the whole token lifetime (the dev tenant's tokens last 299 s).
+    assert 0 < lifetime <= DEFAULT_TOKEN_BUFFER * 60, f"tokens last {lifetime:.0f} s, beyond the default buffer"
+    fetches = [
+        record for record in caplog.records
+        if record.getMessage().startswith("POST ") and getattr(record, "url", "").endswith("/api/oauth/token")
+    ]
+    assert len(fetches) == 1, f"{len(fetches)} token fetches"
+    clamps = [
+        record for record in caplog.records
+        if record.name.startswith("jamfpy.") and record.levelno == logging.WARNING
+        and record.getMessage().startswith("Configured token buffer")
+    ]
+    assert len(clamps) == 1, [record.getMessage() for record in clamps]
+
+
+def test_app_installers_get_all_pages_through_every_deployment(tenant, unique_name, janitor):
+    """ProGetAll fits App Installers deployments: at page_size=1 every deployment comes back, one request per page."""
+    spec = next(spec for spec in PRO_SPECS if spec["id"] == "app_installers")
+    state = spec["setup"](tenant.pro)
+    names = [f"{unique_name}-{i}" for i in (1, 2)]
+    for name in names:
+        # The spec's min builder sends enabled: false, so neither deployment reaches a device.
+        created = tenant.pro.app_installers.create(spec["min"](name, **state))
+        assert created.status_code == 201, f"create: {created.status_code} {created.text}"
+        janitor.append((tenant.pro.app_installers, created.json()["id"], (204, 404)))
+
+    seen = []
+
+    def record_page(prepared, ctx):
+        seen.append((int(parse_qs(urlsplit(prepared.url).query)["page"][0]), ctx.attempt))
+
+    tenant.hooks.before_request(record_page)
+    try:
+        resp = tenant.pro.app_installers.get_all(page_size=1)
+    finally:
+        tenant.hooks.remove(record_page)
+
+    assert resp.status_code == 200, f"get_all: {resp.status_code} {resp.text}"
+    body = resp.json()
+    assert body["totalCount"] >= 2
+    assert len(body["results"]) == body["totalCount"]
+    assert set(names) <= {deployment["name"] for deployment in body["results"]}
+    assert Counter(page for page, attempt in seen if attempt == 1) == Counter(range(body["totalCount"]))
 
 
 def test_parallel_get_all_matches_a_sequential_walk(tenant, unique_name, janitor):

@@ -1,17 +1,51 @@
 {
   "x-jamfpy-generated": {
-    "generatedAt": "2026-10-15T20:01:58+00:00",
-    "method": "OPTIONS request per path through jamfpy with the tenant's token; verbs from the Allow header, less HEAD and OPTIONS",
-    "note": "Written by `make schemas`; the path list is curated by hand, the verbs are always probed, never typed. These are Pro paths the tenant serves but /api/schema/ leaves out; tools.schemas.load_pro merges them in."
+    "generatedAt": "2026-10-16T00:36:33+00:00",
+    "method": "OPTIONS request per path through jamfpy with the tenant's token; verbs from the Allow header, less HEAD and OPTIONS. Shapes under x-jamfpy-observed: a GET and a POST {} on each path without a {param}, and one disabled App Installers deployment created, read and deleted",
+    "note": "Written by `make schemas`; the path list is curated by hand, the verbs and shapes are always probed, never typed. These are Pro paths the tenant serves but /api/schema/ leaves out; tools.schemas.load_pro merges them in."
   },
   "paths": {
     "/v1/app-installers": {
       "x-jamfpy-source": "options-probe",
-      "get": {}
+      "get": {},
+      "x-jamfpy-observed": {
+        "get": {
+          "observedAt": "2026-10-16",
+          "method": "GET through jamfpy with the tenant's token; the 200 body's shape",
+          "status": 200,
+          "response": {
+            "cloudServicesEnabled": "boolean",
+            "features": [
+              "string"
+            ]
+          }
+        }
+      }
     },
     "/v1/app-installers/titles": {
       "x-jamfpy-source": "options-probe",
-      "get": {}
+      "get": {},
+      "x-jamfpy-observed": {
+        "get": {
+          "observedAt": "2026-10-16",
+          "method": "GET through jamfpy with the tenant's token; the 200 body's shape",
+          "status": 200,
+          "response": {
+            "results": [
+              {
+                "bundleId": "string",
+                "iconUrl": "string",
+                "id": "string",
+                "installationPathShared": "boolean",
+                "publisher": "string",
+                "titleName": "string",
+                "version": "string"
+              }
+            ],
+            "totalCount": "integer"
+          }
+        }
+      }
     },
     "/v1/app-installers/titles/{id}": {
       "x-jamfpy-source": "options-probe",
@@ -30,7 +64,80 @@
     "/v1/app-installers/deployments": {
       "x-jamfpy-source": "options-probe",
       "get": {},
-      "post": {}
+      "post": {},
+      "x-jamfpy-observed": {
+        "get": {
+          "source": "lifecycle",
+          "observedAt": "2026-10-16",
+          "method": "GET through jamfpy with the tenant's token while the probe's own disabled deployment exists (the tenant had none, so the list was empty); the 200 body's shape",
+          "status": 200,
+          "response": {
+            "results": [
+              {
+                "app": {
+                  "bundleId": "string",
+                  "deployedVersion": "string",
+                  "iconUrl": "string",
+                  "id": "string",
+                  "latestVersion": "string",
+                  "mediaSourceType": "string",
+                  "selectedVersion": "string",
+                  "titleAvailableInAis": "boolean",
+                  "versionRemoved": "boolean"
+                },
+                "category": {
+                  "id": "string",
+                  "name": "null"
+                },
+                "computerStatuses": {
+                  "available": "integer",
+                  "failed": "integer",
+                  "inProgress": "integer",
+                  "installed": "integer",
+                  "unqualified": "integer"
+                },
+                "deploymentType": "string",
+                "enabled": "boolean",
+                "id": "string",
+                "name": "string",
+                "site": {
+                  "id": "string",
+                  "name": "null"
+                },
+                "smartGroup": {
+                  "id": "string",
+                  "name": "null"
+                },
+                "updateBehavior": "string"
+              }
+            ],
+            "totalCount": "integer"
+          }
+        },
+        "post": {
+          "observedAt": "2026-10-16",
+          "method": "POST {} through jamfpy with the tenant's token; the field names and codes of the 400 validation body. {} fails validation, so nothing is created",
+          "status": 400,
+          "requiredFields": [
+            {
+              "field": "appTitleId",
+              "code": "INVALID_FIELD"
+            },
+            {
+              "field": "deploymentType",
+              "code": "INVALID_FIELD"
+            },
+            {
+              "field": "name",
+              "code": "INVALID_FIELD"
+            },
+            {
+              "field": "updateBehavior",
+              "code": "INVALID_FIELD"
+            }
+          ]
+        }
+      }
     },
     "/v1/app-installers/deployments/{id}": {
       "x-jamfpy-source": "options-probe",
@@ -46,7 +153,49 @@
       ],
       "get": {},
       "put": {},
-      "delete": {}
+      "delete": {},
+      "x-jamfpy-observed": {
+        "get": {
+          "source": "lifecycle",
+          "observedAt": "2026-10-16",
+          "method": "the probe creates one disabled deployment (the first catalog title, SELF_SERVICE, MANUAL), GETs it by id, then DELETEs it and confirms the 404; the GET's 200 body's shape",
+          "status": 200,
+          "response": {
+            "appTitleId": "string",
+            "categoryId": "string",
+            "deploymentType": "string",
+            "enabled": "boolean",
+            "id": "string",
+            "installPredefinedConfigProfiles": "boolean",
+            "latestAvailableVersion": "string",
+            "name": "string",
+            "notificationSettings": {
+              "completeMessage": "null",
+              "deadline": "null",
+              "deadlineMessage": "null",
+              "notificationInterval": "null",
+              "notificationMessage": "null",
+              "quitDelay": "null",
+              "relaunch": "null",
+              "suppress": "null"
+            },
+            "selectedVersion": "string",
+            "selfServiceSettings": {
+              "categories": [],
+              "description": "null",
+              "forceViewDescription": "boolean",
+              "includeInComplianceCategory": "boolean",
+              "includeInFeaturedCategory": "boolean"
+            },
+            "siteId": "string",
+            "smartGroupId": "string",
+            "titleAvailableInAis": "boolean",
+            "triggerAdminNotifications": "boolean",
+            "updateBehavior": "string",
+            "versionRemoved": "boolean"
+          }
+        }
+      }
     },
     "/v1/app-installers/deployments/{id}/computers": {
       "x-jamfpy-source": "options-probe",
@@ -93,7 +242,33 @@
     "/v1/app-installers/global-settings": {
       "x-jamfpy-source": "options-probe",
       "get": {},
-      "put": {}
+      "put": {},
+      "x-jamfpy-observed": {
+        "get": {
+          "observedAt": "2026-10-16",
+          "method": "GET through jamfpy with the tenant's token; the 200 body's shape",
+          "status": 200,
+          "response": {
+            "deploymentProcessControls": {
+              "batchFrequencyInMinutes": "null",
+              "commandsBatchSize": "integer",
+              "daysOfWeek": "null",
+              "fromTimeOfDay": "null",
+              "toTimeOfDay": "null"
+            },
+            "endUserExperienceSettings": {
+              "completeMessage": "null",
+              "deadline": "integer",
+              "deadlineMessage": "null",
+              "notificationInterval": "integer",
+              "notificationMessage": "null",
+              "quitDelay": "null",
+              "relaunch": "boolean",
+              "suppress": "boolean"
+            }
+          }
+        }
+      }
     }
   }
 }

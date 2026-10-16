@@ -16,9 +16,9 @@ Nothing in the file is typed by hand. Its sources:
   endpoint with neither, or a spec or reason naming an endpoint that is not wired, fails the run with one line naming
   the accessor.
 """
-# The generator reads each endpoint's _uri, which the SDK keeps private on purpose, to name its resource. One
-# module on purpose too: the file's prose sits next to the code that fills it in, which outgrows pylint's 500 lines.
-# pylint: disable=protected-access,too-many-lines
+# One module on purpose: the file's prose sits next to the code that fills it in, which outgrows this repo's
+# 500-line max-module-lines (.pylintrc; pylint's own default is 1000).
+# pylint: disable=too-many-lines
 
 import argparse
 import ast
@@ -175,7 +175,7 @@ def describe(accessor: str, endpoint: Endpoint, apis: Mapping[str, jamfpy.API]) 
     except DummyValueError as exc:
         raise CoverageDocError(f"{accessor}: {exc}") from exc
     # _uri is private on purpose; the generator reads it to name the endpoint's resource.
-    return Wrapped(accessor, api, endpoint._uri, requests)
+    return Wrapped(accessor, api, endpoint._uri, requests)  # pylint: disable=protected-access
 
 
 # Schemas
@@ -416,8 +416,9 @@ def render(endpoints: Sequence[Wrapped], schemas: Mapping[str, Schema], live: Se
         "or `pro_resources_live_test.py`: ✅ where the spec has that builder, ❌ where it has none or still has the",
         "placeholder `make scaffold` writes; *Notes* is the spec's `notes`. An N/A row comes from the module's",
         "`LIVE_NOT_COVERED`, with the reason the endpoint has no spec. Every wired endpoint has one or the other:",
-        "`make coverage-doc` refuses an endpoint with neither. Behaviour that is not per resource (lazy auth, parallel",
-        "pagination, hooks over a lifecycle, `close()` invalidating the token) is checked live in",
+        "`make coverage-doc` refuses an endpoint with neither. Behaviour that is not per resource (lazy auth, one token",
+        "for back-to-back calls with the buffer-clamp warning once, parallel pagination, `pro.app_installers.get_all`",
+        "paging, hooks over a lifecycle, `close()` invalidating the token) is checked live in",
         "`tests/integration/sdk_behaviour_live_test.py`, which is not in this table.",
         "",
         *_table(
