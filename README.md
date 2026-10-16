@@ -35,7 +35,8 @@ or, in a uv project:
 uv add jamfpy
 ```
 
-The features described here ship from the next major release. The current PyPI release, 2.7.0, has no request hooks,
+The features described here ship from the next major release. The latest PyPI release, 2.6.0 (v2.7.0 exists on GitHub
+but was never published to PyPI), has no request hooks,
 retries, `configure_logging`, `parallelism` or lazy authentication.
 
 ## Quickstart
