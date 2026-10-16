@@ -11,6 +11,7 @@ Entrypoint for AI agents and junior devs working on **jamfpy** — a hand-author
 - **Touching logging or redaction** → **Logging** (log levels, `extra` fields and what `safe_mode` redacts).
 - **Querying or refreshing the API schemas** → **Querying the API schemas** and **Schemas** (`make schema-paths`, `make schema-path`, `make schemas`).
 - **Anything else** → skim **Conventions** and **Quality gates**.
+- **Picking the repo up after the October 2026 tidy-up** (what changed, what is open, what the owner still has to do) → **Round status** at the end.
 
 ---
 
@@ -532,3 +533,80 @@ tenant.pro.mdm.lock_device(["<managementId>"], message="...", pin="123456")
 
 tenant.classic.close()   # invalidates the token
 ```
+
+---
+
+## Round status (October 2026 tidy-up)
+
+Written 2026-10-16 at the end of the round that produced the stacked PRs below. Keep it current: when a PR merges or an item under **Outstanding** resolves, update this section in the same change and replace the item's `OWNER-PENDING` marker with `OWNER-DONE` and the date, so the history stays readable without the item matching the grep. `grep -n "OWNER-PENDING" AGENTS.md` is the authoritative list of what waits on the owner: every hit but this sentence is an open item.
+
+| Question | Where the answer lives |
+|---|---|
+| Where have we been? | `git log --oneline 224d712..tidy/all` (the round's commits, one per task plus each task's review fixes), the stacked PR descriptions #55 to #66 (each states its decisions, breaking changes and evidence), and the evidence folder on the owner's machine, `~/Github/jamfpy-python-sdk-jamfpro-evidence/` (one folder per PR with the exact commands and the raw logs; not in git, no credentials). |
+| What is outstanding? | **Outstanding** below: the 8 numbered items that carry the pending marker. |
+| What is next? | The owner's merge, under **Where we are**. There is no plan file in the tree: the round ran from `jamfpy-tidy-prompt.md` (the plan) and `jamfpy-tidy-rulings.md` (the owner's rulings), both untracked at the repo root on the owner's machine. |
+
+### What the round did
+
+The goal, from the plan: make jamfpy robust, fully tested and validated, and set up so an agent can pick it up cold and add, change or fix an endpoint end to end with one skill (the `jamfpy-dev` skill, [thejoeker12/ai-tools#3](https://github.com/thejoeker12/ai-tools/pull/3)). Everything started from `main` at `224d712` and landed as twelve stacked PRs, each based on the previous branch, plus one combined PR carrying all of them against `main`:
+
+| PR | Branch | PR title | What it did |
+|---|---|---|---|
+| #55 | `tidy/01-tooling` | `chore!: tooling: uv, Makefile, CI matrix, mypy, Python 3.13 floor` | uv and `uv.lock`; the Makefile as the single entrypoint; `ci.yml` with the 3.15/3.14/3.13 matrix on `astral-sh/setup-uv`; mypy strict with full type hints and `py.typed`; the 90% branch-coverage gate; `.env.example`; the stray `/json` file and the template `pyproject.toml` entries removed; `types-requests` dropped (requests ships its own types). |
+| #56 | `tidy/02-correctness` | `fix!: TLS verification, invalidate URL, token buffer and other bugs` | API requests were sent with `verify=None` (unverified); `close()` raised `MissingSchema`; a token buffer longer than the token lifetime made the SDK unusable (the dev tenant issues 299-second tokens, so the live suite was 0/38 on `main`; now the buffer clamps to half the lifetime and warns once when it is at least the lifetime); `rebuildKernalCache`; broken time parsing; the duplicate `policies` wiring. Live suite 38/38. |
+| #57 | `tidy/03-responses-migration` | `test: migrate the unit suite from FakeAPI to responses` | Every endpoint test runs through the real `API.do()`; the `tenant` fixture asserts `Authorization` on every call; proven offline with sockets blocked. |
+| #58 | `tidy/04-request-plumbing` | `feat!: lazy auth, configurable timeout, thread-safe tokens, User-Agent` | `Tenant()` no longer makes a network call; `Tenant(timeout=)` replaces `AUTH_REQUEST_TIMEOUT`; an `RLock` around token state; `User-Agent: jamfpy/<version>`. |
+| #59 | `tidy/05-retries-hooks` | `feat: retries with backoff and request hooks` | `RetryConfig`, `Retry-After`, `tenant.hooks` with the contract under **Request hooks**. |
+| #60 | `tidy/06-logging` | `feat!: logging hierarchy, configure_logging, JSON format and redaction` | `jamfpy.configure_logging()` replaces `new_logger`; the `jamfpy.*` logger hierarchy under a `NullHandler`; redaction of secrets in headers, bodies, cookies and XML (`safe_mode`). |
+| #61 | `tidy/07-schema-tooling` | `feat: schema tooling, refreshed schemas and app-installers supplement` | `tools/schemas.py` and `make schemas` with a drift summary (Pro 525 → 551 paths); Classic YAML converted to valid JSON; the verbs of the undocumented App Installers API probed into a committed supplement. |
+| #62 | `tidy/08-endpoint-capabilities` | `feat!: endpoint capability mixins, parallel pagination and non-raising get_all` | Pro endpoints compose the verbs the schema has; `Tenant(parallelism=5)` per Jamf's scalability guidance; `get_all` fans pages out and returns the first failed page instead of raising. |
+| #63 | `tidy/09-contract-tests` | `test: schema contract tests and live suite extensions` | Every public method on every endpoint checked against the schema with no allowlist; live tests for lazy auth, parallel pagination, hooks and `close()`; an App Installers deployment lifecycle. |
+| #64 | `tidy/10-scaffolder` | `feat: endpoint scaffolder and COVERAGE.md generator` | `make scaffold`; `make coverage-doc` with the `coverage-doc` CI drift check. |
+| #65 | `tidy/11-docs` | `docs: README, EXPANDING.md and ENTRYPOINTS.md` | The user-facing README (also the PyPI long description), the worked endpoint guide and the entrypoint inventory. |
+| #66 | `tidy/12-final-fixes` | `test: final review fixes (app-installers shape probe, config tests, live clamp test, logger aliases)` | The whole-stack review's findings: App Installers request and response shapes probed into the supplement, live max lifecycle and pagination, the live clamp test, the config-consistency tests, the 2.x logger aliases restored. |
+| #67 | `tidy/all` | `feat!: jamfpy tidy-up (tooling, correctness, plumbing, retries, logging, schemas, mixins, tests, scaffolder, docs)` | The combined PR: every commit of #55 to #66 against `main`, with a consolidated description and a `BREAKING CHANGE:` footer. `tidy/all` is kept equal to the tip of #66. |
+
+The breaking changes against the 2.7.0 release are consolidated in #67's description and its `BREAKING CHANGE:` footer: the Python floor is 3.13; `Tenant()` no longer raises on bad credentials (the first request or `authenticate()` does); `AUTH_REQUEST_TIMEOUT` is gone in favour of `Tenant(timeout=)`; `new_logger` is gone in favour of `configure_logging()` and the logger names changed; `utility.fix_jamf_time_to_iso` and `AccountChild.pass_response` are removed; `get_all` returns a non-ok Response instead of raising; `pro.dock_items.get_all` is removed (the schema has no collection GET); `safe_mode=False` logs raw secrets; API requests are TLS-verified by default (`verify_path` or `REQUESTS_CA_BUNDLE` for a private CA) and `Tenant.cert_path`/`verify_path` are `str`, not `Path`; `API.do()`'s `timeout` defaults to the configured value instead of 10; `DockItems` no longer subclasses `ProEndpoint`; `JamfAPIError` is imported from `jamfpy.client.exceptions`; `get_all` fans out with `parallelism=5` by default. No argument was renamed or reordered; every new keyword is trailing with a default, verified by a signature diff of every public class and function against `main`. The owner's rulings for the round (uppercase `.env` keys; the buffer clamp in the SDK rather than the tenant; App Installers kept and probed rather than removed; CI on every pull request regardless of base; the live CI variable and secrets left unset until the stack merges; the responses migration moved ahead of the behaviour PRs; a conduct-only round workflow with the evidence outside the repo; `REQUESTS_CA_BUNDLE` and proxies honoured as `requests.request()` does) and the decisions the plan did not specify (among them `types-requests` dropped as obsolete in #55, the `RLock` in #58, the sliding window instead of cancellation in #62) are each recorded in the description of the PR that made them.
+
+Gates on the final tree against `main` at `224d712`:
+
+| Gate | `main` | final tree |
+|---|---|---|
+| unit tests | 192 | 1151, fully offline |
+| branch coverage of `jamfpy/` | 94% | 98.9% (gate 90%) |
+| pylint | 9.92 | 9.99 (gate 9.0; the eight remaining messages are listed under **Outstanding**) |
+| mypy strict | not run | clean over `jamfpy/` and `tools/` |
+| `make check-matrix` | n/a | exit 0 on 3.15, 3.14 and 3.13 (rerun on the final tree on 2026-10-16) |
+| live suite, `make test-integration` | 0/38 | 46/46, no objects left on the tenant |
+| COVERAGE.md | hand-maintained | generated, drift-checked in CI |
+
+Every stacked PR had an independent review that re-derived its claims (mutation testing where it applied) and a scoped fix loop before it was pushed; a final whole-stack review against the plan produced the findings that became #66. Against the plan's "Done means" list every item holds, with one qualification: CI is green on every PR, but the live job in `integration-test.yml` is skipped in CI until the variable and secrets under **Outstanding** are set, so the live suite was run locally against the dev tenant instead (evidence in `12-final-fixes`). `make schemas` was also rerun live on the final tree on 2026-10-16: the probe created and deleted its deployment, and all three schema files came back byte-identical.
+
+### Where we are
+
+Nothing is merged. The thirteen jamfpy PRs (#55 to #67) are open with CI green on each, ai-tools#3 is open (that repo runs no CI), and #67 reports no conflicts with `main`. The merge is the owner's, one of two ways. Bottom-up: merge #55 into `main` with a merge commit and delete `tidy/01-tooling`, on which GitHub retargets #56 to `main`; repeat up to #66. Or merge #67 alone with a merge commit, then close #55 to #66 by hand (their bases are the intermediate branches, so they do not auto-close) and delete the `tidy/*` branches, locally and on origin. Either way the eighteen Conventional Commits reach `main`, and release-please turns the `!` commits into the 3.0.0 release PR (updating the pre-existing #49).
+
+Pre-existing and untouched by the round, by instruction: #49 (release-please's `chore(main): release 3.0.0`), #54 (a fork PR adding a Classic mobile-device-configuration-profiles endpoint; it predates `make scaffold`, the contract test and the generated COVERAGE.md, so it needs reworking onto that structure before it can land) and the remote branch `feat/integration-tests`.
+
+On the owner's machine: the checkout holds the thirteen `tidy/*` branches, each equal to origin; `.venv-3.13`, `.venv-3.14` and `.venv-3.15` from `make check-matrix` (gitignored); and, untracked at the root, `jamfpy-tidy-prompt.md`, `jamfpy-tidy-rulings.md` and `.env`. The `~/ai-tools` checkout is on `feat/jamfpy-dev-skill`, which is what makes the `jamfpy-dev` skill live through the `~/.claude/skills` symlink; `git -C ~/ai-tools checkout main` once #3 merges.
+
+### Outstanding
+
+Waiting on the owner:
+
+1. `OWNER-PENDING` Merge the stack (merge commits bottom-up, or #67 alone), close #55 to #66, delete the `tidy/*` branches.
+2. `OWNER-PENDING` Set the repo Actions variable `JAMFPRO_INSTANCE_FQDN` and the secrets `JAMFPRO_CLIENT_ID` / `JAMFPRO_CLIENT_SECRET`, then run `integration-test.yml` once by `workflow_dispatch` to see the live job green in CI. Left unset until the stack merges, by ruling.
+3. `OWNER-PENDING` Merge thejoeker12/ai-tools#3 (the `jamfpy-dev` skill) and return the `~/ai-tools` checkout to `main`.
+4. `OWNER-PENDING` Choose a license. There is no LICENSE file and no `license` field in `pyproject.toml`; a public PyPI package without one is all-rights-reserved.
+5. `OWNER-PENDING` `pypi-publish.yml` builds on Python 3.12 (`actions/setup-python`) while the package requires 3.13; fix it before the next publish. Left alone during the round by instruction.
+6. `OWNER-PENDING` `Tenant(fqdn="acme.jamfcloud.com")`, without a scheme, raises a bare `IndexError` from `utility.extract_cloud_tenant_name_from_url`; the README says to include `https://`. Decide between validating with a `JamfpyConfigError` and accepting a bare host.
+7. `OWNER-PENDING` The README's note under *Install* says the features ship from the next major release and names 2.7.0 as current; rewrite it when 3.0.0 publishes.
+8. `OWNER-PENDING` This file is over 110 KB. A split would help a cold reader (the test-suite description under **Quality gates** alone is a page); ask before restructuring, because the `jamfpy-dev` skill, EXPANDING.md and ENTRYPOINTS.md link to section names here.
+
+Recorded, not pending (known, accepted, fixable in a later round):
+
+- The eight remaining pylint messages (line numbers as of this writing). In `jamfpy/endpoints/pro_mdm_commands.py`: trailing whitespace after the `send_command` docstring (line 26), the 189-character `enable_lost_mode` signature (line 144), six positional arguments on `erase_device` (line 161) and 30 public methods on `MDMCommands` (line 7). `too-many-instance-attributes` (16/15) on `ClassicAPI` in `jamfpy/client/client.py` (line 42). `arguments-differ` on the three `# type: ignore[override]` methods in `jamfpy/endpoints/clc_endpoints_accounts.py` (`get_by_id` at line 17, `get_all` at lines 74 and 99).
+- `pro.mdm.send_command` sends the `read` header set on its POST; Jamf accepts it, and a characterising test pins it.
+- `JamfAuthError.args` holds the raw `Response` on both auth paths, in different shapes: `(message, response, redacted_text)` for OAuth and `(message, status_code, response)` for basic (`auth.py`). Printing the exception shows `<Response [401]>`, not a body, but the unredacted body is reachable through `exc.args`. Pre-existing shape.
+- `make schemas` makes one guarded write to the tenant (a disabled App Installers deployment, created, deleted and verified gone) because a fresh tenant has no deployment to observe; by design, see ENTRYPOINTS.md.
+- A `~/.netrc` entry for the tenant host makes `requests` replace the `Authorization: Bearer` header with Basic credentials (`trust_env`); pre-existing, unchanged.
