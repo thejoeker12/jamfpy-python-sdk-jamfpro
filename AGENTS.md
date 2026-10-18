@@ -595,7 +595,7 @@ Written 2026-10-16 at the end of the round that produced the stacked PRs below. 
 |---|---|
 | Where have we been? | `git log --oneline 224d712..tidy/all` (the round's commits, one per task plus each task's review fixes), the stacked PR descriptions #55 to #66 (each states its decisions, breaking changes and evidence), and the evidence folder on the owner's machine, `~/Github/jamfpy-python-sdk-jamfpro-evidence/` (one folder per PR with the exact commands and the raw logs; not in git, no credentials). |
 | What is outstanding? | **Outstanding** below: the 9 numbered items that carry the pending marker. |
-| What is next? | The owner's merge, under **Where we are**. There is no plan file in the tree: the round ran from `jamfpy-tidy-prompt.md` (the plan) and `jamfpy-tidy-rulings.md` (the owner's rulings), both untracked at the repo root on the owner's machine. |
+| What is next? | The owner's merge, under **Where we are**. There is no plan file: the round ran from `jamfpy-tidy-prompt.md` (the plan) and `jamfpy-tidy-rulings.md` (the owner's rulings), untracked files the owner deleted on 2026-10-18. What they decided is in the PR descriptions and the **Decision index** below; their text survives only in the session transcript named under **Handover for interrogation**. |
 | Why was it done this way, and does it work? | **Handover for interrogation** below (reading order, reproduction commands, known weak points), then the **Decision index** after it (201 rows: decision, why, where in the code, source, how to verify; `grep -n '^| D42 |' AGENTS.md`, never read whole). |
 
 ### What the round did
@@ -640,7 +640,7 @@ Nothing is merged. The thirteen jamfpy PRs (#55 to #67) are open with CI green o
 
 Pre-existing and untouched by the round, by instruction: #49 (release-please's `chore(main): release 3.0.0`), #54 (a fork PR adding a Classic mobile-device-configuration-profiles endpoint; it predates `make scaffold`, the contract test and the generated COVERAGE.md, so it needs reworking onto that structure before it can land) and the remote branch `feat/integration-tests`.
 
-On the owner's machine: the checkout holds the thirteen `tidy/*` branches, each equal to origin; `.venv-3.13`, `.venv-3.14` and `.venv-3.15` from `make check-matrix` (gitignored); and, untracked at the root, `jamfpy-tidy-prompt.md`, `jamfpy-tidy-rulings.md` and `.env`. The `~/ai-tools` checkout is on `feat/jamfpy-dev-skill`, which is what makes the `jamfpy-dev` skill live through the `~/.claude/skills` symlink; `git -C ~/ai-tools checkout main` once #3 merges.
+On the owner's machine: the checkout holds the thirteen `tidy/*` branches, each equal to origin; `.venv-3.13`, `.venv-3.14` and `.venv-3.15` from `make check-matrix` (gitignored); and, untracked at the root, `.env`. The `~/ai-tools` checkout is on `feat/jamfpy-dev-skill`, which is what makes the `jamfpy-dev` skill live through the `~/.claude/skills` symlink; `git -C ~/ai-tools checkout main` once #3 merges.
 
 ### Outstanding
 
@@ -669,7 +669,8 @@ Recorded, not pending (known, accepted, fixable in a later round):
 Written 2026-10-16 by the session that ran the round, as the entry point for a fresh session (or a person) who wants to
 question the round's code and decisions without the original conversation. It and the **Decision index** that follows it
 were two untracked files at the repo root until 2026-10-18, when the owner had them folded in here; the plan
-(`jamfpy-tidy-prompt.md`) and the owner's rulings (`jamfpy-tidy-rulings.md`) stay untracked on the owner's machine.
+(`jamfpy-tidy-prompt.md`) and the owner's rulings (`jamfpy-tidy-rulings.md`), cited below by section and by number, were
+untracked files the owner deleted the same day; what they decided is in the PR descriptions, their text in the transcript.
 
 #### How to use this handover
 
@@ -692,7 +693,8 @@ thejoeker12/ai-tools#3 are all open. `git checkout main` (224d712) shows the tre
 5. The code: `git diff <base>..<head> -- <path>` with the branches from the PR table, or the working tree.
 
 **Answering "why".** The index gives the reason in one line and cites its source: a PR body section, a numbered
-ruling in `jamfpy-tidy-rulings.md`, or a section of the plan. Quote that source. If none of them has the reason, say
+ruling, or a section of the plan. Quote that source; the rulings and plan files are gone, so for those quote the description of
+the PR that applied the ruling or plan section (each PR states the rulings it followed). If none of them has the reason, say
 so; do not reconstruct one.
 
 **Answering "does it work".** Reproduce (*Reproduction* below) rather than trust a log. The offline gates take about a minute;
@@ -884,7 +886,7 @@ numbers. Section D lists claims that could not be located or where a PR body and
 Conventions in the `Where` column: `path::symbol` names a file and a symbol that exists in the working tree (class, `Class.method`, function,
 constant, test function, Makefile target, config key, workflow job, or a markdown heading); `path:LINE` is used only where there is no symbol.
 In the `Source` column `#NN <section>` is a PR body section ("Decisions" is "Decisions the plan did not specify" or its equivalent),
-`ruling N` is the numbered ruling in `jamfpy-tidy-rulings.md`, `plan: <section>` is a section of `jamfpy-tidy-prompt.md`.
+`ruling N` is the numbered ruling in `jamfpy-tidy-rulings.md` and `plan: <section>` a section of `jamfpy-tidy-prompt.md`, the two untracked files the round ran from; the owner deleted both on 2026-10-18, so those citations are historical, and the description of the PR that applied a ruling is where its text now lives.
 In the `Verify` column a bare name is a test function (`make test`, or `make test-integration` for the live ones under `tests/integration/`),
 `ev:` is a log or README in the evidence folder. No tenant hostname, client id, secret or token appears in this index.
 
