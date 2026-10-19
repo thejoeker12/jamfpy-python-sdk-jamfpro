@@ -73,3 +73,29 @@ def test_build_needs_no_setuptools_scm():
     """The version is static in pyproject.toml (release-please edits it), so nothing derives it from git."""
     requires = PYPROJECT["build-system"]["requires"]
     assert not [name for name in requires if re.match(r"setuptools[-_]scm", name, re.IGNORECASE)], requires
+
+
+def _no_test_gate() -> tuple[list[dict[str, object]], dict[str, object]]:
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "integration-test.yml").read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["integration"]["steps"]
+    gate = next(step for step in steps if step.get("name") == "Fail on a (no-test) PR title")
+    return steps, gate
+
+
+def test_no_test_gate_fails_before_the_live_suite():
+    """A (no-test) PR title fails the integration job (a skip would count as passed) before anything touches the tenant."""
+    steps, gate = _no_test_gate()
+    assert steps.index(gate) == 0
+    assert gate["if"] == "github.event_name == 'pull_request'"
+    assert "exit 1" in str(gate["run"])
+
+
+def test_no_test_gate_matches_only_the_no_test_scope():
+    """The gate's pattern catches type(no-test): and type(no-test)!:, nothing else."""
+    found = re.search(r"grep -Eq '([^']+)'", str(_no_test_gate()[1]["run"]))
+    assert found, "the gate has no grep pattern"
+    pattern = re.compile(found[1])
+    for title in ("docs(no-test): fix a typo", "feat(no-test)!: drop a method"):
+        assert pattern.search(title), title
+    for title in ("docs: fix a typo", "docs(no-tests): x", "docs(api): x", "chore: (no-test) in the subject"):
+        assert not pattern.search(title), title
