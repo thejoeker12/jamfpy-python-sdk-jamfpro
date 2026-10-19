@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  # The (no-test) gate reads the PR's current title.
+  pull-requests: read
 
 # One live run at a time — two runs mutating the same tenant is asking for flakes.
 concurrency:
@@ -28,13 +30,32 @@ jobs:
       JAMFPRO_CLIENT_ID: ${{ secrets.JAMFPRO_CLIENT_ID }}
       JAMFPRO_CLIENT_SECRET: ${{ secrets.JAMFPRO_CLIENT_SECRET }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - name: Install dependencies
+      # A (no-test) PR title skips the live suite by failing, never by skipping: a skipped required
+      # check counts as passed, and this one should block the merge unless an admin bypasses it.
+      # The title is read from the API, not the event payload, so a re-run after a retitle sees the new one.
+      - name: Fail on a (no-test) PR title
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          python -m pip install --upgrade pip
-          pip install requests pytest
+          title=$(gh pr view "$PR_URL" --json title --jq .title)
+          if printf '%s\n' "$title" | grep -Eq '^[a-z]+\(no-test\)!?:'; then
+            echo "::error::The PR title has the (no-test) scope, so the live suite did not run. Run make check locally; only a repo admin can merge this PR."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --frozen
+        env:
+          UV_PYTHON: "3.13"
+          UV_FROZEN: "1"
       - name: Run live integration tests
-        run: pytest -m integration tests/integration -v
+        run: make test-integration
+        env:
+          # Pin the interpreter and forbid lock rewrites for every `uv run` inside make.
+          UV_PYTHON: "3.13"
+          UV_FROZEN: "1"

@@ -1,21 +1,44 @@
 """api model"""
 
+import logging
+import random
+import time
+from collections.abc import Callable
 from logging import Logger
-from requests import Session, Request, Response
+from typing import Any
+
+from requests import PreparedRequest, Session, Request, Response
+from requests.exceptions import ConnectionError as RequestsConnectionError, ReadTimeout
 
 from .auth import Auth
+from .constants import DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, Timeout
+from .hooks import Hooks, RequestContext
 from .http_config import HTTPConfig
-from .logger import new_logger
-from .utility import extract_cloud_tenant_name_from_url
+from .logger import render_body, render_headers, tenant_logger
+from .retry import RetryConfig, RetryPolicy, describe_outcome
+from .utility import extract_cloud_tenant_name_from_url, user_agent
 from .exceptions import JamfpyConfigError
 
 
 class API:
-    """Base class providing core functionality for interacting with Jamf Pro APIs."""
+    """Base class providing core functionality for interacting with Jamf Pro APIs.
 
-    _headers_dict = {}
+    Safe to share between threads: ``do()`` puts the Authorization header on each request rather than on the
+    session, so the session holds only the connection pool (which urllib3 guards), the cookie jar, the
+    redirect cache and the headers set once here; nothing on it changes per request.
+
+    ``retries`` sets how ``do()`` retries a failed attempt (``None`` turns retries off) and ``hooks`` the
+    request hooks it fires (``None`` means none). ``sleep`` and ``random_source`` exist so tests can run the
+    retry loop without waiting or randomness.
+
+    ``parallelism`` caps the requests the SDK itself runs at once for one operation it fans out (today, the page
+    fetches of a Pro ``get_all``); ``1`` makes those sequential. It never throttles, queues or serialises requests
+    the caller makes concurrently. Less than 1 raises ``ValueError``.
+    """
+
+    _headers_dict: dict[str, str] = {}
     _is_closed = False
-    _short_name = None
+    _short_name: str
     _version: str
     _http_config: HTTPConfig
     _logger: Logger
@@ -25,23 +48,42 @@ class API:
             *,
             fqdn: str,
             auth: Auth,
-            log_level,
+            log_level: int,
             http_config: HTTPConfig,
             safe_mode: bool,
-            session: Session,
-            logger: Logger,
-            cert_path: str = None,
-            verify_path: str = None,
-
+            session: Session | None,
+            logger: Logger | None,
+            cert_path: str | None = None,
+            verify_path: str | None = None,
+            timeout: Timeout = DEFAULT_TIMEOUT,
+            retries: RetryConfig | None = RetryConfig(),
+            hooks: Hooks | None = None,
+            sleep: Callable[[float], None] = time.sleep,
+            random_source: Callable[[], float] = random.random,
+            parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
 
+        # bool is an int subclass, so True would otherwise pass as 1.
+        if isinstance(parallelism, bool) or not isinstance(parallelism, int) or parallelism < 1:
+            raise ValueError(f"parallelism must be an int of at least 1, got {parallelism!r}")
+        self._parallelism = parallelism
         self._fqdn = fqdn
         self.auth = auth
         self._http_config: HTTPConfig = http_config
         self.cert_path = cert_path
         self.verify_path = verify_path
+        self._timeout = timeout
+        self._retry = RetryPolicy(retries, sleep, random_source) if retries is not None else None
+        self._hooks = hooks if hooks is not None else Hooks()
 
         self._session = session or Session()
+        # do() resolves verify/cert through merge_environment_settings, which falls back to these when neither an
+        # explicit path nor an env CA bundle is set, so the default is always verified, including on a caller's session.
+        self._session.verify = verify_path if verify_path else True
+        self._session.cert = cert_path
+        # Set once, never per request: requests merges session headers under each request's own, so an endpoint's
+        # accept/content-type still win over the session's default Accept.
+        self._session.headers["User-Agent"] = user_agent()
         self._safe_mode = safe_mode
 
         self._logger = self._init_logging(logger, log_level)
@@ -54,17 +96,11 @@ class API:
 
     # Private Methods - Init
 
-    def _init_logging(self, logger, log_level) -> None:
-        """Inits loggers for API Object"""
-
-        # Everything after the slashes, before the first dot of an fqdn
-        # This is where the unique identifier of a Jamf Pro Cloud instance is found.
-        tenant_name = extract_cloud_tenant_name_from_url(self._fqdn)
-
-        return logger or new_logger(
-            name=f"{tenant_name}-{self._short_name}",
-            level=log_level
-        )
+    def _init_logging(self, logger: Logger | None, log_level: int) -> Logger:
+        """The caller's logger as-is, or this API's ``jamfpy.{tenant}-{pro|clc}`` child logger set to ``log_level``."""
+        if logger is not None:
+            return logger
+        return tenant_logger(extract_cloud_tenant_name_from_url(self._fqdn), self._short_name, log_level)
 
 
     def _init_baseurl(self) -> None:
@@ -77,8 +113,6 @@ class API:
         self._base_url = https://your_server.jamfcloud.com/api/v{version}
         """
 
-        self._logger.debug("FUNCTION: _init_baseurl")
-
         api_suffix: str = self._http_config.urls["api"][self._version]
         self.base_url = self._fqdn + api_suffix
 
@@ -87,23 +121,8 @@ class API:
         """
         Loads headers into object
         """
-        self._logger.debug("FUNCTION: _init_headers")
-        self._headers = self._http_config.headers["crud"]
+        self._headers: dict[str, dict[str, Any]] = self._http_config.headers["crud"]
 
-
-
-    # @_check_closed
-    def _refresh_session_headers(self) -> None:
-        """Clears all session headers and replaces with new Auth header"""
-
-        self._logger.debug("Refreshing session headers (Clear + Re-set)")
-
-        self._session.headers.clear()
-
-        token = self.auth.token()
-        self._session.headers.update({"Authorization": f"Bearer {token}"})
-
-        self._logger.debug("Session headers refreshed successfully")
 
 
     # Public Methods
@@ -114,14 +133,15 @@ class API:
 
         self._logger.info("Closing %s", str(self))
 
-        self.auth.invalidate()
+        if not self.auth.invalidate():
+            self._logger.warning("Token invalidation failed for %s", self._fqdn)
         self._is_closed = True
 
         self._logger.info("%s closed", str(self))
 
 
     # @_check_closed
-    def url(self, target=None) -> str:
+    def url(self, target: str | None = None) -> str:
         """
         Allows access to base url from endpoint
         Universal interface across API versions
@@ -136,7 +156,7 @@ class API:
 
 
     # @_check_closed
-    def header(self, key: str) -> str:
+    def header(self, key: str) -> dict[str, Any]:
         """Returns given set of headers from config"""
         try:
             return self._headers[key]
@@ -146,28 +166,106 @@ class API:
 
 
     # @_check_closed
-    def do(self, request: Request, timeout: int = 10) -> Response:
-        """Takes request, preps and sends"""
-        self._refresh_session_headers()
+    def do(self, request: Request, timeout: Timeout | None = None) -> Response:
+        """
+        Adds the Authorization header, preps and sends the request, retrying as the configured RetryConfig allows.
 
-        do_debug_string = "%s: Method: %s at: %s with headers: %s"
+        ``timeout`` overrides the configured timeout for this call only; ``None`` uses the configured one.
+        Returns the last response, whatever its status. Raises the send's exception when it isn't retryable
+        or the retries run out.
 
-        request_header_log = "no headers supplied"
-        if request.headers:
-            request_header_log = request.headers if not self._safe_mode else "[redacted]"
+        Logs one INFO line per attempt (method, URL, status, duration) and, at DEBUG, the request and response
+        headers and bodies, redacted under ``safe_mode``. Every line carries the fields as ``extra``.
+        """
+        send_timeout = self._timeout if timeout is None else timeout
+        retry = self._retry
+        attempt = 1
 
-        self._logger.debug(do_debug_string, "prepping", request.method, request.url, request_header_log)
+        while True:
+            # Prepared afresh each attempt, so a token that expired during the backoff is refreshed before the resend.
+            prepped = self._prepare(request)
+            ctx = RequestContext(tenant=self._fqdn, api=self._version, attempt=attempt, started=time.monotonic())
+            # Firing is internal to the API; Hooks keeps it private so consumers can only register and remove.
+            self._hooks._fire_before_request(self._logger, prepped, ctx)  # pylint: disable=protected-access
 
-        prepped = self._session.prepare_request(request)
+            fields: dict[str, object] = {"method": prepped.method, "url": prepped.url, "attempt": attempt}
+            self._log_request(prepped, fields)
+            sent = time.monotonic()
+            outcome: Response | Exception
+            try:
+                outcome = self._send(prepped, send_timeout)
+            # The only exceptions the retry rules cover (SSLError, a ConnectionError, is ruled out by RetryPolicy);
+            # anything else, such as InvalidURL, propagates from here at once.
+            except (RequestsConnectionError, ReadTimeout) as exc:
+                outcome = exc
+            fields["duration_ms"] = round((time.monotonic() - sent) * 1000)
+            self._log_outcome(outcome, fields)
+            if isinstance(outcome, Response):
+                self._hooks._fire_after_response(self._logger, prepped, outcome, ctx)  # pylint: disable=protected-access
 
-        prepped_header_log = "no headers supplied"
-        if prepped.headers:
-            prepped_header_log = prepped.headers if not self._safe_mode else "[redacted]"
+            delay = None if retry is None else retry.delay(self._logger, prepped, outcome, attempt, extra=fields)
+            if retry is None or delay is None:
+                if isinstance(outcome, Exception):
+                    raise outcome
+                return outcome
 
-        self._logger.debug(do_debug_string, "sending", prepped.method, prepped.url, prepped_header_log)
+            self._logger.warning(
+                "Retrying %s %s: attempt %d failed with %s; next attempt in %.2f s",
+                prepped.method, prepped.url, attempt, describe_outcome(outcome), delay, extra=fields
+            )
+            self._hooks._fire_on_retry(self._logger, prepped, ctx, outcome, delay)  # pylint: disable=protected-access
+            retry.sleep(delay)
+            attempt += 1
 
-        response = self._session.send(prepped, timeout=timeout, cert=self.cert_path, verify=self.verify_path)
+    def _prepare(self, request: Request) -> PreparedRequest:
+        """Put the current token on the request and prepare it against the session."""
+        # On the request, never the shared session, so concurrent callers can't see each other's header changes. A new
+        # dict, not an in-place update: endpoints pass the configured header sets, which must never carry a token.
+        request.headers = {**(request.headers or {}), "Authorization": f"Bearer {self.auth.token()}"}
+        return self._session.prepare_request(request)
 
-        self._logger.debug("Success: Code: %s Req: %s %s", response.status_code, prepped.method, response.url)
+    def _send(self, prepped: PreparedRequest, timeout: Timeout) -> Response:
+        """Send one attempt with the environment's TLS and proxy settings."""
+        # Session.send bypasses the env merge that Session.request does (CA bundle and proxy env vars); auth calls go
+        # through requests.request and already honour it, so resolve the same settings here.
+        # prepare_request always sets the URL (it raises otherwise); requests only types it as optional.
+        assert prepped.url is not None
+        settings = self._session.merge_environment_settings(prepped.url, {}, None, self.verify_path, self.cert_path)
+        return self._session.send(prepped, timeout=timeout, **settings)
 
-        return response
+    def _log_request(self, prepped: PreparedRequest, fields: dict[str, object]) -> None:
+        """DEBUG: the request's headers and body, as sent."""
+        # Checked first: rendering redacts and serialises the body, which is wasted work when DEBUG is off.
+        if not self._logger.isEnabledFor(logging.DEBUG):
+            return
+        self._logger.debug(
+            "Request %s %s (attempt %d): headers=%s body=%s",
+            prepped.method, prepped.url, fields["attempt"],
+            render_headers(prepped.headers, self._safe_mode), render_body(prepped.body, self._safe_mode), extra=fields
+        )
+
+    def _log_outcome(self, outcome: Response | Exception, fields: dict[str, object]) -> None:
+        """INFO: one line for the attempt; DEBUG: the response's headers and body. Adds ``status`` to ``fields``."""
+        # The attempt number only appears from the first retry on, so a clean request reads as a single plain line.
+        retry_note = f", attempt {fields['attempt']}" if fields["attempt"] != 1 else ""
+        if isinstance(outcome, Exception):
+            # No status to report: the exception's class stands in for it. The WARNING or ERROR that follows, or the
+            # exception itself, gives the detail.
+            self._logger.info(
+                "%s %s -> %s (%d ms%s)", fields["method"], fields["url"], type(outcome).__name__, fields["duration_ms"],
+                retry_note, extra=fields
+            )
+            return
+
+        fields["status"] = outcome.status_code
+        self._logger.info(
+            "%s %s -> %d (%d ms%s)", fields["method"], fields["url"], outcome.status_code, fields["duration_ms"],
+            retry_note, extra=fields
+        )
+        if self._logger.isEnabledFor(logging.DEBUG):
+            self._logger.debug(
+                "Response %s %s -> %d (attempt %d): headers=%s body=%s",
+                fields["method"], fields["url"], outcome.status_code, fields["attempt"],
+                render_headers(outcome.headers, self._safe_mode), render_body(outcome.content, self._safe_mode),
+                extra=fields
+            )

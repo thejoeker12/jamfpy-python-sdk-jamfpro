@@ -1,16 +1,26 @@
 """Constants and configuration values used throughout the Jamf Pro API client."""
 
 from logging import INFO
+from typing import Any
 
 DEFAULT_LOG_LEVEL = INFO
 DEFAULT_TOKEN_BUFFER = 20
 
-AUTH_REQUEST_TIMEOUT = 20
+# Seconds, as requests takes them: one value for both phases, or a (connect, read) pair.
+Timeout = float | tuple[float, float]
+DEFAULT_TIMEOUT: Timeout = 30.0
+
+# Most requests the SDK runs at once for one operation it fans out (today, ProEndpoint.get_all's page fetches). Five is
+# Jamf's ceiling for concurrent connections from one client:
+# https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-scalability-best-practices
+DEFAULT_PARALLELISM = 5
+
 TIME_ROUNDING_DECIMAL_COUNT = 3
 
 VALID_AUTH_METHODS = ("oauth2", "basic")
 
-DEFAULT_HTTP_CONFIG_URLS = {
+# Nested and mixed-depth (str leaves beside sub-dicts), and callers index straight into them, so values are Any.
+DEFAULT_HTTP_CONFIG_URLS: dict[str, Any] = {
     "base_cloud": "https://{tenant}.jamfcloud.com",
     "auth": {
         "bearer": "/api/v1/auth/token",
@@ -24,7 +34,7 @@ DEFAULT_HTTP_CONFIG_URLS = {
     }
 }
 
-DEFAULT_HTTP_CONFIG_HEADERS = {
+DEFAULT_HTTP_CONFIG_HEADERS: dict[str, Any] = {
         "auth": {
             "oauth": {
                 "Content-Type": "application/x-www-form-urlencoded"

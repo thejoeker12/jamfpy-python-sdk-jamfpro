@@ -1,81 +1,236 @@
-"""Shared fixtures and test doubles for the jamfpy suite.
+"""Shared fixtures and helpers for the jamfpy unit suite.
 
-The SDK's only real work is assembling ``requests.Request`` objects and handing
-them to a network layer, so nearly every test either records the Request an
-endpoint builds (via ``FakeAPI``) or patches the two network boundaries
-(``jamfpy.client.auth.request`` and ``API._session.send``). Nothing here touches
-a live tenant.
+Tests drive the real SDK stack (``Tenant`` -> ``Auth`` -> ``API.do()`` -> ``Session``)
+and mock only the network edge, with ``responses``: it replaces
+``HTTPAdapter.send``, so the auth calls (``requests.request()``) and every
+endpoint call (``API.do()`` -> ``Session.send``) land in one ``RequestsMock``
+that serves registered URLs and records each ``PreparedRequest`` in
+``mocked_responses.calls``. An unregistered URL raises ``ConnectionError``, so
+nothing can reach a live tenant.
+
+``tenant`` is a real OAuth ``Tenant``, authenticated against a token endpoint
+answered by ``mocked_responses``; ``pro_api`` and ``classic_api`` are its two
+APIs, so an endpoint test sees the Authorization header the real ``Auth``
+injects, and the fixture fails any test whose API call went out without it.
+Its APIs keep the default ``RetryConfig``, as a real ``Tenant`` does, but record each
+backoff delay in ``sleeps`` instead of sleeping, so a retried status costs no time.
+A test of lazy auth builds its own ``Tenant`` instead, and registers the token
+endpoint only if it makes a request (every registration must be used). The TLS tests in
+``api_test.py`` patch ``HTTPAdapter.send`` themselves instead, because they
+assert the keyword arguments that reach the adapter.
+
+This ``tenant`` is the offline one. ``tests/integration/conftest.py`` defines a
+different fixture with the same name that builds a ``Tenant`` against a real
+tenant from the environment.
 """
-# pylint: disable=protected-access,too-few-public-methods
+# pylint: disable=redefined-outer-name,protected-access
 import json
 import logging
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from importlib import metadata
 
 import pytest
-from requests import Response
+import responses
+from requests.utils import default_headers
+from responses.registries import FirstMatchRegistry
 
-from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS
+import jamfpy
 
 FQDN = "https://test.jamfcloud.com"
+TOKEN_URL = f"{FQDN}/api/oauth/token"
+FAKE_TOKEN = "fake-access-token"
+USER_AGENT = f"jamfpy/{metadata.version('jamfpy')}"
+THREADS = 20
+# Long enough that, without the Auth lock, every thread released together would reach the token endpoint.
+SLOW_TOKEN_SECS = 0.2
 
 
-def make_response(json_body=None, status=200, encoding="utf-8", headers=None, url=f"{FQDN}/x"):
-    """Build a real ``requests.Response`` with a JSON body for offline tests.
+def register_oauth_token(rsps, token=FAKE_TOKEN, expires_in=1800):
+    """Answer the OAuth client-credentials request with a token; returns the registration (for ``call_count``)."""
+    return rsps.post(
+        TOKEN_URL,
+        json={"access_token": token, "expires_in": expires_in, "token_type": "Bearer", "scope": "api-role:1"},
+    )
 
-    Used where the code under test actually reads the response (``.ok``,
-    ``.json()``, ``.raise_for_status()``) — the transforming endpoints and auth.
+
+def register_slow_oauth_token(rsps, token):
+    """Answer the OAuth token request after ``SLOW_TOKEN_SECS``, so concurrent callers pile up behind it."""
+    def callback(_request):
+        time.sleep(SLOW_TOKEN_SECS)
+        return 200, {}, json.dumps({"access_token": token, "expires_in": 1800})
+
+    return rsps.add_callback(responses.POST, TOKEN_URL, callback=callback)
+
+
+def run_together(fn):
+    """Call ``fn`` from ``THREADS`` threads released at once by a barrier; return every thread's result."""
+    barrier = threading.Barrier(THREADS, timeout=10)
+
+    def worker():
+        barrier.wait()
+        return fn()
+
+    with ThreadPoolExecutor(max_workers=THREADS) as pool:
+        futures = [pool.submit(worker) for _ in range(THREADS)]
+        # Bounded, so a deadlock fails the test instead of hanging the suite.
+        return [future.result(timeout=30) for future in futures]
+
+
+def _lower_keys(headers):
+    return {k.lower(): v for k, v in headers.items()}
+
+
+def with_bearer(header_set):
+    """Every header ``API.do()`` sends for an endpoint's header set, names lower-cased (see ``sent_headers``).
+
+    The session's requests defaults with jamfpy's User-Agent, the endpoint's headers over them (so its ``accept``
+    replaces the default ``Accept: */*``), and the Authorization header from the real Auth.
     """
-    resp = Response()
-    resp.status_code = status
-    resp.encoding = encoding
-    resp.url = url
-    if headers:
-        resp.headers.update(headers)
-    if json_body is not None:
-        resp._content = json.dumps(json_body).encode(encoding)
-    return resp
+    session_defaults = {**default_headers(), "User-Agent": USER_AGENT}
+    return {**_lower_keys(session_defaults), **_lower_keys(header_set), "authorization": f"Bearer {FAKE_TOKEN}"}
 
 
-class FakeAPI:
-    """Stand-in for ``ClassicAPI``/``ProAPI`` that records the Requests it's handed.
+def sent_headers(request):
+    """A recorded request's headers minus Content-Length, which requests derives from the body.
 
-    Endpoints only ever call ``url()``, ``header()`` and ``do()`` on their API,
-    so this is enough to unit-test request construction in isolation.
+    Names are lower-cased because HTTP header names are case-insensitive and requests keeps whichever spelling
+    was set last, so an endpoint's ``accept`` over the session's ``Accept`` goes out as ``accept``.
     """
+    return {k: v for k, v in _lower_keys(request.headers).items() if k != "content-length"}
 
-    def __init__(self, responses=None):
-        self.requests = []
-        self._responses = list(responses) if responses is not None else []
-        # Returned by do() when no explicit response queue is supplied; most
-        # endpoint tests assert on the recorded Request, not the return value.
-        self.default_response = object()
 
-    @property
-    def last_request(self):
-        """The most recently recorded Request, or None."""
-        return self.requests[-1] if self.requests else None
+def _assert_every_api_call_authorised(calls):
+    """Fail if any call other than a token request lacks the Bearer token ``Auth`` was issued.
 
-    def url(self, target=None):
-        """Mimic ``API.url``: classic ignores target, pro formats the version in."""
-        if target is None:
-            return f"{FQDN}/JSSResource"
-        return f"{FQDN}/api/v{target}"
+    The token is ``FAKE_TOKEN`` unless the test makes ``Auth`` fetch another, in which case a token
+    the token endpoint handed out in the test is also accepted.
+    """
+    issued = {FAKE_TOKEN}
+    issued.update(call.response.json()["access_token"] for call in calls if call.request.url == TOKEN_URL)
+    accepted = {f"Bearer {token}" for token in issued}
+    unauthorised = [
+        f"{call.request.method} {call.request.url}"
+        for call in calls
+        if call.request.url != TOKEN_URL and call.request.headers.get("Authorization") not in accepted
+    ]
+    assert not unauthorised, f"requests sent without a Bearer token from Auth: {unauthorised}"
 
-    def header(self, key):
-        """Return the real CRUD header set so header shape matches production."""
-        return DEFAULT_HTTP_CONFIG_HEADERS["crud"][key]
 
-    def do(self, request):
-        """Record the Request and return the next queued (or default) response."""
-        self.requests.append(request)
-        if self._responses:
-            return self._responses.pop(0)
-        return self.default_response
+def _jamfpy_loggers():
+    """The ``jamfpy`` logger and every child created so far, by name."""
+    return {
+        name: logger for name, logger in logging.Logger.manager.loggerDict.items()
+        if isinstance(logger, logging.Logger) and (name == "jamfpy" or name.startswith("jamfpy."))
+    }
+
+
+@pytest.fixture(autouse=True)
+def restore_jamfpy_logging():
+    """Put every jamfpy logger's level and handlers back after each test.
+
+    ``configure_logging()`` and ``Tenant(log_level=...)`` change process-wide logger state; without this a handler
+    one test installs (on a stream that is then closed) or a level it sets would leak into the tests after it.
+    """
+    saved = {name: (logger.level, list(logger.handlers)) for name, logger in _jamfpy_loggers().items()}
+    yield
+    for name, logger in _jamfpy_loggers().items():
+        level, handlers = saved.get(name, (logging.NOTSET, []))
+        logger.setLevel(level)
+        logger.handlers[:] = handlers
 
 
 @pytest.fixture
-def fake_api():
-    """A fresh recording FakeAPI per test."""
-    return FakeAPI()
+def response_registry():
+    """The ``responses`` registry class behind ``mocked_responses``.
+
+    The default serves a matching registration for every request, however often it repeats.
+    A module that must not loop forever on a repeated URL overrides this with ``OrderedRegistry``,
+    which spends one registration per request, in order.
+    """
+    return FirstMatchRegistry
+
+
+@pytest.fixture
+def mocked_responses(response_registry):
+    """An active ``RequestsMock``: registered URLs are served, anything else raises ``ConnectionError``.
+
+    Every registration must be used, so a test cannot carry a dead one.
+    """
+    with responses.RequestsMock(registry=response_registry, assert_all_requests_are_fired=True) as rsps:
+        yield rsps
+
+
+@pytest.fixture
+def sleeps():
+    """Every delay the ``tenant`` APIs' retry loop asked for, in order; they append here instead of sleeping."""
+    return []
+
+
+@pytest.fixture
+def tenant(mocked_responses, sleeps):
+    """A real OAuth ``Tenant``, authenticated against the mocked token endpoint.
+
+    ``Tenant()`` is lazy, so the fixture calls ``authenticate()`` to fetch the token up front and then
+    resets the call log: ``mocked_responses.calls`` holds only the requests the test itself triggers.
+    The 1800 s token sits outside the (clamped 900 s) refresh buffer, so no test refetches it
+    unless it moves ``token_expiry``. Retries keep their defaults; only the sleep is swapped for ``sleeps``.
+
+    At teardown it asserts that every call the test made, bar token requests, carried the
+    Authorization header, so an endpoint test cannot skip that check.
+    """
+    register_oauth_token(mocked_responses)
+    built = jamfpy.Tenant(
+        fqdn=FQDN,
+        auth_method="oauth2",
+        client_id="test-client-id",
+        client_secret="test-client-secret",
+        log_level=logging.CRITICAL,
+    )
+    built.authenticate()
+    mocked_responses.calls.reset()
+    for api in (built.pro, built.classic):
+        api._retry.sleep = sleeps.append
+    yield built
+    _assert_every_api_call_authorised(mocked_responses.calls)
+
+
+@pytest.fixture
+def pro_api(tenant):
+    """The tenant's real ``ProAPI``."""
+    return tenant.pro
+
+
+@pytest.fixture
+def classic_api(tenant):
+    """The tenant's real ``ClassicAPI``."""
+    return tenant.classic
+
+
+@pytest.fixture
+def make_classic_api(classic_api, sleeps, silent_logger):
+    """Build a ``ClassicAPI`` on the tenant's ``Auth``, for a test that needs its own retries, hooks or logger.
+
+    Keyword arguments go to ``ClassicAPI``. It records backoff delays in ``sleeps`` unless given a ``sleep``,
+    draws 0.5 for jitter unless given a ``random_source``, and logs nowhere unless given a ``logger``.
+    """
+    def build(**kwargs):
+        kwargs.setdefault("logger", silent_logger)
+        kwargs.setdefault("random_source", lambda: 0.5)
+        kwargs.setdefault("sleep", sleeps.append)
+        return jamfpy.ClassicAPI(fqdn=FQDN, auth=classic_api.auth, **kwargs)
+    return build
+
+
+@pytest.fixture
+def warning_logger():
+    """A logger at WARNING that propagates, so caplog sees exactly what a WARNING-level user would."""
+    logger = logging.getLogger("jamfpy-test-warnings")
+    logger.handlers.clear()
+    logger.setLevel(logging.WARNING)
+    logger.propagate = True
+    return logger
 
 
 @pytest.fixture

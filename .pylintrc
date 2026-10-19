@@ -88,7 +88,7 @@ persistent=yes
 
 # Minimum Python version to use for version dependent checks. Will default to
 # the version used to run pylint.
-py-version=3.11
+py-version=3.13
 
 # Discover python modules and packages in the file system subtree.
 recursive=no
@@ -98,10 +98,6 @@ recursive=no
 # directory used to determine a package namespace for modules located under the
 # source root.
 source-roots=
-
-# When enabled, pylint would attempt to guess common misconfiguration and emit
-# user-friendly hints instead of false-positive error messages.
-suggestion-mode=yes
 
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
@@ -283,7 +279,14 @@ exclude-too-few-public-methods=
 
 # List of qualified class names to ignore when counting class parents (see
 # R0901)
-ignored-parents=
+# The Pro capability mixins: each contributes one method, so composing all five
+# is one design choice, not eight levels of inheritance.
+ignored-parents=jamfpy.endpoints.models.ProBase,
+                jamfpy.endpoints.models.ProGetAll,
+                jamfpy.endpoints.models.ProGetById,
+                jamfpy.endpoints.models.ProCreate,
+                jamfpy.endpoints.models.ProUpdateById,
+                jamfpy.endpoints.models.ProDeleteById
 
 # Maximum number of arguments for function / method.
 max-args=15

@@ -12,3 +12,16 @@ __pycache__
 .DS_Store
 
 .venv
+.venv-*
+
+# Local secrets (.env.example stays tracked)
+.env
+
+# Tool output
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/

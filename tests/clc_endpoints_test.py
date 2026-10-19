@@ -1,12 +1,9 @@
 """Unit tests for the Classic endpoint registry and ClassicAPI wiring."""
-# pylint: disable=missing-function-docstring,redefined-outer-name
-from unittest.mock import MagicMock
-
+# pylint: disable=missing-function-docstring
 import pytest
-from conftest import FakeAPI, FQDN
+from conftest import FQDN, sent_headers, with_bearer
 
-from jamfpy.client.client import ClassicAPI
-from jamfpy.client.http_config import HTTPConfig
+from jamfpy.client.constants import DEFAULT_HTTP_CONFIG_HEADERS as H
 from jamfpy.endpoints import clc_endpoints as clc
 
 # (class, _uri, _name) for every Classic endpoint. Guards accidental URI/name drift.
@@ -36,10 +33,14 @@ def test_uri_and_name(cls, uri, name):
 
 
 @pytest.mark.parametrize("cls,uri,name", CLASSIC_ENDPOINTS)
-def test_get_by_id_builds_expected_url(cls, uri, name):  # pylint: disable=unused-argument
-    api = FakeAPI()
-    cls(api).get_by_id(7)
-    assert api.last_request.url == f"{FQDN}/JSSResource{uri}/id/7"
+def test_get_by_id_builds_expected_url(classic_api, mocked_responses, cls, uri, name):  # pylint: disable=unused-argument
+    url = f"{FQDN}/JSSResource{uri}/id/7"
+    mocked_responses.get(url, json={})
+    cls(classic_api).get_by_id(7)
+    req = mocked_responses.calls[-1].request
+    assert req.method == "GET"
+    assert req.url == url
+    assert sent_headers(req) == with_bearer(H["crud"]["read"]["json"])
 
 
 # Endpoint attributes ProAPI/ClassicAPI wiring must expose (client.py).
@@ -49,14 +50,6 @@ EXPECTED_ATTRS = [
     "buildings", "packages", "computers", "mobile_devices", "sites", "departments",
     "accounts", "restricted_software",
 ]
-
-
-@pytest.fixture
-def classic_api(silent_logger):
-    auth = MagicMock()
-    auth.token.return_value = "tok"
-    return ClassicAPI(fqdn=FQDN, auth=auth, http_config=HTTPConfig(),
-                      safe_mode=True, session=MagicMock(), logger=silent_logger)
 
 
 @pytest.mark.parametrize("attr", EXPECTED_ATTRS)
