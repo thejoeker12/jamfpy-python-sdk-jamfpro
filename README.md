@@ -102,6 +102,14 @@ Either `tenant.classic.close()` or `tenant.pro.close()` will do: the two APIs sh
 invalidates it on the server. Requests sent after that carry the invalidated token and get a 401, so build a new
 `Tenant` to start again.
 
+## Examples
+
+The repository's [examples](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/examples/README.md)
+folder has a runnable script per topic: authentication, error handling, calling an endpoint jamfpy doesn't wrap,
+logging, timeouts and retries, pagination, certificates, request hooks, concurrency, and a create, read, update and
+delete cycle on each API. Each reads its credentials from the environment; the folder's README lists the variables
+and says which two scripts write to the tenant.
+
 ## Authentication
 
 `auth_method` picks how jamfpy gets its token. Either way, every API request carries `Authorization: Bearer <token>`,
