@@ -666,3 +666,8 @@ a worked guide to adding an endpoint. Every task runs through make:
 CI runs (lint, type check, the unit tests with coverage, and the COVERAGE.md drift check). The live integration suite,
 `make test-integration`, needs a development Jamf Pro tenant: copy `.env.example` to `.env` and fill in the three
 `JAMFPRO_` variables it lists. Commits follow Conventional Commits, which drive the releases.
+
+## License
+
+Apache License 2.0. See [LICENSE](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/LICENSE) and
+[NOTICE](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/NOTICE); a redistribution keeps both.

@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools"]
+# 77 is the first release that reads the PEP 639 license fields below.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +9,8 @@ authors = [
     {name = "Joseph Little"},
 ]
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.13"
 version = "2.7.0"
 
