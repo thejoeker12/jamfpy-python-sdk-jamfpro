@@ -69,6 +69,24 @@ def test_py_typed_ships_with_the_package():
     assert "py.typed" in PYPROJECT["tool"]["setuptools"]["package-data"]["jamfpy"]
 
 
+def test_package_declares_its_license():
+    """Apache-2.0, with LICENSE and NOTICE shipped, since the license requires both to travel with a redistribution."""
+    assert PYPROJECT["project"]["license"] == "Apache-2.0"
+    assert PYPROJECT["project"]["license-files"] == ["LICENSE", "NOTICE"]
+    assert (ROOT / "LICENSE").read_text(encoding="utf-8").lstrip().startswith("Apache License")
+    assert (ROOT / "NOTICE").is_file()
+
+
+def test_pypi_build_uses_the_python_floor():
+    """The release build runs on the floor version, not on one the package refuses to install on."""
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "pypi-publish.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["pypi-publish"]
+    floor = re.fullmatch(r">=(\S+)", PYPROJECT["project"]["requires-python"])
+    assert floor, PYPROJECT["project"]["requires-python"]
+    assert job["env"]["UV_PYTHON"] == floor[1]
+    assert not [step for step in job["steps"] if "setup-python" in str(step.get("uses", ""))]
+
+
 def test_build_needs_no_setuptools_scm():
     """The version is static in pyproject.toml (release-please edits it), so nothing derives it from git."""
     requires = PYPROJECT["build-system"]["requires"]
