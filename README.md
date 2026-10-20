@@ -192,7 +192,7 @@ Every argument is keyword-only.
 
 | Keyword | Default | What it does |
 |---|---|---|
-| `fqdn` | required | The instance's URL, with its scheme and without a trailing slash: `https://acme.jamfcloud.com`. Its first label (`acme`) names the loggers. |
+| `fqdn` | required | The instance's URL without a trailing slash: `https://acme.jamfcloud.com`. A bare host (`acme.jamfcloud.com`) gets `https://`. Its first label (`acme`) names the loggers. |
 | `auth_method` | required | `"oauth2"` or `"basic"` (see [Authentication](#authentication)). |
 | `client_id`, `client_secret` | `None` | The API client's credentials, for `oauth2`. |
 | `username`, `password` | `None` | A Jamf Pro user's credentials, for `basic`. |

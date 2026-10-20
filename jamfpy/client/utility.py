@@ -16,6 +16,13 @@ def extract_cloud_tenant_name_from_url(fqdn: str) -> str:
     return fqdn.split("//")[1].split(".")[0]
 
 
+def normalise_fqdn(fqdn: str) -> str:
+    """Returns ``fqdn`` with ``https://`` in front when it has no scheme (``acme.jamfcloud.com``); otherwise as given."""
+    if "://" in fqdn:
+        return fqdn
+    return f"https://{fqdn}"
+
+
 def user_agent() -> str:
     """The User-Agent jamfpy identifies itself with: ``jamfpy/<installed version>``, or ``jamfpy/unknown``."""
     try:

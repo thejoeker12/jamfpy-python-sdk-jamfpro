@@ -13,6 +13,7 @@ from .http_config import HTTPConfig
 from .retry import RetryConfig
 from .constants import DEFAULT_LOG_LEVEL, DEFAULT_PARALLELISM, DEFAULT_TIMEOUT, DEFAULT_TOKEN_BUFFER, VALID_AUTH_METHODS, Timeout
 from .exceptions import JamfpyConfigError
+from .utility import normalise_fqdn
 
 
 
@@ -60,6 +61,8 @@ class Tenant:
       retries: RetryConfig | None = RetryConfig(),
       parallelism: int = DEFAULT_PARALLELISM,
     ) -> None:
+        # Every URL is built by appending a path to it, so it needs a scheme.
+        fqdn = normalise_fqdn(fqdn)
         self.fqdn = fqdn
         self.token_exp_threshold_mins = token_exp_threshold_mins
         self.cert_path = cert_path
