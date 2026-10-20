@@ -9,19 +9,19 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      # Build on the floor version from requires-python, as CI does.
+      UV_PYTHON: "3.13"
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v10.3.0
 
-      - name: Install build tooling
-        run: python -m pip install --upgrade pip build
+      - run: uv python install 3.13
 
       - name: Build sdist and wheel
-        run: python -m build
+        run: uv build
         # produces dist/*.tar.gz and dist/*.whl
 
       - name: Publish to PyPI

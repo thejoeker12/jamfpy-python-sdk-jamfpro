@@ -68,6 +68,21 @@ def test_oauth_tenant_builds_both_apis_without_a_request(mocked_responses):
     assert tenant.pro.auth is tenant.classic.auth is tenant._auth
 
 
+def test_bare_host_fqdn_gets_https(mocked_responses):
+    register_oauth_token(mocked_responses)
+    mocked_responses.get(COMPUTERS_URL, json={})
+    tenant = jamfpy.Tenant(fqdn=FQDN.removeprefix("https://"), auth_method="oauth2", client_id="c", client_secret="s",
+                           log_level=logging.CRITICAL)
+    assert tenant.fqdn == FQDN
+    tenant.classic.computers.get_all()
+    assert [call.request.url for call in mocked_responses.calls] == [TOKEN_URL, COMPUTERS_URL]
+
+
+def test_fqdn_with_a_scheme_is_kept_as_given():
+    assert jamfpy.Tenant(fqdn="http://jamf.example.com:8080", auth_method="oauth2", client_id="c",
+                         client_secret="s").fqdn == "http://jamf.example.com:8080"
+
+
 @pytest.mark.parametrize("kwargs, expected", [({}, 5), ({"parallelism": 1}, 1), ({"parallelism": 3}, 3)])
 def test_parallelism_reaches_both_apis(kwargs, expected):
     tenant = _oauth_tenant(**kwargs)

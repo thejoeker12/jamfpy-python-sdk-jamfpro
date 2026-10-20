@@ -7,6 +7,7 @@ import pytest
 
 from jamfpy.client.utility import (
     extract_cloud_tenant_name_from_url,
+    normalise_fqdn,
     compare_dict_keys,
     format_jamf_datetime,
     create_single_file_payload,
@@ -21,6 +22,15 @@ def test_extract_tenant_name_from_cloud_url():
 def test_extract_tenant_name_requires_double_slash():
     with pytest.raises(IndexError):
         extract_cloud_tenant_name_from_url("acme.jamfcloud.com")
+
+
+@pytest.mark.parametrize("fqdn, expected", [
+    ("acme.jamfcloud.com", "https://acme.jamfcloud.com"),
+    ("https://acme.jamfcloud.com", "https://acme.jamfcloud.com"),
+    ("http://jamf.example.com:8080", "http://jamf.example.com:8080"),
+])
+def test_normalise_fqdn_adds_https_only_without_a_scheme(fqdn, expected):
+    assert normalise_fqdn(fqdn) == expected
 
 
 def test_compare_dict_keys_returns_intersection():

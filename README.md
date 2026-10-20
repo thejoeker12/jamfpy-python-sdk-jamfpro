@@ -192,7 +192,7 @@ Every argument is keyword-only.
 
 | Keyword | Default | What it does |
 |---|---|---|
-| `fqdn` | required | The instance's URL, with its scheme and without a trailing slash: `https://acme.jamfcloud.com`. Its first label (`acme`) names the loggers. |
+| `fqdn` | required | The instance's URL without a trailing slash: `https://acme.jamfcloud.com`. A bare host (`acme.jamfcloud.com`) gets `https://`. Its first label (`acme`) names the loggers. |
 | `auth_method` | required | `"oauth2"` or `"basic"` (see [Authentication](#authentication)). |
 | `client_id`, `client_secret` | `None` | The API client's credentials, for `oauth2`. |
 | `username`, `password` | `None` | A Jamf Pro user's credentials, for `basic`. |
@@ -666,3 +666,8 @@ a worked guide to adding an endpoint. Every task runs through make:
 CI runs (lint, type check, the unit tests with coverage, and the COVERAGE.md drift check). The live integration suite,
 `make test-integration`, needs a development Jamf Pro tenant: copy `.env.example` to `.env` and fill in the three
 `JAMFPRO_` variables it lists. Commits follow Conventional Commits, which drive the releases.
+
+## License
+
+Apache License 2.0. See [LICENSE](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/LICENSE) and
+[NOTICE](https://github.com/thejoeker12/jamfpy-python-sdk-jamfpro/blob/main/NOTICE); a redistribution keeps both.
