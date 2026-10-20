@@ -33,8 +33,8 @@ lock: ## Re-resolve uv.lock after a dependency change in pyproject.toml (commit 
 lint: ## Run pylint over every tracked Python file (fails under 9.0)
 	uv run pylint $$(git ls-files '*.py') --fail-under=9.0
 
-typecheck: ## Run mypy (strict, from pyproject.toml) over the package and tools/
-	uv run mypy jamfpy tools
+typecheck: ## Run mypy (strict, from pyproject.toml) over the package, tools/ and examples/
+	uv run mypy jamfpy tools examples
 
 test: ## Run the offline unit suite
 	uv run pytest -q
