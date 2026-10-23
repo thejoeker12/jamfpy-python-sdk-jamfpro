@@ -17,6 +17,7 @@ from .retry import RetryConfig
 from ..endpoints.clc_endpoints import (
     ComputerGroups,
     MobileDeviceGroups,
+    MobileDeviceConfigurationProfiles,
     Policies,
     ConfigurationProfiles,
     ExtensionAttributes,
@@ -87,6 +88,7 @@ class ClassicAPI(API):
         # Endpoints
         self.computer_groups = ComputerGroups(self)
         self.mobile_device_groups = MobileDeviceGroups(self)
+        self.mobile_device_configuration_profiles = MobileDeviceConfigurationProfiles(self)
         self.policies = Policies(self)
         self.configuration_profiles = ConfigurationProfiles(self)
         self.computer_extension_attributes = ExtensionAttributes(self)
